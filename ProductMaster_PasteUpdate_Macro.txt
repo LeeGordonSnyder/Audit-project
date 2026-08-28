@@ -1,0 +1,102 @@
+Private Sub Worksheet_Change(ByVal Target As Range)
+
+    Const PASTE_COL As String = "G"
+    Const PASTE_FIRST_ROW As Long = 3
+
+    Dim pasteRange As Range
+    Set pasteRange = Me.Range(PASTE_COL & PASTE_FIRST_ROW & ":" & PASTE_COL & Me.Rows.Count)
+    If Intersect(Target, pasteRange) Is Nothing Then Exit Sub
+
+    Dim lastPasted As Long
+    lastPasted = Me.Cells(Me.Rows.Count, PASTE_COL).End(xlUp).Row
+    If lastPasted < PASTE_FIRST_ROW Then Exit Sub
+
+    Application.EnableEvents = False
+    On Error GoTo CleanUp
+
+    Dim curName As String, curSKU As String, curColor As String
+    Dim curSize As String, curUPC As String, curAvail As String
+    Dim updatedCount As Long
+
+    Dim r As Long, ln As String
+    For r = PASTE_FIRST_ROW To lastPasted
+        ln = Trim$(CStr(Me.Cells(r, PASTE_COL).Value))
+        If ln <> "" Then
+            If LCase$(Left$(ln, 3)) = "sku" Then
+                curSKU = Trim$(Mid$(ln, 4))
+            ElseIf LCase$(Left$(ln, 5)) = "color" Then
+                curColor = Trim$(Mid$(ln, 6))
+            ElseIf LCase$(Left$(ln, 4)) = "size" Then
+                curSize = Trim$(Mid$(ln, 5))
+            ElseIf LCase$(Left$(ln, 3)) = "upc" Then
+                curUPC = Trim$(Mid$(ln, 4))
+            ElseIf LCase$(Left$(ln, 4)) = "dept" Then
+                ' Dept is not stored in Product Master -- ignored on purpose.
+            ElseIf LCase$(Left$(ln, 5)) = "style" Then
+                ' Style is not stored in Product Master -- ignored on purpose.
+            ElseIf LCase$(Left$(ln, 9)) = "available" Then
+                Dim availRaw As String, parts() As String
+                availRaw = Trim$(Mid$(ln, 10))
+                parts = Split(availRaw, "/")
+                If UBound(parts) >= 1 Then
+                    curAvail = Trim$(parts(1))   ' second number = total on-hand
+                Else
+                    curAvail = Trim$(parts(0))
+                End If
+                ' "Available" is always the last field for a product -> upsert now.
+                If curUPC <> "" Then
+                    Call UpsertProductMaster(curUPC, curSKU, curName, curColor, curSize, curAvail)
+                    updatedCount = updatedCount + 1
+                End If
+                curName = "": curSKU = "": curColor = "": curSize = "": curUPC = "": curAvail = ""
+            Else
+                ' Unrecognized label -> this is the product name line (start of a new record).
+                curName = ln
+            End If
+        End If
+    Next r
+
+CleanUp:
+    Me.Range(PASTE_COL & PASTE_FIRST_ROW & ":" & PASTE_COL & lastPasted).ClearContents
+    Application.EnableEvents = True
+    If Err.Number <> 0 Then
+        MsgBox "Paste parsing hit an error: " & Err.Description, vbExclamation
+    ElseIf updatedCount > 0 Then
+        MsgBox updatedCount & " product(s) updated in Product Master.", vbInformation
+    End If
+
+End Sub
+
+Private Sub UpsertProductMaster(upc As String, sku As String, prodName As String, color As String, size As String, avail As String)
+
+    Dim lastRow As Long
+    lastRow = Me.Cells(Me.Rows.Count, "A").End(xlUp).Row
+    If lastRow < 1 Then lastRow = 1
+
+    Dim foundRow As Long, r As Long
+    foundRow = 0
+    For r = 2 To lastRow
+        If Trim$(CStr(Me.Cells(r, 1).Value)) = Trim$(upc) Then
+            foundRow = r
+            Exit For
+        End If
+    Next r
+
+    If foundRow = 0 Then
+        foundRow = lastRow + 1
+        Me.Cells(foundRow, 1).NumberFormat = "@"
+        Me.Cells(foundRow, 1).Value = upc
+    End If
+
+    Me.Cells(foundRow, 2).Value = sku
+    If prodName <> "" Then Me.Cells(foundRow, 3).Value = prodName
+
+    Dim desc As String
+    desc = Trim$(color & " " & size)
+    If desc <> "" Then Me.Cells(foundRow, 4).Value = desc
+
+    If avail <> "" And IsNumeric(avail) Then
+        Me.Cells(foundRow, 5).Value = CDbl(avail)
+    End If
+
+End Sub
