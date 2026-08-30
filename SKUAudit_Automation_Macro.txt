@@ -23,6 +23,14 @@ Const OVERDUE_THRESHOLD_DAYS As Long = 29
 
 Private Sub Worksheet_Change(ByVal Target As Range)
 
+    ' Scan Date and Auditor Initials depend on iterative calculation, which some
+    ' Excel save/round-trip paths (e.g. Save As Macro-Enabled Workbook) can reset
+    ' even though it's saved in the file. Force it on every time this runs, so a
+    ' lost setting can't silently break the freeze-on-first-entry formulas again.
+    Application.Iteration = True
+    Application.MaxIterations = 100
+    Application.MaxChange = 0.001
+
     Dim pasteRange As Range, countRange As Range
     Dim miDoneRange As Range, moDoneRange As Range
 
