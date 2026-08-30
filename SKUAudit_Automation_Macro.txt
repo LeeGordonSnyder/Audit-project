@@ -121,6 +121,13 @@ Private Sub HandlePaste(ByVal Target As Range)
                                                                   ' existing Scan Date / Auditor
                                                                   ' Initials formulas already in
                                                                   ' this row, same as a manual scan.
+
+                        ' Iterative/circular formulas (Scan Date, Auditor Initials) need an
+                        ' explicit recalculation to converge -- done right here, per row, so a
+                        ' later error (e.g. while adding a Mark In/Out checkbox for a DIFFERENT
+                        ' row) can never skip it and leave this row's date/initials blank.
+                        Me.Calculate
+
                         addedCount = addedCount + 1
 
                         ' Negative Expected Qty is a standing data problem, independent of any
@@ -139,13 +146,15 @@ Private Sub HandlePaste(ByVal Target As Range)
         End If
     Next r
 
-    ' Iterative/circular formulas (Scan Date, Auditor Initials) need an explicit
-    ' full recalculation to converge -- a single implicit recalc during this loop
-    ' isn't reliable for them, unlike ordinary (non-circular) formulas.
+CleanUp:
+    ' Runs whether the loop above finished cleanly or hit an error -- always
+    ' recalculates and clears the paste zone, so a problem partway through
+    ' never leaves stale formulas or leftover pasted text behind.
+    On Error Resume Next
     Application.Calculate
     Call RefreshOverdueList
+    On Error GoTo 0
 
-CleanUp:
     Me.Range(PASTE_COL & PASTE_FIRST_ROW & ":" & PASTE_COL & lastPasted).ClearContents
     Application.EnableEvents = True
     If Err.Number <> 0 Then
@@ -357,6 +366,9 @@ Private Sub EnsureRefreshButton()
     Set b = Me.Buttons.Add(target.Left, target.Top, 150, 18)
     b.Name = "btnRefreshOverdue"
     b.Caption = "Refresh Overdue List"
-    b.OnAction = "RefreshOverdueList"
+    ' Must be qualified with the sheet name -- RefreshOverdueList lives in this
+    ' sheet's own code module, not a Standard module, and Excel's button-click
+    ' resolution won't reliably find it by bare name alone.
+    b.OnAction = "'" & Me.Name & "'!RefreshOverdueList"
 
 End Sub
