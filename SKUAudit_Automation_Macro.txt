@@ -1,16 +1,24 @@
-Const PASTE_COL As String = "Q"
+Const PASTE_COL As String = "S"
 Const PASTE_FIRST_ROW As Long = 3
 Const AUDIT_FIRST_ROW As Long = 7
 Const AUDIT_LAST_ROW As Long = 506
 
-Const MARK_FIRST_ROW As Long = 4
-Const MARK_LAST_ROW As Long = 253
-' Mark In columns: T=UPC, U=Product Name, V=Audit Row, W=Adjuster Initials, X=Completed, Y=Date Completed
-Const MI_UPC As String = "T": Const MI_NAME As String = "U": Const MI_ROW As String = "V"
-Const MI_INIT As String = "W": Const MI_DONE As String = "X": Const MI_DATE As String = "Y"
-' Mark Out columns: AA=UPC, AB=Product Name, AC=Audit Row, AD=Adjuster Initials, AE=Completed, AF=Date Completed
-Const MO_UPC As String = "AA": Const MO_NAME As String = "AB": Const MO_ROW As String = "AC"
-Const MO_INIT As String = "AD": Const MO_DONE As String = "AE": Const MO_DATE As String = "AF"
+Const MARK_FIRST_ROW As Long = 5
+Const MARK_LAST_ROW As Long = 254
+
+' Mark In columns: V=UPC, W=Product Name, X=Audit Row, Y=Adjuster Initials, Z=Completed, AA=Date Completed
+Const MI_UPC As String = "V": Const MI_NAME As String = "W": Const MI_ROW As String = "X"
+Const MI_INIT As String = "Y": Const MI_DONE As String = "Z": Const MI_DATE As String = "AA"
+' Mark Out columns: AC=UPC, AD=Product Name, AE=Audit Row, AF=Adjuster Initials, AG=Completed, AH=Date Completed
+Const MO_UPC As String = "AC": Const MO_NAME As String = "AD": Const MO_ROW As String = "AE"
+Const MO_INIT As String = "AF": Const MO_DONE As String = "AG": Const MO_DATE As String = "AH"
+
+' Overdue-to-Scan columns: AJ=Style/Product Name, AK=Gender, AL=Color, AM=Last Scanned, AN=Days Overdue
+Const OD_NAME As String = "AJ": Const OD_GENDER As String = "AK": Const OD_COLOR As String = "AL"
+Const OD_LASTSCAN As String = "AM": Const OD_DAYS As String = "AN"
+Const OD_FIRST_ROW As Long = 5
+Const OD_LAST_ROW As Long = 254
+Const OVERDUE_THRESHOLD_DAYS As Long = 29
 
 
 Private Sub Worksheet_Change(ByVal Target As Range)
@@ -19,7 +27,7 @@ Private Sub Worksheet_Change(ByVal Target As Range)
     Dim miDoneRange As Range, moDoneRange As Range
 
     Set pasteRange = Me.Range(PASTE_COL & PASTE_FIRST_ROW & ":" & PASTE_COL & Me.Rows.Count)
-    Set countRange = Me.Range("F" & AUDIT_FIRST_ROW & ":H" & AUDIT_LAST_ROW)   ' F=Expected Qty, G=BOH, H=Floor
+    Set countRange = Me.Range("H" & AUDIT_FIRST_ROW & ":J" & AUDIT_LAST_ROW)   ' H=Expected Qty, I=BOH, J=Floor
     Set miDoneRange = Me.Range(MI_DONE & MARK_FIRST_ROW & ":" & MI_DONE & MARK_LAST_ROW)
     Set moDoneRange = Me.Range(MO_DONE & MARK_FIRST_ROW & ":" & MO_DONE & MARK_LAST_ROW)
 
@@ -32,6 +40,7 @@ Private Sub Worksheet_Change(ByVal Target As Range)
         For Each c In Intersect(Target, countRange).Cells
             Call EvaluateRowForQueue(c.Row)
         Next c
+        Application.Calculate
 CleanUpCount:
         Application.EnableEvents = True
     ElseIf Not Intersect(Target, miDoneRange) Is Nothing Then
@@ -56,7 +65,7 @@ Private Sub HandlePaste(ByVal Target As Range)
     Application.EnableEvents = False
     On Error GoTo CleanUp
 
-    Dim curName As String, curSKU As String, curColor As String
+    Dim curName As String, curSKU As String, curGender As String, curColor As String
     Dim curSize As String, curUPC As String, availVal As String
     Dim addedCount As Long
     Dim nextRow As Long
@@ -68,16 +77,16 @@ Private Sub HandlePaste(ByVal Target As Range)
         If ln <> "" Then
             If LCase$(Left$(ln, 3)) = "sku" Then
                 curSKU = Trim$(Mid$(ln, 4))
+            ElseIf LCase$(Left$(ln, 4)) = "dept" Then
+                curGender = Trim$(Mid$(ln, 5))
+            ElseIf LCase$(Left$(ln, 5)) = "style" Then
+                ' Style CODE is not stored -- Product Name already serves as the style name.
             ElseIf LCase$(Left$(ln, 5)) = "color" Then
                 curColor = Trim$(Mid$(ln, 6))
             ElseIf LCase$(Left$(ln, 4)) = "size" Then
                 curSize = Trim$(Mid$(ln, 5))
             ElseIf LCase$(Left$(ln, 3)) = "upc" Then
                 curUPC = Trim$(Mid$(ln, 4))
-            ElseIf LCase$(Left$(ln, 4)) = "dept" Then
-                ' Dept is not stored on the audit line -- ignored on purpose.
-            ElseIf LCase$(Left$(ln, 5)) = "style" Then
-                ' Style is not stored on the audit line -- ignored on purpose.
             ElseIf LCase$(Left$(ln, 9)) = "available" Then
                 Dim availRaw As String, parts() As String
                 availRaw = Trim$(Mid$(ln, 10))
@@ -99,13 +108,12 @@ Private Sub HandlePaste(ByVal Target As Range)
                     Else
                         Me.Cells(nextRow, "C").Value = curSKU
                         If curName <> "" Then Me.Cells(nextRow, "D").Value = curName
-
-                        Dim desc As String
-                        desc = Trim$(curColor & " " & curSize)
-                        If desc <> "" Then Me.Cells(nextRow, "E").Value = desc
+                        If curGender <> "" Then Me.Cells(nextRow, "E").Value = curGender
+                        If curColor <> "" Then Me.Cells(nextRow, "F").Value = curColor
+                        If curSize <> "" Then Me.Cells(nextRow, "G").Value = curSize
 
                         If availVal <> "" And IsNumeric(availVal) Then
-                            Me.Cells(nextRow, "F").Value = CDbl(availVal)
+                            Me.Cells(nextRow, "H").Value = CDbl(availVal)
                         End If
 
                         Me.Cells(nextRow, "B").NumberFormat = "@"
@@ -123,13 +131,19 @@ Private Sub HandlePaste(ByVal Target As Range)
                     End If
                 End If
 
-                curName = "": curSKU = "": curColor = "": curSize = "": curUPC = "": availVal = ""
+                curName = "": curSKU = "": curGender = "": curColor = "": curSize = "": curUPC = "": availVal = ""
             Else
                 ' Unrecognized label -> this is the product name line (start of a new record).
                 curName = ln
             End If
         End If
     Next r
+
+    ' Iterative/circular formulas (Scan Date, Auditor Initials) need an explicit
+    ' full recalculation to converge -- a single implicit recalc during this loop
+    ' isn't reliable for them, unlike ordinary (non-circular) formulas.
+    Application.Calculate
+    Call RefreshOverdueList
 
 CleanUp:
     Me.Range(PASTE_COL & PASTE_FIRST_ROW & ":" & PASTE_COL & lastPasted).ClearContents
@@ -143,10 +157,10 @@ CleanUp:
 End Sub
 
 
-' Checks one audit row after it changes and, if it now qualifies, appends it to
-' the Mark In and/or Mark Out queue. Append-only and idempotent per queue: a row
-' already queued (tracked by its Audit Row number) is never re-added or removed,
-' matching the rest of the workbook's "once recorded, stays recorded" design.
+' Checks one audit row after it changes and keeps the Mark In / Mark Out queues in
+' sync: queues the row if it now qualifies, and removes it again if it no longer
+' does (e.g. a mis-typed count gets corrected) -- UNLESS that entry has already
+' been checked off, in which case it's left alone as a completed historical record.
 Private Sub EvaluateRowForQueue(ByVal r As Long)
 
     If r < AUDIT_FIRST_ROW Or r > AUDIT_LAST_ROW Then Exit Sub
@@ -158,20 +172,29 @@ Private Sub EvaluateRowForQueue(ByVal r As Long)
     Dim prodName As String
     prodName = CStr(Me.Cells(r, "D").Value)
 
+    Dim qualifiesMarkIn As Boolean, qualifiesMarkOut As Boolean
+
     Dim expectedQty As Variant
-    expectedQty = Me.Cells(r, "F").Value
+    expectedQty = Me.Cells(r, "H").Value
     If IsNumeric(expectedQty) Then
-        If CDbl(expectedQty) < 0 Then
-            Call QueueRow(MI_UPC, MI_NAME, MI_ROW, MI_INIT, MI_DONE, r, upc, prodName)
-        End If
+        If CDbl(expectedQty) < 0 Then qualifiesMarkIn = True
     End If
 
     Dim status As String
-    status = CStr(Me.Cells(r, "K").Value)
-    If status = "Overage" Then
+    status = CStr(Me.Cells(r, "M").Value)
+    If status = "Overage" Then qualifiesMarkIn = True
+    If status = "Shortage" Then qualifiesMarkOut = True
+
+    If qualifiesMarkIn Then
         Call QueueRow(MI_UPC, MI_NAME, MI_ROW, MI_INIT, MI_DONE, r, upc, prodName)
-    ElseIf status = "Shortage" Then
+    Else
+        Call RemoveFromQueue(MI_UPC, MI_NAME, MI_ROW, MI_INIT, MI_DONE, MI_DATE, r)
+    End If
+
+    If qualifiesMarkOut Then
         Call QueueRow(MO_UPC, MO_NAME, MO_ROW, MO_INIT, MO_DONE, r, upc, prodName)
+    Else
+        Call RemoveFromQueue(MO_UPC, MO_NAME, MO_ROW, MO_INIT, MO_DONE, MO_DATE, r)
     End If
 
 End Sub
@@ -210,6 +233,43 @@ Private Sub QueueRow(colUPC As String, colName As String, colRow As String, colI
 End Sub
 
 
+' Removes a row from a queue (and deletes its checkbox) once it no longer
+' qualifies -- but only if it hasn't already been checked off as completed,
+' so a corrected mistake never erases an adjuster's completed work record.
+Private Sub RemoveFromQueue(colUPC As String, colName As String, colRow As String, colInit As String, _
+                             colDone As String, colDate As String, ByVal sourceRow As Long)
+
+    Dim r As Long
+    For r = MARK_FIRST_ROW To MARK_LAST_ROW
+        Dim v As Variant
+        v = Me.Cells(r, colRow).Value
+        If Not IsEmpty(v) Then
+            If Trim$(CStr(v)) <> "" Then
+                If CLng(v) = sourceRow Then
+                    If CBool(Me.Cells(r, colDone).Value) = True Then Exit Sub   ' completed -- keep it
+
+                    Dim shp As Shape
+                    For Each shp In Me.Shapes
+                        On Error Resume Next
+                        If shp.TopLeftCell.Address = Me.Cells(r, colDone).Address Then shp.Delete
+                        On Error GoTo 0
+                    Next shp
+
+                    Me.Cells(r, colUPC).ClearContents
+                    Me.Cells(r, colName).ClearContents
+                    Me.Cells(r, colRow).ClearContents
+                    Me.Cells(r, colInit).ClearContents
+                    Me.Cells(r, colDone).ClearContents
+                    Me.Cells(r, colDate).ClearContents
+                    Exit Sub
+                End If
+            End If
+        End If
+    Next r
+
+End Sub
+
+
 ' Fires when a Mark In/Mark Out checkbox's linked cell changes. Stamps today's
 ' date next to it when checked; clears the date again if unchecked.
 Private Sub HandleCheckboxToggle(changedRange As Range, dateCol As String)
@@ -223,5 +283,80 @@ Private Sub HandleCheckboxToggle(changedRange As Range, dateCol As String)
             Me.Cells(c.Row, dateCol).ClearContents
         End If
     Next c
+
+End Sub
+
+
+' Rebuilds the Overdue-to-Scan list: for every distinct Style + Gender + Color,
+' finds its most recent Scan Date across all audit rows, and lists it if that
+' date is OVERDUE_THRESHOLD_DAYS or more days old. Run this periodically (it
+' also runs automatically after every paste) since staleness is based on
+' today's date, not on any single edit.
+Public Sub RefreshOverdueList()
+
+    Call EnsureRefreshButton
+
+    Dim dict As Object
+    Set dict = CreateObject("Scripting.Dictionary")
+
+    Dim r As Long, key As String
+    For r = AUDIT_FIRST_ROW To AUDIT_LAST_ROW
+        If Trim$(CStr(Me.Cells(r, "B").Value)) <> "" Then
+            If IsDate(Me.Cells(r, "A").Value) Then
+                key = CStr(Me.Cells(r, "D").Value) & Chr(9) & CStr(Me.Cells(r, "E").Value) & Chr(9) & CStr(Me.Cells(r, "F").Value)
+                Dim scanDate As Date
+                scanDate = CDate(Me.Cells(r, "A").Value)
+                If dict.Exists(key) Then
+                    If scanDate > CDate(dict(key)) Then dict(key) = scanDate
+                Else
+                    dict.Add key, scanDate
+                End If
+            End If
+        End If
+    Next r
+
+    Me.Range(OD_NAME & OD_FIRST_ROW & ":" & OD_DAYS & OD_LAST_ROW).ClearContents
+
+    Dim outRow As Long
+    outRow = OD_FIRST_ROW
+    Dim k As Variant
+    For Each k In dict.Keys
+        Dim lastScan As Date
+        lastScan = CDate(dict(k))
+        Dim daysAgo As Long
+        daysAgo = Date - lastScan
+        If daysAgo >= OVERDUE_THRESHOLD_DAYS Then
+            If outRow <= OD_LAST_ROW Then
+                Dim parts() As String
+                parts = Split(CStr(k), Chr(9))
+                Me.Cells(outRow, OD_NAME).Value = parts(0)
+                Me.Cells(outRow, OD_GENDER).Value = parts(1)
+                Me.Cells(outRow, OD_COLOR).Value = parts(2)
+                Me.Cells(outRow, OD_LASTSCAN).Value = lastScan
+                Me.Cells(outRow, OD_LASTSCAN).NumberFormat = "mm/dd/yyyy"
+                Me.Cells(outRow, OD_DAYS).Value = daysAgo
+                outRow = outRow + 1
+            End If
+        End If
+    Next k
+
+    Application.Calculate
+
+End Sub
+
+
+Private Sub EnsureRefreshButton()
+
+    Dim b As Button
+    For Each b In Me.Buttons
+        If b.Name = "btnRefreshOverdue" Then Exit Sub
+    Next b
+
+    Dim target As Range
+    Set target = Me.Range(OD_LASTSCAN & "3")
+    Set b = Me.Buttons.Add(target.Left, target.Top, 150, 18)
+    b.Name = "btnRefreshOverdue"
+    b.Caption = "Refresh Overdue List"
+    b.OnAction = "RefreshOverdueList"
 
 End Sub
