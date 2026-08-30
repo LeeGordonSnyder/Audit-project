@@ -1,0 +1,227 @@
+Const PASTE_COL As String = "Q"
+Const PASTE_FIRST_ROW As Long = 3
+Const AUDIT_FIRST_ROW As Long = 7
+Const AUDIT_LAST_ROW As Long = 506
+
+Const MARK_FIRST_ROW As Long = 4
+Const MARK_LAST_ROW As Long = 253
+' Mark In columns: T=UPC, U=Product Name, V=Audit Row, W=Adjuster Initials, X=Completed, Y=Date Completed
+Const MI_UPC As String = "T": Const MI_NAME As String = "U": Const MI_ROW As String = "V"
+Const MI_INIT As String = "W": Const MI_DONE As String = "X": Const MI_DATE As String = "Y"
+' Mark Out columns: AA=UPC, AB=Product Name, AC=Audit Row, AD=Adjuster Initials, AE=Completed, AF=Date Completed
+Const MO_UPC As String = "AA": Const MO_NAME As String = "AB": Const MO_ROW As String = "AC"
+Const MO_INIT As String = "AD": Const MO_DONE As String = "AE": Const MO_DATE As String = "AF"
+
+
+Private Sub Worksheet_Change(ByVal Target As Range)
+
+    Dim pasteRange As Range, countRange As Range
+    Dim miDoneRange As Range, moDoneRange As Range
+
+    Set pasteRange = Me.Range(PASTE_COL & PASTE_FIRST_ROW & ":" & PASTE_COL & Me.Rows.Count)
+    Set countRange = Me.Range("F" & AUDIT_FIRST_ROW & ":H" & AUDIT_LAST_ROW)   ' F=Expected Qty, G=BOH, H=Floor
+    Set miDoneRange = Me.Range(MI_DONE & MARK_FIRST_ROW & ":" & MI_DONE & MARK_LAST_ROW)
+    Set moDoneRange = Me.Range(MO_DONE & MARK_FIRST_ROW & ":" & MO_DONE & MARK_LAST_ROW)
+
+    If Not Intersect(Target, pasteRange) Is Nothing Then
+        Call HandlePaste(Target)
+    ElseIf Not Intersect(Target, countRange) Is Nothing Then
+        Application.EnableEvents = False
+        On Error GoTo CleanUpCount
+        Dim c As Range
+        For Each c In Intersect(Target, countRange).Cells
+            Call EvaluateRowForQueue(c.Row)
+        Next c
+CleanUpCount:
+        Application.EnableEvents = True
+    ElseIf Not Intersect(Target, miDoneRange) Is Nothing Then
+        Application.EnableEvents = False
+        Call HandleCheckboxToggle(Intersect(Target, miDoneRange), MI_DATE)
+        Application.EnableEvents = True
+    ElseIf Not Intersect(Target, moDoneRange) Is Nothing Then
+        Application.EnableEvents = False
+        Call HandleCheckboxToggle(Intersect(Target, moDoneRange), MO_DATE)
+        Application.EnableEvents = True
+    End If
+
+End Sub
+
+
+Private Sub HandlePaste(ByVal Target As Range)
+
+    Dim lastPasted As Long
+    lastPasted = Me.Cells(Me.Rows.Count, PASTE_COL).End(xlUp).Row
+    If lastPasted < PASTE_FIRST_ROW Then Exit Sub
+
+    Application.EnableEvents = False
+    On Error GoTo CleanUp
+
+    Dim curName As String, curSKU As String, curColor As String
+    Dim curSize As String, curUPC As String, availVal As String
+    Dim addedCount As Long
+    Dim nextRow As Long
+    nextRow = AUDIT_FIRST_ROW
+
+    Dim r As Long, ln As String
+    For r = PASTE_FIRST_ROW To lastPasted
+        ln = Trim$(CStr(Me.Cells(r, PASTE_COL).Value))
+        If ln <> "" Then
+            If LCase$(Left$(ln, 3)) = "sku" Then
+                curSKU = Trim$(Mid$(ln, 4))
+            ElseIf LCase$(Left$(ln, 5)) = "color" Then
+                curColor = Trim$(Mid$(ln, 6))
+            ElseIf LCase$(Left$(ln, 4)) = "size" Then
+                curSize = Trim$(Mid$(ln, 5))
+            ElseIf LCase$(Left$(ln, 3)) = "upc" Then
+                curUPC = Trim$(Mid$(ln, 4))
+            ElseIf LCase$(Left$(ln, 4)) = "dept" Then
+                ' Dept is not stored on the audit line -- ignored on purpose.
+            ElseIf LCase$(Left$(ln, 5)) = "style" Then
+                ' Style is not stored on the audit line -- ignored on purpose.
+            ElseIf LCase$(Left$(ln, 9)) = "available" Then
+                Dim availRaw As String, parts() As String
+                availRaw = Trim$(Mid$(ln, 10))
+                parts = Split(availRaw, "/")
+                If UBound(parts) >= 1 Then
+                    availVal = Trim$(parts(1))   ' second number = total on-hand
+                Else
+                    availVal = Trim$(parts(0))
+                End If
+
+                ' "Available" is always the last field for a product -> write the audit line now.
+                If curUPC <> "" Then
+                    Do While nextRow <= AUDIT_LAST_ROW And Trim$(CStr(Me.Cells(nextRow, "B").Value)) <> ""
+                        nextRow = nextRow + 1
+                    Loop
+                    If nextRow > AUDIT_LAST_ROW Then
+                        MsgBox "No blank audit rows left below row " & AUDIT_LAST_ROW & _
+                               ". Extend the table's formulas before pasting more.", vbExclamation
+                    Else
+                        Me.Cells(nextRow, "C").Value = curSKU
+                        If curName <> "" Then Me.Cells(nextRow, "D").Value = curName
+
+                        Dim desc As String
+                        desc = Trim$(curColor & " " & curSize)
+                        If desc <> "" Then Me.Cells(nextRow, "E").Value = desc
+
+                        If availVal <> "" And IsNumeric(availVal) Then
+                            Me.Cells(nextRow, "F").Value = CDbl(availVal)
+                        End If
+
+                        Me.Cells(nextRow, "B").NumberFormat = "@"
+                        Me.Cells(nextRow, "B").Value = curUPC   ' written last -- triggers the
+                                                                  ' existing Scan Date / Auditor
+                                                                  ' Initials formulas already in
+                                                                  ' this row, same as a manual scan.
+                        addedCount = addedCount + 1
+
+                        ' Negative Expected Qty is a standing data problem, independent of any
+                        ' physical count -- flag it for Mark In right away.
+                        Call EvaluateRowForQueue(nextRow)
+
+                        nextRow = nextRow + 1
+                    End If
+                End If
+
+                curName = "": curSKU = "": curColor = "": curSize = "": curUPC = "": availVal = ""
+            Else
+                ' Unrecognized label -> this is the product name line (start of a new record).
+                curName = ln
+            End If
+        End If
+    Next r
+
+CleanUp:
+    Me.Range(PASTE_COL & PASTE_FIRST_ROW & ":" & PASTE_COL & lastPasted).ClearContents
+    Application.EnableEvents = True
+    If Err.Number <> 0 Then
+        MsgBox "Paste parsing hit an error: " & Err.Description, vbExclamation
+    ElseIf addedCount > 0 Then
+        MsgBox addedCount & " audit line(s) added.", vbInformation
+    End If
+
+End Sub
+
+
+' Checks one audit row after it changes and, if it now qualifies, appends it to
+' the Mark In and/or Mark Out queue. Append-only and idempotent per queue: a row
+' already queued (tracked by its Audit Row number) is never re-added or removed,
+' matching the rest of the workbook's "once recorded, stays recorded" design.
+Private Sub EvaluateRowForQueue(ByVal r As Long)
+
+    If r < AUDIT_FIRST_ROW Or r > AUDIT_LAST_ROW Then Exit Sub
+
+    Dim upc As String
+    upc = Trim$(CStr(Me.Cells(r, "B").Value))
+    If upc = "" Then Exit Sub
+
+    Dim prodName As String
+    prodName = CStr(Me.Cells(r, "D").Value)
+
+    Dim expectedQty As Variant
+    expectedQty = Me.Cells(r, "F").Value
+    If IsNumeric(expectedQty) Then
+        If CDbl(expectedQty) < 0 Then
+            Call QueueRow(MI_UPC, MI_NAME, MI_ROW, MI_INIT, MI_DONE, r, upc, prodName)
+        End If
+    End If
+
+    Dim status As String
+    status = CStr(Me.Cells(r, "K").Value)
+    If status = "Overage" Then
+        Call QueueRow(MI_UPC, MI_NAME, MI_ROW, MI_INIT, MI_DONE, r, upc, prodName)
+    ElseIf status = "Shortage" Then
+        Call QueueRow(MO_UPC, MO_NAME, MO_ROW, MO_INIT, MO_DONE, r, upc, prodName)
+    End If
+
+End Sub
+
+
+Private Sub QueueRow(colUPC As String, colName As String, colRow As String, colInit As String, _
+                      colDone As String, ByVal sourceRow As Long, upc As String, prodName As String)
+
+    Dim r As Long
+    For r = MARK_FIRST_ROW To MARK_LAST_ROW
+        If Trim$(CStr(Me.Cells(r, colRow).Value)) = "" Then Exit For
+        If CLng(Me.Cells(r, colRow).Value) = sourceRow Then Exit Sub   ' already queued
+    Next r
+    If r > MARK_LAST_ROW Then
+        MsgBox "The Mark In/Mark Out queue is full (" & MARK_LAST_ROW - MARK_FIRST_ROW + 1 & _
+               " rows). Extend it before more discrepancies can be queued.", vbExclamation
+        Exit Sub
+    End If
+
+    Me.Cells(r, colUPC).NumberFormat = "@"
+    Me.Cells(r, colUPC).Value = upc
+    Me.Cells(r, colName).Value = prodName
+    Me.Cells(r, colRow).Value = sourceRow
+
+    ' Create a real Form Control checkbox over the Completed cell, linked to that
+    ' same cell -- clicking it writes TRUE/FALSE to colDone & r, which is what
+    ' HandleCheckboxToggle watches for via Worksheet_Change.
+    Dim target As Range
+    Set target = Me.Range(colDone & r)
+    Dim cb As CheckBox
+    Set cb = Me.CheckBoxes.Add(target.Left, target.Top, target.Width, target.Height)
+    cb.Caption = ""
+    cb.LinkedCell = target.Address
+    cb.Value = xlOff
+
+End Sub
+
+
+' Fires when a Mark In/Mark Out checkbox's linked cell changes. Stamps today's
+' date next to it when checked; clears the date again if unchecked.
+Private Sub HandleCheckboxToggle(changedRange As Range, dateCol As String)
+
+    Dim c As Range
+    For Each c In changedRange.Cells
+        If CBool(c.Value) = True Then
+            Me.Cells(c.Row, dateCol).Value = Date
+            Me.Cells(c.Row, dateCol).NumberFormat = "mm/dd/yyyy"
+        Else
+            Me.Cells(c.Row, dateCol).ClearContents
+        End If
+    Next c
+
+End Sub
