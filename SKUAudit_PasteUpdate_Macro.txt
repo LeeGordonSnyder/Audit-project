@@ -1,0 +1,98 @@
+Private Sub Worksheet_Change(ByVal Target As Range)
+
+    Const PASTE_COL As String = "Q"
+    Const PASTE_FIRST_ROW As Long = 3
+    Const AUDIT_FIRST_ROW As Long = 7
+    Const AUDIT_LAST_ROW As Long = 506
+
+    Dim pasteRange As Range
+    Set pasteRange = Me.Range(PASTE_COL & PASTE_FIRST_ROW & ":" & PASTE_COL & Me.Rows.Count)
+    If Intersect(Target, pasteRange) Is Nothing Then Exit Sub
+
+    Dim lastPasted As Long
+    lastPasted = Me.Cells(Me.Rows.Count, PASTE_COL).End(xlUp).Row
+    If lastPasted < PASTE_FIRST_ROW Then Exit Sub
+
+    Application.EnableEvents = False
+    On Error GoTo CleanUp
+
+    Dim curName As String, curSKU As String, curColor As String
+    Dim curSize As String, curUPC As String, availVal As String
+    Dim addedCount As Long
+    Dim nextRow As Long
+    nextRow = AUDIT_FIRST_ROW
+
+    Dim r As Long, ln As String
+    For r = PASTE_FIRST_ROW To lastPasted
+        ln = Trim$(CStr(Me.Cells(r, PASTE_COL).Value))
+        If ln <> "" Then
+            If LCase$(Left$(ln, 3)) = "sku" Then
+                curSKU = Trim$(Mid$(ln, 4))
+            ElseIf LCase$(Left$(ln, 5)) = "color" Then
+                curColor = Trim$(Mid$(ln, 6))
+            ElseIf LCase$(Left$(ln, 4)) = "size" Then
+                curSize = Trim$(Mid$(ln, 5))
+            ElseIf LCase$(Left$(ln, 3)) = "upc" Then
+                curUPC = Trim$(Mid$(ln, 4))
+            ElseIf LCase$(Left$(ln, 4)) = "dept" Then
+                ' Dept is not stored on the audit line -- ignored on purpose.
+            ElseIf LCase$(Left$(ln, 5)) = "style" Then
+                ' Style is not stored on the audit line -- ignored on purpose.
+            ElseIf LCase$(Left$(ln, 9)) = "available" Then
+                Dim availRaw As String, parts() As String
+                availRaw = Trim$(Mid$(ln, 10))
+                parts = Split(availRaw, "/")
+                If UBound(parts) >= 1 Then
+                    availVal = Trim$(parts(1))   ' second number = total on-hand
+                Else
+                    availVal = Trim$(parts(0))
+                End If
+
+                ' "Available" is always the last field for a product -> write the audit line now.
+                If curUPC <> "" Then
+                    Do While nextRow <= AUDIT_LAST_ROW And Trim$(CStr(Me.Cells(nextRow, "B").Value)) <> ""
+                        nextRow = nextRow + 1
+                    Loop
+                    If nextRow > AUDIT_LAST_ROW Then
+                        MsgBox "No blank audit rows left below row " & AUDIT_LAST_ROW & _
+                               ". Extend the table's formulas before pasting more.", vbExclamation
+                    Else
+                        Me.Cells(nextRow, "C").Value = curSKU
+                        If curName <> "" Then Me.Cells(nextRow, "D").Value = curName
+
+                        Dim desc As String
+                        desc = Trim$(curColor & " " & curSize)
+                        If desc <> "" Then Me.Cells(nextRow, "E").Value = desc
+
+                        If availVal <> "" And IsNumeric(availVal) Then
+                            Me.Cells(nextRow, "F").Value = CDbl(availVal)
+                        End If
+
+                        Me.Cells(nextRow, "B").NumberFormat = "@"
+                        Me.Cells(nextRow, "B").Value = curUPC   ' written last -- triggers the
+                                                                  ' existing Scan Date / Auditor
+                                                                  ' Initials formulas already in
+                                                                  ' this row, same as a manual scan.
+                        addedCount = addedCount + 1
+                        nextRow = nextRow + 1
+                    End If
+                End If
+
+                curName = "": curSKU = "": curColor = "": curSize = "": curUPC = "": availVal = ""
+            Else
+                ' Unrecognized label -> this is the product name line (start of a new record).
+                curName = ln
+            End If
+        End If
+    Next r
+
+CleanUp:
+    Me.Range(PASTE_COL & PASTE_FIRST_ROW & ":" & PASTE_COL & lastPasted).ClearContents
+    Application.EnableEvents = True
+    If Err.Number <> 0 Then
+        MsgBox "Paste parsing hit an error: " & Err.Description, vbExclamation
+    ElseIf addedCount > 0 Then
+        MsgBox addedCount & " audit line(s) added.", vbInformation
+    End If
+
+End Sub
