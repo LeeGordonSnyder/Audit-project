@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Tag Lookup</title>
+<meta name="theme-color" content="#111816">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tag Lookup">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <h1>Security Tag Lookup</h1>
+  <div id="offline-badge" class="badge" hidden>Offline</div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Sections">
+  <button class="tab-btn active" data-tab="lookup" role="tab" aria-selected="true">Lookup</button>
+  <button class="tab-btn" data-tab="audit" role="tab" aria-selected="false">Audit Log</button>
+  <button class="tab-btn" data-tab="settings" role="tab" aria-selected="false">Settings</button>
+</nav>
+
+<main>
+
+  <!-- LOOKUP TAB -->
+  <section id="tab-lookup" class="tab-panel" role="tabpanel">
+    <div class="search-row">
+      <input id="search-input" type="text" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off"
+             placeholder="Scan barcode or type SKU / description..." aria-label="Search SKU or description">
+      <button id="scan-btn" class="icon-btn" title="Scan with camera" aria-label="Scan with camera">📷</button>
+      <button id="clear-btn" class="icon-btn" title="Clear" aria-label="Clear search">✕</button>
+    </div>
+
+    <div id="scanner-wrap" class="scanner-wrap" hidden>
+      <div id="scanner-view"></div>
+      <button id="scan-stop-btn" class="btn secondary">Stop Scanning</button>
+    </div>
+
+    <div id="results" class="results"></div>
+
+    <div id="empty-state" class="empty-state">
+      <p>Scan a barcode with the camera button, or type a SKU / keyword above.</p>
+      <p class="hint">A handheld/bluetooth barcode scanner also works — just tap the search box first, then scan.</p>
+    </div>
+  </section>
+
+  <!-- AUDIT TAB -->
+  <section id="tab-audit" class="tab-panel" role="tabpanel" hidden>
+    <form id="audit-form" class="audit-form">
+      <label>Associate name
+        <input type="text" id="audit-name" required autocomplete="off">
+      </label>
+
+      <label>SKU
+        <div class="inline-row">
+          <input type="text" id="audit-sku" required autocomplete="off" placeholder="Scan or type SKU">
+          <button type="button" id="audit-scan-btn" class="icon-btn" title="Scan with camera" aria-label="Scan with camera">📷</button>
+        </div>
+      </label>
+
+      <label>Item description
+        <input type="text" id="audit-desc" autocomplete="off" placeholder="Auto-fills if SKU is found">
+      </label>
+
+      <fieldset class="result-fieldset">
+        <legend>Result</legend>
+        <label class="radio"><input type="radio" name="audit-result" value="pass" checked> Tagged correctly</label>
+        <label class="radio"><input type="radio" name="audit-result" value="fail"> Tagged incorrectly</label>
+        <label class="radio"><input type="radio" name="audit-result" value="missing"> Tag missing</label>
+      </fieldset>
+
+      <label>Notes
+        <textarea id="audit-notes" rows="3" placeholder="Optional details"></textarea>
+      </label>
+
+      <button type="submit" class="btn primary">Log Entry</button>
+      <p id="audit-status" class="status-msg" role="status"></p>
+    </form>
+
+    <div class="audit-list-header">
+      <h2>Recent Entries</h2>
+      <div class="audit-list-actions">
+        <button id="export-csv-btn" class="btn secondary small">Export CSV</button>
+        <button id="clear-log-btn" class="btn danger small">Clear Log</button>
+      </div>
+    </div>
+    <div id="audit-list" class="audit-list"></div>
+  </section>
+
+  <!-- SETTINGS TAB -->
+  <section id="tab-settings" class="tab-panel" role="tabpanel" hidden>
+    <h2>Data Source</h2>
+    <p class="hint">
+      SKU lookup data is loaded from <code>data/skus.json</code> in this app, bundled at deploy time.
+      To update tag locations or exceptions, edit that file and push to GitHub — the live app updates automatically.
+    </p>
+    <div class="settings-row">
+      <button id="reload-data-btn" class="btn secondary">Reload Data</button>
+      <span id="data-status" class="hint"></span>
+    </div>
+
+    <h2>Audit Log Backend (optional)</h2>
+    <p class="hint">
+      Audit entries always save on this device (offline-safe). Optionally, also send each entry to a
+      Google Sheet via a Google Apps Script Web App URL. See README for setup steps.
+    </p>
+    <label>Google Sheet Webhook URL
+      <input type="url" id="webhook-url" placeholder="https://script.google.com/macros/s/…/exec">
+    </label>
+    <button id="save-webhook-btn" class="btn secondary">Save</button>
+    <p id="webhook-status" class="status-msg" role="status"></p>
+
+    <h2>About</h2>
+    <p class="hint">
+      Installed as a home-screen app, this works fully offline for lookups and logging once loaded once.
+      Audit entries queued for the Google Sheet sync automatically when back online.
+    </p>
+  </section>
+
+</main>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

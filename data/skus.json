@@ -1,0 +1,85 @@
+{
+  "_readme": "SAMPLE DATA — replace with real store SKU export. Keep this exact shape: sku, description, category, tagLocation, exceptionNotes, updated.",
+  "items": [
+    {
+      "sku": "24259-000123",
+      "description": "Beta AR Jacket - Men's",
+      "category": "Outerwear - Hardshell",
+      "tagLocation": "Inside left hem, through interior pocket loop",
+      "exceptionNotes": "",
+      "updated": "2026-06-01"
+    },
+    {
+      "sku": "24259-000456",
+      "description": "Beta AR Jacket - Women's",
+      "category": "Outerwear - Hardshell",
+      "tagLocation": "Inside left hem, through interior pocket loop",
+      "exceptionNotes": "HQ exception: do NOT tag through the pit-zip pull tab, it damages the zipper. Use hem loop only.",
+      "updated": "2026-06-01"
+    },
+    {
+      "sku": "18841-000789",
+      "description": "Atom LT Hoody - Men's",
+      "category": "Insulated - Midlayer",
+      "tagLocation": "Center back neck, through main label",
+      "exceptionNotes": "",
+      "updated": "2026-05-14"
+    },
+    {
+      "sku": "18841-000321",
+      "description": "Atom LT Hoody - Women's",
+      "category": "Insulated - Midlayer",
+      "tagLocation": "Center back neck, through main label",
+      "exceptionNotes": "",
+      "updated": "2026-05-14"
+    },
+    {
+      "sku": "30112-000045",
+      "description": "Beta Pant - Men's",
+      "category": "Bottoms - Hardshell",
+      "tagLocation": "Right rear pocket, through waistband belt loop",
+      "exceptionNotes": "HQ exception: tag through waistband loop only, not through pocket mesh — mesh tears on this style.",
+      "updated": "2026-04-22"
+    },
+    {
+      "sku": "27231-000678",
+      "description": "Konseal FL 2 Shoe",
+      "category": "Footwear",
+      "tagLocation": "Lace eyelet, both shoes, tag pair together",
+      "exceptionNotes": "",
+      "updated": "2026-03-30"
+    },
+    {
+      "sku": "16022-000901",
+      "description": "Maka 2 Hip Pack",
+      "category": "Bags & Packs",
+      "tagLocation": "Zipper pull, main compartment",
+      "exceptionNotes": "Small item — use mini tag pin only, standard pin is too large.",
+      "updated": "2026-02-11"
+    },
+    {
+      "sku": "21238-000234",
+      "description": "Cormac Hoodie - Men's",
+      "category": "Casual - Midlayer",
+      "tagLocation": "Center back neck, through main label",
+      "exceptionNotes": "",
+      "updated": "2026-06-10"
+    },
+    {
+      "sku": "12034-000567",
+      "description": "Rho LT Base Layer Top",
+      "category": "Base Layer",
+      "tagLocation": "Care label at left hem",
+      "exceptionNotes": "HQ exception: this fabric is delicate — use adhesive tag, not a pin, to avoid pulls.",
+      "updated": "2026-01-19"
+    },
+    {
+      "sku": "29981-000890",
+      "description": "Covert Cardigan - Women's",
+      "category": "Casual - Midlayer",
+      "tagLocation": "Center back neck, through main label",
+      "exceptionNotes": "",
+      "updated": "2026-05-02"
+    }
+  ]
+}
