@@ -306,7 +306,10 @@ textarea { font-size: 0.9rem; resize: vertical; }
   gap: 12px;
 }
 
-.session-bar label { flex: 1; }
+.session-bar .field-date { flex: 1.6; }
+.session-bar .field-initials { flex: 1; max-width: 100px; }
+
+.field-initials input { text-transform: uppercase; text-align: center; }
 
 .scan-buttons-row {
   display: flex;
