@@ -48,9 +48,6 @@ function handleProductScan(upc) {
   document.getElementById("active-upc").textContent = item.upc;
   document.getElementById("active-desc").textContent = combinedDescription(item);
 
-  const maoHint = document.getElementById("active-mao-hint");
-  maoHint.textContent = item.maoAvailable == null ? "" : `Manhattan Omni last showed ${item.maoAvailable} available — confirm or correct it below.`;
-
   const expectedInput = document.getElementById("expected-input");
   expectedInput.value = item.expectedCount == null ? "" : item.expectedCount;
 

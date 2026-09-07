@@ -35,14 +35,12 @@ comes from two places:
 Matching is always by SKU — pasting (or reseeding) the same SKU again never
 creates a duplicate row, it just refreshes the catalog details.
 
-**Important:** the `Available x / x` number is shown in the table as **MAO
-Count** for reference only — it is *not* used as the expected count anywhere
-in the app. Manhattan Omni's count is often stale by the time someone
-actually audits the shelf, so the **Expected** count is a separate field that
-starts unset (`Not set`) and is only ever filled in by an associate on the
-Audit Dashboard, confirming or correcting it at the moment they scan the
-item. From then on it's remembered as the new baseline until someone changes
-it again.
+**Important:** the `Available x / x` number from Manhattan Omni is ignored
+entirely — it's never parsed, stored, or shown anywhere. Expected count is a
+fully separate field that starts unset (`Not set`) and is only ever filled
+in by an associate on the Audit Dashboard, at the moment they scan the item.
+From then on it's remembered as the new baseline until someone changes it
+again.
 
 The table is filterable (SKU, UPC, style, or description) and exportable to
 CSV.
@@ -75,8 +73,7 @@ This is the daily driver:
 1. Set **Date** and **Initials** once — they're remembered until you change
    them again.
 2. Tap **📷 Scan Product to Count**, scan the UPC. The app pulls the
-   description from the Product Master list, and shows Manhattan Omni's last
-   count as a hint if there is one.
+   description from the Product Master list.
 3. Confirm or correct the **Expected Count** field — blank the first time an
    item is ever scanned, pre-filled with whatever was last confirmed after
    that.

@@ -40,23 +40,20 @@ const MANHATTAN_LABELS = [
   ["color", /^Color(.+)$/i],
   ["size", /^Size(.+)$/i],
   ["upc", /^UPC(.+)$/i],
+  // "Available x / x" is intentionally not parsed — expected counts are
+  // entirely staff-entered on the Audit Dashboard, not sourced from MAO.
   ["available", /^Available(.+)$/i],
 ];
 
 function parseManhattanBlock(lines) {
-  const item = { description: "", sku: "", dept: "", style: "", color: "", size: "", upc: "", maoAvailable: null };
+  const item = { description: "", sku: "", dept: "", style: "", color: "", size: "", upc: "" };
   for (const rawLine of lines) {
     const line = rawLine.trim();
     let matched = false;
     for (const [key, re] of MANHATTAN_LABELS) {
       const m = line.match(re);
       if (m) {
-        if (key === "available") {
-          // Reference only — Manhattan Omni's count is often stale by audit time,
-          // so it's shown to associates but never used as the expected count.
-          const nums = m[1].match(/(\d+)\s*\/\s*(\d+)/);
-          item.maoAvailable = nums ? parseInt(nums[1], 10) : null;
-        } else {
+        if (key !== "available") {
           item[key] = m[1].trim();
         }
         matched = true;
@@ -103,8 +100,8 @@ function upsertProductMaster(parsedItems) {
       master.push({ ...item, expectedCount: null, updatedAt: now });
       added++;
     } else {
-      // Refresh catalog facts (description/style/color/size/upc/maoAvailable), but
-      // never touch expectedCount here — that field is user-owned, not MAO-owned.
+      // Refresh catalog facts (description/style/color/size/upc), but never
+      // touch expectedCount here — that field is user-owned, not MAO-owned.
       master[idx] = { ...master[idx], ...item, updatedAt: now };
       updated++;
     }
