@@ -60,10 +60,6 @@ This is the daily driver:
    tab: counted *more* than expected → **Mark In**; counted *less* → **Mark
    Out**.
 
-The **🏷 Check Tag Location** button is a separate, non-destructive shortcut —
-scan a UPC to see its assigned tag location without starting a count, useful
-mid-audit when you just need a quick answer.
-
 Recent entries are listed below and exportable to CSV.
 
 ### 4. Adjustments

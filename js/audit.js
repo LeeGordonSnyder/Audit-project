@@ -20,10 +20,6 @@ function initAuditDashboard() {
     openScanner("Scanning product to count…", handleProductScan);
   });
 
-  document.getElementById("check-tag-btn").addEventListener("click", () => {
-    openScanner("Scanning to check tag location…", handleTagCheckScan);
-  });
-
   document.getElementById("cancel-count-btn").addEventListener("click", clearActiveItem);
   document.getElementById("submit-count-btn").addEventListener("click", submitCount);
   document.getElementById("export-audit-csv-btn").addEventListener("click", exportAuditCsv);
@@ -56,32 +52,6 @@ function handleProductScan(upc) {
   const countInput = document.getElementById("count-input");
   countInput.value = "";
   countInput.focus();
-}
-
-function handleTagCheckScan(upc) {
-  const master = loadJSON(STORAGE.master, []);
-  const item = master.find((p) => p.upc === upc);
-  const box = document.getElementById("tag-check-result");
-  box.hidden = false;
-
-  if (!item) {
-    box.innerHTML = `<p>UPC ${escapeHtml(upc)} not found in Product Master List.</p><button class="btn secondary small" id="dismiss-tag-check-btn">Dismiss</button>`;
-  } else {
-    const tagLoc = getTagLocation(item.style);
-    box.innerHTML = `
-      <div class="sku">${escapeHtml(item.sku)}</div>
-      <p>${escapeHtml(combinedDescription(item))}</p>
-      <div class="tag-box ${tagLoc ? "" : "empty"}">
-        <div class="label">🏷 Tag Placement — Style ${escapeHtml(item.style)}</div>
-        <div class="value">${tagLoc ? escapeHtml(tagLoc) : "Not assigned yet — set it on the Tag Lookup tab."}</div>
-      </div>
-      <button class="btn secondary small" id="dismiss-tag-check-btn">Dismiss</button>
-    `;
-  }
-
-  document.getElementById("dismiss-tag-check-btn").addEventListener("click", () => {
-    box.hidden = true;
-  });
 }
 
 function clearActiveItem() {

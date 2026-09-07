@@ -304,14 +304,6 @@ textarea { font-size: 0.9rem; resize: vertical; }
   margin-top: 12px;
 }
 
-.tag-check-result {
-  margin-top: 12px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px 18px;
-}
-
 .active-item-card {
   margin-top: 16px;
   background: var(--bg-elevated);
