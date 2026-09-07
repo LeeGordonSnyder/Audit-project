@@ -1,39 +1,61 @@
 # Store Audit Tool
 
 An offline-friendly web app for store associates: look up security-tag
-placement by style, run physical inventory counts against Manhattan Omni's
-expected counts, and track the resulting Mark In/Mark Out adjustments until a
-supervisor resolves them. No backend — it's static files that install to the
-home screen like an app via Safari's "Add to Home Screen." All data lives on
-the device (`localStorage`); there is nothing to configure to get started.
+placement by style, run physical inventory counts, and track the resulting
+Mark In/Mark Out adjustments until a supervisor resolves them. No backend —
+it's static files that install to the home screen like an app via Safari's
+"Add to Home Screen." All data lives on the device (`localStorage`); there is
+nothing to configure to get started.
 
 ## The four tabs
 
 ### 1. Product Master
-Paste a block (or several) copied straight out of Manhattan Omni into the
-text box and tap **Import / Update**. Each block looks like:
+The product catalog (SKU, UPC, style, dept, color, size, description). It
+comes from two places:
 
-```
-Atom SL Hoody Men's
-SKUX000009560002
-DeptM
-StyleX000009560
-ColorBlack
-SizeXS
-UPC623555583288
-Available0 / 0
-```
+- **Preloaded automatically** from [`data/product-master-seed.txt`](data/product-master-seed.txt)
+  — see "Preloading the catalog" below. This is the main way the catalog gets
+  onto every device with no per-phone setup.
+- **Pasted manually** on this tab for one-off additions (e.g. testing, or a
+  new SKU that hasn't made it into the seed file yet). Paste a block (or
+  several) copied straight out of Manhattan Omni and tap **Import / Update**.
+  Each block looks like:
 
-The app parses SKU, Style, Color, Size, UPC, and the first number of
-`Available x / x` as the expected on-hand count, then merges Color and Size
-into the description shown in the table (e.g. *"Atom SL Hoody Men's — Black /
-XS"*). Matching is by SKU: pasting the same SKU again **only refreshes its
-expected count** — it never creates a duplicate row. That's the intended way
-to keep counts current: re-paste from Manhattan Omni whenever you start a new
-audit on a product.
+  ```
+  Atom SL Hoody Men's
+  SKUX000009560002
+  DeptM
+  StyleX000009560
+  ColorBlack
+  SizeXS
+  UPC623555583288
+  Available0 / 0
+  ```
+
+Matching is always by SKU — pasting (or reseeding) the same SKU again never
+creates a duplicate row, it just refreshes the catalog details.
+
+**Important:** the `Available x / x` number is shown in the table as **MAO
+Count** for reference only — it is *not* used as the expected count anywhere
+in the app. Manhattan Omni's count is often stale by the time someone
+actually audits the shelf, so the **Expected** count is a separate field that
+starts unset (`Not set`) and is only ever filled in by an associate on the
+Audit Dashboard, confirming or correcting it at the moment they scan the
+item. From then on it's remembered as the new baseline until someone changes
+it again.
 
 The table is filterable (SKU, UPC, style, or description) and exportable to
 CSV.
+
+### Preloading the catalog
+Paste your full Manhattan Omni catalog export into
+[`data/product-master-seed.txt`](data/product-master-seed.txt) (same block
+format as above, one item after another), commit, and push. Every device
+picks it up automatically on next launch — no one has to paste anything in
+by hand. To update the catalog later (new season, new styles), just replace
+the file's contents and push again; existing SKUs get their catalog details
+refreshed while any expected counts associates have already confirmed are
+left untouched.
 
 ### 2. Tag Lookup
 Scan or search a product to see the security-tag placement assigned to its
@@ -53,10 +75,14 @@ This is the daily driver:
 1. Set **Date** and **Initials** once — they're remembered until you change
    them again.
 2. Tap **📷 Scan Product to Count**, scan the UPC. The app pulls the
-   description and expected count from the Product Master list.
-3. Enter the physical count and tap **Log Count**.
-4. If the count matches, that's it — logged, no further action.
-5. If it doesn't match, the item is automatically queued on the **Adjustments**
+   description from the Product Master list, and shows Manhattan Omni's last
+   count as a hint if there is one.
+3. Confirm or correct the **Expected Count** field — blank the first time an
+   item is ever scanned, pre-filled with whatever was last confirmed after
+   that.
+4. Enter the **Actual Count** (the physical tally) and tap **Log Count**.
+5. If the two match, that's it — logged, no further action.
+6. If they don't, the item is automatically queued on the **Adjustments**
    tab: counted *more* than expected → **Mark In**; counted *less* → **Mark
    Out**.
 

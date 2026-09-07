@@ -44,7 +44,7 @@ const MANHATTAN_LABELS = [
 ];
 
 function parseManhattanBlock(lines) {
-  const item = { description: "", sku: "", dept: "", style: "", color: "", size: "", upc: "", expectedCount: 0 };
+  const item = { description: "", sku: "", dept: "", style: "", color: "", size: "", upc: "", maoAvailable: null };
   for (const rawLine of lines) {
     const line = rawLine.trim();
     let matched = false;
@@ -52,8 +52,10 @@ function parseManhattanBlock(lines) {
       const m = line.match(re);
       if (m) {
         if (key === "available") {
+          // Reference only — Manhattan Omni's count is often stale by audit time,
+          // so it's shown to associates but never used as the expected count.
           const nums = m[1].match(/(\d+)\s*\/\s*(\d+)/);
-          item.expectedCount = nums ? parseInt(nums[1], 10) : 0;
+          item.maoAvailable = nums ? parseInt(nums[1], 10) : null;
         } else {
           item[key] = m[1].trim();
         }
@@ -96,17 +98,41 @@ function upsertProductMaster(parsedItems) {
   for (const item of parsedItems) {
     const idx = master.findIndex((p) => p.sku === item.sku);
     if (idx === -1) {
-      master.push({ ...item, updatedAt: now });
+      // expectedCount is never sourced from Manhattan Omni — it starts unset
+      // and is only ever set by an associate confirming it on the Audit Dashboard.
+      master.push({ ...item, expectedCount: null, updatedAt: now });
       added++;
     } else {
-      master[idx].expectedCount = item.expectedCount;
-      master[idx].updatedAt = now;
+      // Refresh catalog facts (description/style/color/size/upc/maoAvailable), but
+      // never touch expectedCount here — that field is user-owned, not MAO-owned.
+      master[idx] = { ...master[idx], ...item, updatedAt: now };
       updated++;
     }
   }
 
   saveJSON(STORAGE.master, master);
   return { added, updated, total: master.length };
+}
+
+function setExpectedCount(sku, expectedCount) {
+  const master = loadJSON(STORAGE.master, []);
+  const idx = master.findIndex((p) => p.sku === sku);
+  if (idx === -1) return;
+  master[idx].expectedCount = expectedCount;
+  master[idx].updatedAt = new Date().toISOString();
+  saveJSON(STORAGE.master, master);
+}
+
+async function seedProductMasterFromFile() {
+  try {
+    const res = await fetch("data/product-master-seed.txt", { cache: "no-store" });
+    if (!res.ok) return;
+    const text = await res.text();
+    const parsed = parseManhattanPaste(text);
+    if (parsed.length) upsertProductMaster(parsed);
+  } catch (e) {
+    // Offline or file missing — fine, whatever's already in localStorage stands.
+  }
 }
 
 function combinedDescription(item) {

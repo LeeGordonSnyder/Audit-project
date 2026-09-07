@@ -38,9 +38,10 @@ function setOffline(isOffline) {
 window.addEventListener("online", () => setOffline(false));
 window.addEventListener("offline", () => setOffline(true));
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   initTabs();
   initScannerModal();
+  await seedProductMasterFromFile();
   initTagLookup();
   initAuditDashboard();
   initMasterList();

@@ -1,4 +1,4 @@
-const CACHE_NAME = "audit-tool-v3";
+const CACHE_NAME = "audit-tool-v4";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -14,6 +14,7 @@ const CORE_ASSETS = [
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
+  "./data/product-master-seed.txt",
 ];
 
 self.addEventListener("install", (event) => {
@@ -35,7 +36,22 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
 
-  // Cache-first app shell — all product/audit data lives in localStorage, not fetched files.
+  // Network-first for the preloaded catalog, so a newly pushed seed file
+  // reaches devices as soon as they have a signal, not just on reinstall.
+  if (req.url.includes("data/product-master-seed.txt")) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+          return res;
+        })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // Cache-first app shell — everything else changes only on a new deploy.
   event.respondWith(
     caches.match(req).then((cached) => {
       return (

@@ -51,7 +51,7 @@ function renderMasterTable() {
   tbody.innerHTML = "";
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="no-results">${
+    tbody.innerHTML = `<tr><td colspan="6" class="no-results">${
       master.length === 0 ? "No items yet — paste Manhattan data above." : "No items match that filter."
     }</td></tr>`;
     return;
@@ -64,7 +64,8 @@ function renderMasterTable() {
       <td class="mono">${escapeHtml(item.sku)}</td>
       <td class="mono">${escapeHtml(item.upc)}</td>
       <td>${escapeHtml(combinedDescription(item))}</td>
-      <td class="num">${item.expectedCount}</td>
+      <td class="num">${item.maoAvailable == null ? "—" : item.maoAvailable}</td>
+      <td class="num">${item.expectedCount == null ? "Not set" : item.expectedCount}</td>
       <td>${escapeHtml(new Date(item.updatedAt).toLocaleDateString())}</td>
     `;
     tbody.appendChild(tr);
@@ -73,7 +74,7 @@ function renderMasterTable() {
 
 function exportMasterCsv() {
   const master = loadJSON(STORAGE.master, []);
-  const header = ["sku", "upc", "style", "dept", "description", "color", "size", "expectedCount", "updatedAt"];
+  const header = ["sku", "upc", "style", "dept", "description", "color", "size", "maoAvailable", "expectedCount", "updatedAt"];
   const rows = [header, ...master.map((item) => header.map((k) => item[k]))];
   downloadCsv(`product-master-${todayISO()}.csv`, rows);
 }

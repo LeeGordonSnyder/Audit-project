@@ -74,11 +74,11 @@
         <div class="label">UPC</div>
         <div class="value" id="active-upc"></div>
       </div>
-      <div class="result-field">
-        <div class="label">Expected Count</div>
-        <div class="value" id="active-expected"></div>
-      </div>
-      <label>Counted
+      <p id="active-mao-hint" class="hint"></p>
+      <label>Expected Count
+        <input type="number" id="expected-input" inputmode="numeric" min="0" placeholder="Enter expected count">
+      </label>
+      <label>Actual Count
         <input type="number" id="count-input" inputmode="numeric" min="0" placeholder="Enter physical count">
       </label>
       <div class="active-item-actions">
@@ -97,7 +97,7 @@
   <!-- PRODUCT MASTER TAB -->
   <section id="tab-master" class="tab-panel" role="tabpanel" hidden>
     <h2>Import from Manhattan Omni</h2>
-    <p class="hint">Copy the product block(s) from Manhattan Omni and paste below, then tap Import. Existing SKUs get their expected count refreshed — nothing is duplicated.</p>
+    <p class="hint">Copy the product block(s) from Manhattan Omni and paste below, then tap Import. This only refreshes catalog details (description, style, color, size) — expected counts are set separately on the Audit Dashboard, not from this paste.</p>
     <textarea id="paste-area" rows="8" placeholder="Paste Manhattan Omni data here…"></textarea>
     <div class="settings-row">
       <button id="import-btn" class="btn primary">Import / Update</button>
@@ -120,6 +120,7 @@
             <th>SKU</th>
             <th>UPC</th>
             <th>Description</th>
+            <th>MAO Count</th>
             <th>Expected</th>
             <th>Updated</th>
           </tr>

@@ -47,11 +47,16 @@ function handleProductScan(upc) {
   document.getElementById("active-sku").textContent = item.sku;
   document.getElementById("active-upc").textContent = item.upc;
   document.getElementById("active-desc").textContent = combinedDescription(item);
-  document.getElementById("active-expected").textContent = item.expectedCount;
+
+  const maoHint = document.getElementById("active-mao-hint");
+  maoHint.textContent = item.maoAvailable == null ? "" : `Manhattan Omni last showed ${item.maoAvailable} available — confirm or correct it below.`;
+
+  const expectedInput = document.getElementById("expected-input");
+  expectedInput.value = item.expectedCount == null ? "" : item.expectedCount;
 
   const countInput = document.getElementById("count-input");
   countInput.value = "";
-  countInput.focus();
+  (item.expectedCount == null ? expectedInput : countInput).focus();
 }
 
 function clearActiveItem() {
@@ -62,20 +67,39 @@ function clearActiveItem() {
 function submitCount() {
   if (!activeAuditItem) return;
 
+  const expectedInput = document.getElementById("expected-input");
+  const expectedRaw = expectedInput.value;
+  if (expectedRaw === "") {
+    alert("Enter the expected count first.");
+    expectedInput.focus();
+    return;
+  }
+  const expected = parseInt(expectedRaw, 10);
+  if (isNaN(expected) || expected < 0) {
+    alert("Enter a valid non-negative expected count.");
+    expectedInput.focus();
+    return;
+  }
+
   const countInput = document.getElementById("count-input");
   const countedRaw = countInput.value;
   if (countedRaw === "") {
-    alert("Enter a count first.");
+    alert("Enter the actual count.");
+    countInput.focus();
     return;
   }
   const counted = parseInt(countedRaw, 10);
   if (isNaN(counted) || counted < 0) {
-    alert("Enter a valid non-negative number.");
+    alert("Enter a valid non-negative actual count.");
+    countInput.focus();
     return;
   }
 
+  if (expected !== activeAuditItem.expectedCount) {
+    setExpectedCount(activeAuditItem.sku, expected);
+  }
+
   const session = loadJSON(STORAGE.session, {});
-  const expected = activeAuditItem.expectedCount;
   const variance = counted - expected;
   const result = variance === 0 ? "match" : variance > 0 ? "over" : "under";
 
