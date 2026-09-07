@@ -1,5 +1,9 @@
 "use strict";
 
+const TAG_LOCATIONS = ["Hood", "Below Wash Tag", "Through Wash Tag", "Tag Side Pocket", "Left Leg In-seam", "Chest Pocket"];
+
+let tagAssignStyle = null;
+
 function initTagLookup() {
   const input = document.getElementById("tag-search-input");
 
@@ -17,6 +21,14 @@ function initTagLookup() {
       renderTagResults(text);
     });
   });
+
+  const select = document.getElementById("tag-assign-select");
+  select.innerHTML =
+    `<option value="">Not assigned</option>` +
+    TAG_LOCATIONS.map((loc) => `<option value="${escapeHtml(loc)}">${escapeHtml(loc)}</option>`).join("");
+
+  document.getElementById("tag-assign-save-btn").addEventListener("click", saveTagAssignModal);
+  document.getElementById("tag-assign-cancel-btn").addEventListener("click", closeTagAssignModal);
 
   renderTagResults("");
   renderTagAssignmentsList();
@@ -70,7 +82,7 @@ function renderTagResults(query) {
       </div>
       <div class="result-field">
         <div class="label">Expected Count</div>
-        <div class="value">${item.expectedCount}</div>
+        <div class="value">${item.expectedCount == null ? "Not set" : item.expectedCount}</div>
       </div>
       <div class="tag-box ${tagLoc ? "" : "empty"}">
         <div class="label">🏷 Tag Placement</div>
@@ -82,15 +94,27 @@ function renderTagResults(query) {
   }
 
   resultsEl.querySelectorAll(".assign-tag-btn").forEach((btn) => {
-    btn.addEventListener("click", () => promptAssignTag(btn.dataset.style));
+    btn.addEventListener("click", () => openTagAssignModal(btn.dataset.style));
   });
 }
 
-function promptAssignTag(style) {
-  const current = getTagLocation(style);
-  const value = prompt(`Tag placement location for style ${style} (applies to every size/color of this style):`, current);
-  if (value === null) return;
-  setTagLocation(style, value.trim());
+function openTagAssignModal(style) {
+  tagAssignStyle = style;
+  document.getElementById("tag-assign-style-label").textContent =
+    `Style ${style} — applies to every size and color of this style.`;
+  document.getElementById("tag-assign-select").value = getTagLocation(style);
+  document.getElementById("tag-assign-modal").hidden = false;
+}
+
+function closeTagAssignModal() {
+  tagAssignStyle = null;
+  document.getElementById("tag-assign-modal").hidden = true;
+}
+
+function saveTagAssignModal() {
+  if (!tagAssignStyle) return;
+  setTagLocation(tagAssignStyle, document.getElementById("tag-assign-select").value);
+  closeTagAssignModal();
   renderTagResults(document.getElementById("tag-search-input").value.trim());
   renderTagAssignmentsList();
 }
@@ -118,6 +142,6 @@ function renderTagAssignmentsList() {
   }
 
   listEl.querySelectorAll(".edit-tag-btn").forEach((btn) => {
-    btn.addEventListener("click", () => promptAssignTag(btn.dataset.style));
+    btn.addEventListener("click", () => openTagAssignModal(btn.dataset.style));
   });
 }
