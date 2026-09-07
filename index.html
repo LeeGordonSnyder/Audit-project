@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<title>Tag Lookup</title>
+<title>Store Audit Tool</title>
 <meta name="theme-color" content="#111816">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Tag Lookup">
+<meta name="apple-mobile-web-app-title" content="Audit Tool">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="css/style.css">
@@ -15,116 +15,155 @@
 <body>
 
 <header class="topbar">
-  <h1>Security Tag Lookup</h1>
+  <h1>Store Audit Tool</h1>
   <div id="offline-badge" class="badge" hidden>Offline</div>
 </header>
 
 <nav class="tabs" role="tablist" aria-label="Sections">
-  <button class="tab-btn active" data-tab="lookup" role="tab" aria-selected="true">Lookup</button>
-  <button class="tab-btn" data-tab="audit" role="tab" aria-selected="false">Audit Log</button>
-  <button class="tab-btn" data-tab="settings" role="tab" aria-selected="false">Settings</button>
+  <button class="tab-btn active" data-tab="taglookup" role="tab" aria-selected="true">Tag Lookup</button>
+  <button class="tab-btn" data-tab="audit" role="tab" aria-selected="false">Audit Dashboard</button>
+  <button class="tab-btn" data-tab="master" role="tab" aria-selected="false">Product Master</button>
+  <button class="tab-btn" data-tab="adjustments" role="tab" aria-selected="false">Adjustments</button>
 </nav>
 
 <main>
 
-  <!-- LOOKUP TAB -->
-  <section id="tab-lookup" class="tab-panel" role="tabpanel">
+  <!-- TAG LOOKUP TAB -->
+  <section id="tab-taglookup" class="tab-panel" role="tabpanel">
     <div class="search-row">
-      <input id="search-input" type="text" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off"
-             placeholder="Scan barcode or type SKU / description..." aria-label="Search SKU or description">
-      <button id="scan-btn" class="icon-btn" title="Scan with camera" aria-label="Scan with camera">📷</button>
-      <button id="clear-btn" class="icon-btn" title="Clear" aria-label="Clear search">✕</button>
+      <input id="tag-search-input" type="text" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off"
+             placeholder="Scan barcode or type SKU / UPC / style..." aria-label="Search product">
+      <button id="tag-scan-btn" class="icon-btn" title="Scan with camera" aria-label="Scan with camera">📷</button>
+      <button id="tag-clear-btn" class="icon-btn" title="Clear" aria-label="Clear search">✕</button>
     </div>
 
-    <div id="scanner-wrap" class="scanner-wrap" hidden>
-      <div id="scanner-view"></div>
-      <button id="scan-stop-btn" class="btn secondary">Stop Scanning</button>
+    <div id="tag-results" class="results" hidden></div>
+
+    <div id="tag-empty-state" class="empty-state">
+      <p>Scan or search a product to see its assigned security-tag placement.</p>
+      <p class="hint">Tag locations are set per style — assigning one applies it to every color and size of that style.</p>
     </div>
 
-    <div id="results" class="results"></div>
-
-    <div id="empty-state" class="empty-state">
-      <p>Scan a barcode with the camera button, or type a SKU / keyword above.</p>
-      <p class="hint">A handheld/bluetooth barcode scanner also works — just tap the search box first, then scan.</p>
-    </div>
+    <h2>All Assigned Tag Locations</h2>
+    <div id="tag-assignments-list" class="tag-assignments-list"></div>
   </section>
 
-  <!-- AUDIT TAB -->
+  <!-- AUDIT DASHBOARD TAB -->
   <section id="tab-audit" class="tab-panel" role="tabpanel" hidden>
-    <form id="audit-form" class="audit-form">
-      <label>Associate name
-        <input type="text" id="audit-name" required autocomplete="off">
+    <div class="session-bar">
+      <label>Date
+        <input type="date" id="audit-date">
       </label>
-
-      <label>SKU
-        <div class="inline-row">
-          <input type="text" id="audit-sku" required autocomplete="off" placeholder="Scan or type SKU">
-          <button type="button" id="audit-scan-btn" class="icon-btn" title="Scan with camera" aria-label="Scan with camera">📷</button>
-        </div>
+      <label>Initials
+        <input type="text" id="audit-initials" placeholder="Your initials" autocomplete="off">
       </label>
+    </div>
 
-      <label>Item description
-        <input type="text" id="audit-desc" autocomplete="off" placeholder="Auto-fills if SKU is found">
+    <div class="scan-buttons-row">
+      <button id="scan-product-btn" class="btn primary">📷 Scan Product to Count</button>
+      <button id="check-tag-btn" class="btn secondary">🏷 Check Tag Location</button>
+    </div>
+
+    <p id="scan-status" class="status-msg" role="status"></p>
+
+    <div id="tag-check-result" class="tag-check-result" hidden></div>
+
+    <div id="active-item-card" class="active-item-card" hidden>
+      <div class="sku" id="active-sku"></div>
+      <h3 id="active-desc"></h3>
+      <div class="result-field">
+        <div class="label">UPC</div>
+        <div class="value" id="active-upc"></div>
+      </div>
+      <div class="result-field">
+        <div class="label">Expected Count</div>
+        <div class="value" id="active-expected"></div>
+      </div>
+      <label>Counted
+        <input type="number" id="count-input" inputmode="numeric" min="0" placeholder="Enter physical count">
       </label>
-
-      <fieldset class="result-fieldset">
-        <legend>Result</legend>
-        <label class="radio"><input type="radio" name="audit-result" value="pass" checked> Tagged correctly</label>
-        <label class="radio"><input type="radio" name="audit-result" value="fail"> Tagged incorrectly</label>
-        <label class="radio"><input type="radio" name="audit-result" value="missing"> Tag missing</label>
-      </fieldset>
-
-      <label>Notes
-        <textarea id="audit-notes" rows="3" placeholder="Optional details"></textarea>
-      </label>
-
-      <button type="submit" class="btn primary">Log Entry</button>
-      <p id="audit-status" class="status-msg" role="status"></p>
-    </form>
+      <div class="active-item-actions">
+        <button id="submit-count-btn" class="btn primary">Log Count</button>
+        <button id="cancel-count-btn" class="btn secondary">Cancel</button>
+      </div>
+    </div>
 
     <div class="audit-list-header">
       <h2>Recent Entries</h2>
-      <div class="audit-list-actions">
-        <button id="export-csv-btn" class="btn secondary small">Export CSV</button>
-        <button id="clear-log-btn" class="btn danger small">Clear Log</button>
-      </div>
+      <button id="export-audit-csv-btn" class="btn secondary small">Export CSV</button>
     </div>
     <div id="audit-list" class="audit-list"></div>
   </section>
 
-  <!-- SETTINGS TAB -->
-  <section id="tab-settings" class="tab-panel" role="tabpanel" hidden>
-    <h2>Data Source</h2>
-    <p class="hint">
-      SKU lookup data is loaded from <code>data/skus.json</code> in this app, bundled at deploy time.
-      To update tag locations or exceptions, edit that file and push to GitHub — the live app updates automatically.
-    </p>
+  <!-- PRODUCT MASTER TAB -->
+  <section id="tab-master" class="tab-panel" role="tabpanel" hidden>
+    <h2>Import from Manhattan Omni</h2>
+    <p class="hint">Copy the product block(s) from Manhattan Omni and paste below, then tap Import. Existing SKUs get their expected count refreshed — nothing is duplicated.</p>
+    <textarea id="paste-area" rows="8" placeholder="Paste Manhattan Omni data here…"></textarea>
     <div class="settings-row">
-      <button id="reload-data-btn" class="btn secondary">Reload Data</button>
-      <span id="data-status" class="hint"></span>
+      <button id="import-btn" class="btn primary">Import / Update</button>
     </div>
+    <p id="import-status" class="status-msg" role="status"></p>
 
-    <h2>Audit Log Backend (optional)</h2>
-    <p class="hint">
-      Audit entries always save on this device (offline-safe). Optionally, also send each entry to a
-      Google Sheet via a Google Apps Script Web App URL. See README for setup steps.
-    </p>
-    <label>Google Sheet Webhook URL
-      <input type="url" id="webhook-url" placeholder="https://script.google.com/macros/s/…/exec">
-    </label>
-    <button id="save-webhook-btn" class="btn secondary">Save</button>
-    <p id="webhook-status" class="status-msg" role="status"></p>
+    <div class="audit-list-header">
+      <h2>Master List</h2>
+      <div class="audit-list-actions">
+        <button id="export-master-csv-btn" class="btn secondary small">Export CSV</button>
+        <button id="clear-master-btn" class="btn danger small">Clear All</button>
+      </div>
+    </div>
+    <input id="master-filter" type="text" autocomplete="off" placeholder="Filter by SKU, UPC, style, or description…" class="filter-input">
+    <p id="master-count" class="hint"></p>
+    <div class="table-wrap">
+      <table class="master-table">
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>UPC</th>
+            <th>Description</th>
+            <th>Expected</th>
+            <th>Updated</th>
+          </tr>
+        </thead>
+        <tbody id="master-table-body"></tbody>
+      </table>
+    </div>
+  </section>
 
-    <h2>About</h2>
-    <p class="hint">
-      Installed as a home-screen app, this works fully offline for lookups and logging once loaded once.
-      Audit entries queued for the Google Sheet sync automatically when back online.
-    </p>
+  <!-- INVENTORY ADJUSTMENT TAB -->
+  <section id="tab-adjustments" class="tab-panel" role="tabpanel" hidden>
+    <div class="audit-list-header">
+      <h2>Inventory Adjustments</h2>
+      <button id="export-adjustments-csv-btn" class="btn secondary small">Export CSV</button>
+    </div>
+    <p class="hint">Discrepancies found during audits land here. A supervisor makes the correction in Manhattan, then checks it off below.</p>
+
+    <h2>Mark In <span class="hint">(counted more than expected)</span></h2>
+    <div id="mark-in-list" class="adjustment-list"></div>
+
+    <h2>Mark Out <span class="hint">(counted less than expected)</span></h2>
+    <div id="mark-out-list" class="adjustment-list"></div>
   </section>
 
 </main>
 
+<!-- Shared camera scanner overlay -->
+<div id="scanner-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2 id="scanner-modal-title">Scanning…</h2>
+    <div id="scanner-modal-view"></div>
+    <button id="scanner-modal-cancel" class="btn secondary">Cancel</button>
+  </div>
+</div>
+
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/scanner.js"></script>
+<script src="js/masterlist.js"></script>
+<script src="js/taglookup.js"></script>
+<script src="js/audit.js"></script>
+<script src="js/adjustments.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

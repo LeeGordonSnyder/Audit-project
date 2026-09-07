@@ -1,7 +1,7 @@
 {
-  "name": "Security Tag Lookup",
-  "short_name": "Tag Lookup",
-  "description": "SKU-based security tag placement lookup and audit logging for store associates.",
+  "name": "Store Audit Tool",
+  "short_name": "Audit Tool",
+  "description": "Security tag lookup, inventory audit counting, and adjustment tracking for store associates.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
