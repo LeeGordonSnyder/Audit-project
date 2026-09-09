@@ -1,4 +1,4 @@
-const CACHE_NAME = "audit-tool-v8";
+const CACHE_NAME = "audit-tool-v9";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -9,13 +9,11 @@ const CORE_ASSETS = [
   "./js/masterlist.js",
   "./js/taglookup.js",
   "./js/audit.js",
-  "./js/adjustments.js",
   "./js/sync.js",
   "./js/app.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
-  "./data/product-master-seed.txt",
 ];
 
 self.addEventListener("install", (event) => {
@@ -41,21 +39,6 @@ self.addEventListener("fetch", (event) => {
   // Sheet sync, the camera-scanning CDN script) pass straight through — we
   // never want the Sheet's live data served from a stale cache.
   if (new URL(req.url).origin !== self.location.origin) return;
-
-  // Network-first for the preloaded catalog, so a newly pushed seed file
-  // reaches devices as soon as they have a signal, not just on reinstall.
-  if (req.url.includes("data/product-master-seed.txt")) {
-    event.respondWith(
-      fetch(req)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
-          return res;
-        })
-        .catch(() => caches.match(req))
-    );
-    return;
-  }
 
   // Cache-first app shell — everything else changes only on a new deploy.
   event.respondWith(

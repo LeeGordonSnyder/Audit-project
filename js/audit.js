@@ -24,6 +24,9 @@ function initAuditDashboard() {
   document.getElementById("submit-count-btn").addEventListener("click", submitCount);
   document.getElementById("export-audit-csv-btn").addEventListener("click", exportAuditCsv);
 
+  document.getElementById("add-product-cancel-btn").addEventListener("click", clearAddProductCard);
+  document.getElementById("add-product-save-btn").addEventListener("click", saveNewProduct);
+
   initSync();
   renderAuditList();
 }
@@ -31,19 +34,27 @@ function initAuditDashboard() {
 function handleProductScan(upc) {
   const master = loadJSON(STORAGE.master, []);
   const item = master.find((p) => p.upc === upc);
-  const statusEl = document.getElementById("scan-status");
 
   if (!item) {
-    statusEl.textContent = `UPC ${upc} not found in Product Master List. Import it on the Product Master tab first.`;
-    statusEl.classList.add("error");
+    clearScanStatus();
     clearActiveItem();
+    showAddProductCard(upc);
     return;
   }
 
+  clearScanStatus();
+  clearAddProductCard();
+  populateActiveItemCard(item);
+}
+
+function clearScanStatus() {
+  const statusEl = document.getElementById("scan-status");
   statusEl.textContent = "";
   statusEl.classList.remove("error");
-  activeAuditItem = item;
+}
 
+function populateActiveItemCard(item) {
+  activeAuditItem = item;
   document.getElementById("active-item-card").hidden = false;
   document.getElementById("active-sku").textContent = item.sku;
   document.getElementById("active-upc").textContent = item.upc;
@@ -60,6 +71,62 @@ function handleProductScan(upc) {
 function clearActiveItem() {
   activeAuditItem = null;
   document.getElementById("active-item-card").hidden = true;
+}
+
+function showAddProductCard(upc) {
+  document.getElementById("add-product-card").hidden = false;
+  document.getElementById("add-product-upc").textContent = `UPC ${upc}`;
+  for (const id of ["add-sku", "add-description", "add-style", "add-dept", "add-color", "add-size"]) {
+    document.getElementById(id).value = "";
+  }
+  document.getElementById("add-product-card").dataset.upc = upc;
+  document.getElementById("add-sku").focus();
+}
+
+function clearAddProductCard() {
+  document.getElementById("add-product-card").hidden = true;
+}
+
+async function saveNewProduct() {
+  const upc = document.getElementById("add-product-card").dataset.upc;
+  const sku = document.getElementById("add-sku").value.trim();
+  const description = document.getElementById("add-description").value.trim();
+
+  if (!sku || !description) {
+    alert("SKU and Description are required.");
+    return;
+  }
+
+  const item = {
+    sku,
+    upc,
+    description,
+    style: document.getElementById("add-style").value.trim(),
+    dept: document.getElementById("add-dept").value.trim(),
+    color: document.getElementById("add-color").value.trim(),
+    size: document.getElementById("add-size").value.trim(),
+  };
+
+  upsertProductMaster([item]);
+  clearAddProductCard();
+
+  const statusEl = document.getElementById("scan-status");
+  statusEl.classList.remove("error");
+  statusEl.textContent = "Added — sharing with the catalog sheet…";
+
+  try {
+    await pushProductToSheet(getWebhookUrl(), item);
+    statusEl.textContent = "Added and shared with the catalog sheet.";
+  } catch (e) {
+    statusEl.classList.add("error");
+    statusEl.textContent = "Added on this device, but couldn't share it yet — check your connection. It'll stay local until the next successful import/sync.";
+  }
+
+  // Continue straight into counting it, same as a normal scan hit — without
+  // clobbering the status message above via handleProductScan()'s own reset.
+  const master = loadJSON(STORAGE.master, []);
+  const stored = master.find((p) => p.sku === sku);
+  if (stored) populateActiveItemCard(stored);
 }
 
 function submitCount() {
@@ -121,24 +188,6 @@ function submitCount() {
   entries.unshift(entry);
   saveJSON(STORAGE.auditLog, entries);
 
-  if (variance !== 0) {
-    const adjustments = loadJSON(STORAGE.adjustments, []);
-    adjustments.unshift({
-      id: uid(),
-      auditEntryId: entry.id,
-      type: variance > 0 ? "in" : "out",
-      sku: entry.sku,
-      upc: entry.upc,
-      description: entry.description,
-      variance,
-      supervisorInitials: "",
-      completed: false,
-      completedDate: null,
-      createdAt: entry.timestamp,
-    });
-    saveJSON(STORAGE.adjustments, adjustments);
-  }
-
   renderAuditList();
   clearActiveItem();
 
@@ -146,10 +195,8 @@ function submitCount() {
   statusEl.classList.remove("error");
   statusEl.textContent =
     variance === 0
-      ? "Logged — count matched, no adjustment needed."
-      : `Logged — ${variance > 0 ? "over" : "under"} by ${Math.abs(variance)}. Sent to ${
-          variance > 0 ? "Mark In" : "Mark Out"
-        } on the Inventory Adjustment tab.`;
+      ? "Logged — count matched."
+      : `Logged — ${variance > 0 ? "over" : "under"} by ${Math.abs(variance)}.`;
 }
 
 function renderAuditList() {

@@ -1,26 +1,35 @@
 "use strict";
 
 function getWebhookUrl() {
-  return localStorage.getItem(STORAGE.webhookUrl) || "";
+  return localStorage.getItem(STORAGE.webhookUrl) || DEFAULT_WEBHOOK_URL;
 }
 
 function setWebhookUrl(url) {
   localStorage.setItem(STORAGE.webhookUrl, url);
 }
 
-async function postEntryToSheet(url, entry) {
+async function postToSheet(url, payload) {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" }, // avoids a CORS preflight Apps Script can't handle
-    body: JSON.stringify(entry),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error("HTTP " + res.status);
 }
 
-async function fetchSheetHistory(url) {
-  const res = await fetch(url, { method: "GET", cache: "no-store" });
+async function fetchFromSheet(url, sheet) {
+  const sep = url.includes("?") ? "&" : "?";
+  const res = await fetch(`${url}${sep}sheet=${sheet}`, { method: "GET", cache: "no-store" });
   if (!res.ok) throw new Error("HTTP " + res.status);
   return res.json();
+}
+
+function postEntryToSheet(url, entry) {
+  return postToSheet(url, { type: "audit", ...entry });
+}
+
+function pushProductToSheet(url, item) {
+  return postToSheet(url, { type: "master", ...item });
 }
 
 function initSync() {
@@ -37,10 +46,6 @@ function initSync() {
 
 async function syncUnsyncedEntries() {
   const url = getWebhookUrl();
-  if (!url) {
-    setStatus("sync-status", "Add a Google Sheet URL under Shared Log Settings first.", true);
-    return;
-  }
 
   const entries = loadJSON(STORAGE.auditLog, []);
   const unsynced = entries.filter((e) => !e.synced);
@@ -74,10 +79,9 @@ async function syncUnsyncedEntries() {
 
 async function loadSharedHistory() {
   const url = getWebhookUrl();
-  if (!url) return;
 
   try {
-    const remoteRows = await fetchSheetHistory(url);
+    const remoteRows = await fetchFromSheet(url, "auditlog");
     if (!Array.isArray(remoteRows) || remoteRows.length === 0) return;
 
     const entries = loadJSON(STORAGE.auditLog, []);
@@ -109,6 +113,18 @@ async function loadSharedHistory() {
       entries.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       saveJSON(STORAGE.auditLog, entries);
     }
+  } catch (e) {
+    // offline or unreachable — local data stands, next boot/refresh will retry
+  }
+}
+
+async function loadSharedProductMaster() {
+  const url = getWebhookUrl();
+
+  try {
+    const remoteRows = await fetchFromSheet(url, "master");
+    if (!Array.isArray(remoteRows) || remoteRows.length === 0) return;
+    upsertProductMaster(remoteRows.map(sheetRowToMasterItem));
   } catch (e) {
     // offline or unreachable — local data stands, next boot/refresh will retry
   }

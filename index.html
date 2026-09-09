@@ -24,7 +24,6 @@
     <button class="tab-btn active" data-tab="taglookup" role="tab" aria-selected="true">Tag Lookup</button>
     <button class="tab-btn" data-tab="audit" role="tab" aria-selected="false">Audit Dashboard</button>
     <button class="tab-btn" data-tab="master" role="tab" aria-selected="false">Product Master</button>
-    <button class="tab-btn" data-tab="adjustments" role="tab" aria-selected="false">Adjustments</button>
   </nav>
 </div>
 
@@ -66,6 +65,34 @@
     </div>
 
     <p id="scan-status" class="status-msg" role="status"></p>
+
+    <div id="add-product-card" class="active-item-card" hidden>
+      <div class="sku" id="add-product-upc"></div>
+      <h3>Not in the catalog yet</h3>
+      <p class="hint">Add it once and it's shared with every device.</p>
+      <label>SKU
+        <input type="text" id="add-sku" autocomplete="off">
+      </label>
+      <label>Description
+        <input type="text" id="add-description" autocomplete="off" placeholder="e.g. Atom SL Hoody Men's">
+      </label>
+      <label>Style
+        <input type="text" id="add-style" autocomplete="off">
+      </label>
+      <label>Dept
+        <input type="text" id="add-dept" autocomplete="off">
+      </label>
+      <label>Color
+        <input type="text" id="add-color" autocomplete="off">
+      </label>
+      <label>Size
+        <input type="text" id="add-size" autocomplete="off">
+      </label>
+      <div class="active-item-actions">
+        <button id="add-product-save-btn" class="btn primary">Add Product</button>
+        <button id="add-product-cancel-btn" class="btn secondary">Cancel</button>
+      </div>
+    </div>
 
     <div id="active-item-card" class="active-item-card" hidden>
       <div class="sku" id="active-sku"></div>
@@ -110,7 +137,7 @@
   <!-- PRODUCT MASTER TAB -->
   <section id="tab-master" class="tab-panel" role="tabpanel" hidden>
     <h2>Import from Manhattan Omni</h2>
-    <p class="hint">Copy the product block(s) from Manhattan Omni and paste below, then tap Import. This only refreshes catalog details (description, style, color, size) — expected counts are set separately on the Audit Dashboard, not from this paste.</p>
+    <p class="hint">The catalog is shared — every device syncs it from the same sheet automatically. Pasting here (or adding a product on the Audit Dashboard when a scan doesn't match) pushes straight to that shared sheet for everyone. Copy the product block(s) from Manhattan Omni and paste below, then tap Import.</p>
     <textarea id="paste-area" rows="8" placeholder="Paste Manhattan Omni data here…"></textarea>
     <div class="settings-row">
       <button id="import-btn" class="btn primary">Import / Update</button>
@@ -142,20 +169,6 @@
     </div>
   </section>
 
-  <!-- INVENTORY ADJUSTMENT TAB -->
-  <section id="tab-adjustments" class="tab-panel" role="tabpanel" hidden>
-    <div class="audit-list-header">
-      <h2>Inventory Adjustments</h2>
-      <button id="export-adjustments-csv-btn" class="btn secondary small">Export CSV</button>
-    </div>
-    <p class="hint">Discrepancies found during audits land here. A supervisor makes the correction in Manhattan, then checks it off below.</p>
-
-    <h2>Mark In <span class="hint">(counted more than expected)</span></h2>
-    <div id="mark-in-list" class="adjustment-list"></div>
-
-    <h2>Mark Out <span class="hint">(counted less than expected)</span></h2>
-    <div id="mark-out-list" class="adjustment-list"></div>
-  </section>
 
 </main>
 
@@ -190,7 +203,6 @@
 <script src="js/masterlist.js"></script>
 <script src="js/taglookup.js"></script>
 <script src="js/audit.js"></script>
-<script src="js/adjustments.js"></script>
 <script src="js/sync.js"></script>
 <script src="js/app.js"></script>
 </body>

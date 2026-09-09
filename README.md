@@ -1,25 +1,60 @@
 # Store Audit Tool
 
 An offline-friendly web app for store associates: look up security-tag
-placement by style, run physical inventory counts, and track the resulting
-Mark In/Mark Out adjustments until a supervisor resolves them. No backend —
-it's static files that install to the home screen like an app via Safari's
-"Add to Home Screen." All data lives on the device (`localStorage`); there is
-nothing to configure to get started.
+placement by style, and run physical inventory counts against a shared
+catalog. It installs to the home screen like an app via Safari's "Add to
+Home Screen." There's no backend to run — the catalog and audit log both
+live in one Google Sheet, read and written directly from the browser via a
+small Apps Script.
 
-## The four tabs
+## The three tabs
 
-### 1. Product Master
-The product catalog (SKU, UPC, style, dept, color, size, description). It
-comes from two places:
+### 1. Tag Lookup
+Scan or search a product to see the security-tag placement assigned to its
+**style** (a "hard tag" — one location applies to every color and size under
+that style code, e.g. style `X000009560` → "Thigh pocket" for every
+Atom SL Hoody variant). Tap **Set / Edit Tag Location** on any result to
+assign or change it from a fixed list (Hood, Below Wash Tag, Through Wash
+Tag, Tag Side Pocket, Left Leg In-seam, Chest Pocket). A running list of
+every assigned style/location pair is shown below the search box.
 
-- **Preloaded automatically** from [`data/product-master-seed.txt`](data/product-master-seed.txt)
-  — see "Preloading the catalog" below. This is the main way the catalog gets
-  onto every device with no per-phone setup.
-- **Pasted manually** on this tab for one-off additions (e.g. testing, or a
-  new SKU that hasn't made it into the seed file yet). Paste a block (or
-  several) copied straight out of Manhattan Omni and tap **Import / Update**.
-  Each block looks like:
+### 2. Audit Dashboard
+The daily driver:
+
+1. Set **Date** and **Initials** once — remembered until changed again.
+2. Tap **📷 Scan Product to Count**.
+   - **If the UPC is in the catalog**, its description loads and you move
+     straight to counting.
+   - **If it isn't**, a small form appears right there — SKU, Description,
+     Style, Dept, Color, Size — fill in what you know and tap **Add
+     Product**. It's saved locally and pushed to the shared catalog sheet
+     immediately, so every other device has it too from then on. Then you
+     continue straight into counting it.
+3. Confirm or correct the **Expected Count** — blank the first time an item
+   is ever counted, pre-filled with whatever was last confirmed after that.
+4. Enter the **Actual Count** and tap **Log Count**.
+
+Recent entries are listed below, each with a synced/not-synced indicator,
+and exportable to CSV. Tap **Save to Sheet** to push everything not yet
+synced up to the shared audit log in one batch — that's the record
+leadership references for marking product in or out; there's no separate
+adjustments queue in the app, the log itself carries expected vs. counted
+vs. variance for every entry.
+
+On boot/refresh, the app also pulls in anything saved from *other* devices,
+merging it into Recent Entries — so the log reflects every audit done on
+every phone, not just this one.
+
+### 3. Product Master
+The shared catalog (SKU, UPC, style, dept, color, size, description) — it
+lives entirely in the Google Sheet's "ProductMaster" tab, not in this repo.
+Every device syncs from it automatically on boot/refresh. Two ways to add to
+it:
+
+- **In the moment**, from the Audit Dashboard when a scan doesn't match (see
+  above) — this is the normal way staff will add missing items.
+- **In bulk**, on this tab: paste a block (or several) copied straight out
+  of Manhattan Omni and tap **Import / Update**. Each block looks like:
 
   ```
   Atom SL Hoody Men's
@@ -32,66 +67,106 @@ comes from two places:
   Available0 / 0
   ```
 
-Matching is always by SKU — pasting (or reseeding) the same SKU again never
-creates a duplicate row, it just refreshes the catalog details.
+  Matching is always by SKU — pasting the same SKU again never creates a
+  duplicate, it just refreshes the catalog details, and pushes the update to
+  the shared sheet for everyone.
+
+You can also just edit the "ProductMaster" sheet tab directly in Google
+Sheets (paste from Excel, fix a typo, bulk-add a season) — the app reads
+whatever's there regardless of how it got in.
 
 **Important:** the `Available x / x` number from Manhattan Omni is ignored
 entirely — it's never parsed, stored, or shown anywhere. Expected count is a
-fully separate field that starts unset (`Not set`) and is only ever filled
-in by an associate on the Audit Dashboard, at the moment they scan the item.
-From then on it's remembered as the new baseline until someone changes it
-again.
+separate field, staff-entered per audit on the Audit Dashboard, never
+sourced from Manhattan Omni or the catalog.
 
-The table is filterable (SKU, UPC, style, or description) and exportable to
-CSV.
+The local table is filterable (SKU, UPC, style, or description) and
+exportable to CSV.
 
-### Preloading the catalog
-Paste your full Manhattan Omni catalog export into
-[`data/product-master-seed.txt`](data/product-master-seed.txt) (same block
-format as above, one item after another), commit, and push. Every device
-picks it up automatically on next launch — no one has to paste anything in
-by hand. To update the catalog later (new season, new styles), just replace
-the file's contents and push again; existing SKUs get their catalog details
-refreshed while any expected counts associates have already confirmed are
-left untouched.
+## The Google Sheet backend
 
-### 2. Tag Lookup
-Scan or search a product to see the security-tag placement assigned to its
-**style** (a "hard tag" — one location applies to every color and size under
-that style code, e.g. style `X000009560` → "Thigh pocket" for every
-Atom SL Hoody variant). Tap **Set / Edit Tag Location** on any result to
-assign or change it. A running list of every assigned style/location pair is
-shown below the search box for quick reference.
+One spreadsheet with two tabs, both created automatically by the script the
+first time each is used:
 
-There's no HQ-exception feed wired up (Manhattan Omni doesn't carry one) — if
-you need to note something item-specific, put it directly in that style's
-tag-location text (e.g. *"Thigh pocket — do NOT pin through the mesh liner"*).
+- **AuditLog** — every count logged from every device.
+- **ProductMaster** — the shared catalog.
 
-### 3. Audit Dashboard
-This is the daily driver:
+Setup, if you're starting fresh or need to redeploy:
 
-1. Set **Date** and **Initials** once — they're remembered until you change
-   them again.
-2. Tap **📷 Scan Product to Count**, scan the UPC. The app pulls the
-   description from the Product Master list.
-3. Confirm or correct the **Expected Count** field — blank the first time an
-   item is ever scanned, pre-filled with whatever was last confirmed after
-   that.
-4. Enter the **Actual Count** (the physical tally) and tap **Log Count**.
-5. If the two match, that's it — logged, no further action.
-6. If they don't, the item is automatically queued on the **Adjustments**
-   tab: counted *more* than expected → **Mark In**; counted *less* → **Mark
-   Out**.
+1. Create a Google Sheet (or use an existing one).
+2. Extensions → Apps Script, replace everything in `Code.gs` with:
 
-Recent entries are listed below and exportable to CSV.
+   ```javascript
+   function doPost(e) {
+     const body = JSON.parse(e.postData.contents);
+     return body.type === "master" ? handleMasterPost(body) : handleAuditPost(body);
+   }
 
-### 4. Adjustments
-Two queues, **Mark In** and **Mark Out**, populated automatically by the
-Audit Dashboard whenever a count doesn't match. Each entry shows the
-variance, and has a Supervisor Initials field and a Completed checkbox.
-Checking it off requires initials first, and stamps the current date next to
-it — that's the record that the correction was actually made in Manhattan.
-Exportable to CSV.
+   function doGet(e) {
+     const sheetParam = (e.parameter.sheet || "auditlog").toLowerCase();
+     return jsonResponse(sheetToObjects(getOrCreateSheet(
+       sheetParam === "master" ? "ProductMaster" : "AuditLog",
+       sheetParam === "master" ? MASTER_HEADER : AUDIT_HEADER
+     )));
+   }
+
+   const AUDIT_HEADER = ["id", "date", "initials", "sku", "upc", "style", "description", "expected", "counted", "variance", "result", "timestamp"];
+   const MASTER_HEADER = ["sku", "upc", "dept", "style", "color", "size", "description", "updatedAt"];
+
+   function handleAuditPost(entry) {
+     const sheet = getOrCreateSheet("AuditLog", AUDIT_HEADER);
+     sheet.appendRow(AUDIT_HEADER.map((key) => entry[key]));
+     return jsonResponse({ ok: true });
+   }
+
+   function handleMasterPost(item) {
+     const sheet = getOrCreateSheet("ProductMaster", MASTER_HEADER);
+     const data = sheet.getDataRange().getValues();
+     let rowIndex = -1;
+     for (let i = 1; i < data.length; i++) {
+       if (data[i][0] === item.sku) { rowIndex = i + 1; break; }
+     }
+     const row = [item.sku, item.upc, item.dept || "", item.style || "", item.color || "", item.size || "", item.description || "", new Date().toISOString()];
+     if (rowIndex === -1) sheet.appendRow(row);
+     else sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+     return jsonResponse({ ok: true });
+   }
+
+   function getOrCreateSheet(name, header) {
+     const ss = SpreadsheetApp.getActiveSpreadsheet();
+     let sheet = ss.getSheetByName(name);
+     if (!sheet) sheet = ss.insertSheet(name);
+     if (sheet.getLastRow() === 0) sheet.appendRow(header);
+     return sheet;
+   }
+
+   function sheetToObjects(sheet) {
+     const values = sheet.getDataRange().getValues();
+     if (values.length < 2) return [];
+     const header = values[0];
+     return values.slice(1).map((row) => {
+       const obj = {};
+       header.forEach((key, i) => (obj[key] = row[i]));
+       return obj;
+     });
+   }
+
+   function jsonResponse(obj) {
+     return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+   }
+   ```
+
+3. **Deploy → New deployment → Web app**. "Execute as: Me," "Who has
+   access: Anyone." Deploy, copy the URL.
+4. Update `DEFAULT_WEBHOOK_URL` in [`js/storage.js`](js/storage.js) to that
+   URL, commit, push. Every device picks up the new default automatically —
+   nothing to configure per phone. (The Shared Log Settings field on the
+   Audit Dashboard still exists as a manual override, for if the URL ever
+   changes again without a code push.)
+
+To update the script later: edit `Code.gs`, then **Deploy → Manage
+deployments → pencil icon on the existing deployment → New version →
+Deploy** — this keeps the same URL, so no app changes are needed.
 
 ## Deploying to GitHub Pages
 
@@ -99,16 +174,12 @@ Exportable to CSV.
 2. **Settings → Pages → Build and deployment → Source** → **Deploy from a
    branch** → pick your branch and `/ (root)`. Save.
    - GitHub Pages requires the repository to be **public** on the free plan.
-     Private repos need GitHub Pro/Team, and even then the published site
-     itself is a public URL (private Pages sites need Enterprise) — so for a
-     tool with no sensitive data in it, a public repo is the simplest path.
 3. Wait ~1 minute, then open the URL GitHub gives you
    (`https://<username>.github.io/<repo-name>/`).
 
 ## Installing on the store iPhone
 
-1. Open the GitHub Pages URL in **Safari** (not Chrome — Add to Home Screen
-   needs Safari to behave like a real app icon).
+1. Open the GitHub Pages URL in **Safari** (not Chrome).
 2. Share icon → **Add to Home Screen** → Add.
 3. Launch from the home screen icon — full-screen, no browser chrome, works
    offline after the first load.
@@ -116,33 +187,34 @@ Exportable to CSV.
 If you rename the app again later, remove the old home-screen icon and
 re-add it — iOS caches the name/icon from whatever was live at install time.
 
-## Data & backups
+## Data & offline behavior
 
-Everything (Product Master, tag assignments, audit entries, adjustments)
-lives in the browser's `localStorage` **on that one device**. There's no
-sync between phones — this only works because the whole workflow (paste data,
-scan, count, resolve adjustments) happens on the same iPhone. Nothing is
-lost between sessions, but:
+Tag assignments and the session (date/initials) are purely local
+(`localStorage`) — there's no need to share those. Product Master and the
+audit log are backed by the Sheet and sync automatically:
 
-- It doesn't survive "Clear website data" in Safari, a factory reset, or
-  switching to a different phone.
-- Use the **Export CSV** buttons (Product Master, Audit Dashboard,
-  Adjustments) regularly as your durable record — treat them as the backup,
-  since there's no server storing this anywhere else.
+- **On boot/refresh**, the app pulls the latest catalog and audit history
+  from the Sheet (needs a signal for that first fetch).
+- **After that**, everything works offline from the local cache — scanning,
+  counting, and adding new products all work with no connection; they just
+  queue up as "not synced" until the next successful sync.
+- **Audit log entries** sync only when you tap **Save to Sheet** — deliberately
+  manual/batched, not automatic per scan.
+- **New/added catalog products** try to push to the Sheet immediately; if
+  that fails (offline), they stay local-only until the next import or scan
+  that has a connection.
 
-If you later need a supervisor to resolve adjustments from a different
-device than the one doing the scanning, that requires wiring the app to a
-shared backend (e.g. a live Google Sheet) instead of `localStorage` — a
-bigger change, worth doing once this workflow is validated.
+Since the service worker's own cache-first behavior only applies to the
+app's own files (HTML/CSS/JS), the Sheet fetch is always live, never served
+from a stale cache.
 
 ## Roadmap
 
 This is a standalone prototype, not connected to Manhattan (no store-level
-API access exists today) — Product Master data comes in via copy/paste
-because that's the only access an associate has. If this proves useful, the
-natural next step is pitching retail ops on a real Manhattan integration so
-counts, tag rules, and adjustments live in the system of record instead of
-being bridged by hand.
+API access exists today) — the catalog is staff-maintained because that's
+the only access an associate has. If this proves useful, the natural next
+step is pitching retail ops on a real Manhattan integration so counts and
+tag rules live in the system of record instead of being bridged by hand.
 
 ## Local development
 

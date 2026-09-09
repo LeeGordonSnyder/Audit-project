@@ -1,7 +1,7 @@
 "use strict";
 
 function initMasterList() {
-  document.getElementById("import-btn").addEventListener("click", () => {
+  document.getElementById("import-btn").addEventListener("click", async () => {
     const textarea = document.getElementById("paste-area");
     const parsed = parseManhattanPaste(textarea.value);
     if (!parsed.length) {
@@ -10,12 +10,32 @@ function initMasterList() {
     }
     const result = upsertProductMaster(parsed);
     textarea.value = "";
+    renderMasterTable();
+
     setStatus(
       "import-status",
-      `Added ${result.added} new item(s), updated ${result.updated} existing item(s). Master list now has ${result.total} item(s) total.`,
+      `Added ${result.added} new item(s), updated ${result.updated} existing item(s). Sharing with the catalog sheet…`,
       false
     );
-    renderMasterTable();
+
+    const url = getWebhookUrl();
+    let shared = 0;
+    for (const item of parsed) {
+      try {
+        await pushProductToSheet(url, item);
+        shared++;
+      } catch (e) {
+        break; // likely offline — the rest stay local-only until the next import/sync
+      }
+    }
+
+    setStatus(
+      "import-status",
+      shared === parsed.length
+        ? `Added ${result.added} new item(s), updated ${result.updated} existing item(s), and shared all ${shared} with the catalog sheet.`
+        : `Added ${result.added} new item(s), updated ${result.updated} existing item(s) locally. Only shared ${shared} of ${parsed.length} with the sheet — check your connection and import again to finish sharing.`,
+      shared !== parsed.length
+    );
   });
 
   document.getElementById("master-filter").addEventListener("input", renderMasterTable);

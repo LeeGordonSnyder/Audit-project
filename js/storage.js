@@ -4,10 +4,14 @@ const STORAGE = {
   master: "audit.productMaster.v1",
   tagMap: "audit.styleTagMap.v1",
   auditLog: "audit.auditEntries.v1",
-  adjustments: "audit.adjustments.v1",
   session: "audit.session.v1",
   webhookUrl: "audit.webhookUrl.v1",
 };
+
+// Baked-in default so the app works with zero setup. Settings can still
+// override this (e.g. if the sheet is ever redeployed to a new URL).
+const DEFAULT_WEBHOOK_URL =
+  "https://script.google.com/macros/s/AKfycbz_Xhbfp_Cpko5kBIsNik8dhXLNrQ5D2DKpjmqMZpVAxUPyNkgVHi-7417HQQrFJpIr/exec";
 
 function loadJSON(key, fallback) {
   try {
@@ -121,16 +125,19 @@ function setExpectedCount(sku, expectedCount) {
   saveJSON(STORAGE.master, master);
 }
 
-async function seedProductMasterFromFile() {
-  try {
-    const res = await fetch("data/product-master-seed.txt", { cache: "no-store" });
-    if (!res.ok) return;
-    const text = await res.text();
-    const parsed = parseManhattanPaste(text);
-    if (parsed.length) upsertProductMaster(parsed);
-  } catch (e) {
-    // Offline or file missing — fine, whatever's already in localStorage stands.
-  }
+// Maps a row shape returned by the Sheet's ProductMaster tab into the same
+// item shape parseManhattanBlock() produces, so both sources can share
+// upsertProductMaster()'s merge logic.
+function sheetRowToMasterItem(row) {
+  return {
+    sku: row.sku || "",
+    upc: row.upc || "",
+    dept: row.dept || "",
+    style: row.style || "",
+    color: row.color || "",
+    size: row.size || "",
+    description: row.description || "",
+  };
 }
 
 function combinedDescription(item) {
