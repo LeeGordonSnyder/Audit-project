@@ -1,4 +1,4 @@
-const CACHE_NAME = "audit-tool-v7";
+const CACHE_NAME = "audit-tool-v8";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -10,6 +10,7 @@ const CORE_ASSETS = [
   "./js/taglookup.js",
   "./js/audit.js",
   "./js/adjustments.js",
+  "./js/sync.js",
   "./js/app.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
@@ -35,6 +36,11 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
+
+  // Only manage caching for our own files. Cross-origin requests (the Google
+  // Sheet sync, the camera-scanning CDN script) pass straight through — we
+  // never want the Sheet's live data served from a stale cache.
+  if (new URL(req.url).origin !== self.location.origin) return;
 
   // Network-first for the preloaded catalog, so a newly pushed seed file
   // reaches devices as soon as they have a signal, not just on reinstall.

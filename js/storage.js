@@ -6,6 +6,7 @@ const STORAGE = {
   auditLog: "audit.auditEntries.v1",
   adjustments: "audit.adjustments.v1",
   session: "audit.session.v1",
+  webhookUrl: "audit.webhookUrl.v1",
 };
 
 function loadJSON(key, fallback) {

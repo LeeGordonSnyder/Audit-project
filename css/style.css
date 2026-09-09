@@ -420,8 +420,9 @@ textarea { font-size: 0.9rem; resize: vertical; }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   margin-top: 32px;
-  gap: 8px;
+  gap: 8px 12px;
 }
 
 .audit-list-header h2 { margin: 0; }
@@ -471,6 +472,32 @@ textarea { font-size: 0.9rem; resize: vertical; }
 .result-pill.match { background: var(--ok-soft); color: var(--ok); }
 .result-pill.over { background: var(--warn-soft); color: var(--warn); }
 .result-pill.under { background: var(--danger-soft); color: var(--danger); }
+
+.sync-pill {
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.sync-settings {
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+}
+
+.sync-settings summary {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.sync-settings[open] summary { margin-bottom: 12px; }
+
+.sync-settings label { margin-bottom: 10px; }
 
 h2 {
   font-size: 0.78rem;

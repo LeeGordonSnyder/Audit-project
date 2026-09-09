@@ -24,6 +24,7 @@ function initAuditDashboard() {
   document.getElementById("submit-count-btn").addEventListener("click", submitCount);
   document.getElementById("export-audit-csv-btn").addEventListener("click", exportAuditCsv);
 
+  initSync();
   renderAuditList();
 }
 
@@ -113,6 +114,7 @@ function submitCount() {
     counted,
     variance,
     result,
+    synced: false,
   };
 
   const entries = loadJSON(STORAGE.auditLog, []);
@@ -170,7 +172,10 @@ function renderAuditList() {
         <span class="result-pill ${e.result}">${escapeHtml(pillLabel)}</span>
       </div>
       <div class="meta">${escapeHtml(e.description)}</div>
-      <div class="meta">Expected ${e.expected} · Counted ${e.counted} · ${escapeHtml(e.initials || "—")} · ${escapeHtml(e.date)}</div>
+      <div class="meta">
+        Expected ${e.expected} · Counted ${e.counted} · ${escapeHtml(e.initials || "—")} · ${escapeHtml(e.date)}
+        · <span class="sync-pill">${e.synced ? "synced" : "not synced"}</span>
+      </div>
     `;
     listEl.appendChild(div);
   }
@@ -178,7 +183,7 @@ function renderAuditList() {
 
 function exportAuditCsv() {
   const entries = loadJSON(STORAGE.auditLog, []);
-  const header = ["date", "initials", "sku", "upc", "style", "description", "expected", "counted", "variance", "result", "timestamp"];
+  const header = ["date", "initials", "sku", "upc", "style", "description", "expected", "counted", "variance", "result", "timestamp", "synced"];
   const rows = [header, ...entries.map((e) => header.map((k) => e[k]))];
   downloadCsv(`audit-log-${todayISO()}.csv`, rows);
 }

@@ -88,8 +88,22 @@
 
     <div class="audit-list-header">
       <h2>Recent Entries</h2>
-      <button id="export-audit-csv-btn" class="btn secondary small">Export CSV</button>
+      <div class="audit-list-actions">
+        <button id="save-shared-btn" class="btn primary small">Save to Sheet</button>
+        <button id="export-audit-csv-btn" class="btn secondary small">Export CSV</button>
+      </div>
     </div>
+    <p id="sync-status" class="status-msg" role="status"></p>
+
+    <details class="sync-settings">
+      <summary>Shared Log Settings</summary>
+      <label>Google Sheet URL
+        <input type="url" id="sheet-url-input" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+      </label>
+      <button id="save-sheet-url-btn" class="btn secondary small">Save URL</button>
+      <p id="sheet-url-status" class="status-msg" role="status"></p>
+    </details>
+
     <div id="audit-list" class="audit-list"></div>
   </section>
 
@@ -177,6 +191,7 @@
 <script src="js/taglookup.js"></script>
 <script src="js/audit.js"></script>
 <script src="js/adjustments.js"></script>
+<script src="js/sync.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

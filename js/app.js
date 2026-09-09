@@ -41,7 +41,7 @@ window.addEventListener("offline", () => setOffline(true));
 document.addEventListener("DOMContentLoaded", async () => {
   initTabs();
   initScannerModal();
-  await seedProductMasterFromFile();
+  await Promise.all([seedProductMasterFromFile(), loadSharedHistory()]);
   initTagLookup();
   initAuditDashboard();
   initMasterList();
