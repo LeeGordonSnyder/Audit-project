@@ -318,22 +318,29 @@ Setup, if you're starting fresh or need to redeploy:
    // In/Out dashboard additions — appends within one section of a sheet
    // that has several independent sections side by side (so plain
    // appendRow(), which looks at the whole sheet's last row, can't be used).
-   // Uses getNextDataCell (the same thing Ctrl+Down does in the Sheets UI)
-   // to jump straight to the section's last used row instead of reading
-   // every row up to the sheet's max row count — that read grows (and
-   // slows down) as AuditLog's main columns accumulate more history, even
-   // though this section itself might only have a handful of rows.
    //
-   // NOTE: if you already have an appendToSection with `lastRow + 2` in
-   // it, that's an off-by-one bug — it leaves one blank row before every
-   // entry (the header row itself gets counted as "last used row", so +2
-   // skips past both the header AND row 2). Replace it with this version,
-   // or change the +2 to +1.
+   // NOTE: an earlier version of this used getNextDataCell(DOWN) from the
+   // header cell to avoid a full-column read. Don't do that — it has the
+   // same gotcha as pressing Ctrl+Down in the Sheets UI: starting from a
+   // filled cell (the header) with an EMPTY cell right below it and no
+   // more data anywhere further down that column, it jumps to the
+   // sheet's absolute last row instead of stopping just past the header —
+   // so the new row gets written hundreds of rows down, off-screen, and
+   // looks like nothing happened. A manual scan is the reliable way to do
+   // this; getLastRow() (not getMaxRows()) keeps the read reasonably
+   // tight without that failure mode.
+   //
+   // Also: if you still have an appendToSection with `lastRow + 2` in it
+   // from even earlier, that's a separate off-by-one — it leaves one
+   // blank row before every entry. This version uses `lastRow + 1`.
    function appendToSection(sheet, startCol, numCols, rowValues) {
-     const headerCell = sheet.getRange(1, startCol);
-     const lastCell = headerCell.getNextDataCell(SpreadsheetApp.Direction.DOWN);
-     const nextRow = lastCell.getRow() + 1;
-     sheet.getRange(nextRow, startCol, 1, numCols).setValues([rowValues]);
+     const numRows = Math.max(sheet.getLastRow(), 1);
+     const values = sheet.getRange(1, startCol, numRows, numCols).getValues();
+     let lastRow = 0;
+     for (let i = 0; i < values.length; i++) {
+       if (values[i].some((v) => v !== "")) lastRow = i + 1;
+     }
+     sheet.getRange(lastRow + 1, startCol, 1, numCols).setValues([rowValues]);
    }
 
    function getOrCreateSheet(name, header) {
@@ -445,10 +452,10 @@ building the response) and the HTTP response makes it back. So there's an
 inherent gap between "visible in the sheet" and "the app's request
 resolves." That gap grows with how much work the script does per request
 and with Apps Script's own execution/cold-start overhead, which the app
-has no control over. The `markConsolProcessed`/`appendToSection` functions
-above are written to keep that work small (a scoped `TextFinder` and
-`getNextDataCell` instead of reading the whole sheet), but a couple of
-seconds of lag is normal for an Apps Script Web App and not something a
+has no control over. `markConsolProcessed` above keeps its own read small
+(a scoped `TextFinder` on just one column instead of the whole sheet), but
+a couple of seconds of lag is normal for an Apps Script Web App and not
+something a
 static client PWA can eliminate entirely.
 
 ## Roadmap
