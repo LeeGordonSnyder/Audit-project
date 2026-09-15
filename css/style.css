@@ -588,6 +588,32 @@ code {
   font-size: 0.85em;
 }
 
+.consol-table {
+  min-width: 680px;
+}
+
+.consol-table th, .consol-table td {
+  white-space: normal;
+  vertical-align: top;
+}
+
+.consol-table td:first-child {
+  max-width: 200px;
+}
+
+.consol-table select {
+  font-size: 0.82rem;
+  padding: 6px 28px 6px 10px;
+  min-width: 150px;
+}
+
+.consol-table .row-hint {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
 
 /* Shared camera scanner modal */
 .scanner-modal {

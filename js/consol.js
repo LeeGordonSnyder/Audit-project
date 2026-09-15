@@ -66,12 +66,31 @@ function currentConsolStatus(eccMaterial) {
   return entries[0];
 }
 
+// A short "Completed · JD · 2026-09-15" (or size/units, or "not synced") line
+// shown under the status dropdown for anything already actioned.
+function statusHint(latest) {
+  if (!latest) return "";
+  const parts = [latest.status];
+  if (latest.status === "Needs Adjustment") parts.push(`Sz ${latest.size} × ${latest.unitsOut}`);
+  parts.push(latest.initials || "—", latest.date);
+  if (!latest.synced) parts.push("not synced yet");
+  return parts.filter(Boolean).join(" · ");
+}
+
 function renderConsolList() {
-  const listEl = document.getElementById("consol-list");
+  const tbody = document.getElementById("consol-table-body");
   const master = loadJSON(STORAGE.consolMaster, []);
   const filterVal = normalize(document.getElementById("consol-filter").value);
 
-  const filtered = master.filter(
+  // Anything actioned AND already uploaded to the sheet is done — drop it
+  // from the working list entirely so the list shrinks as the team works
+  // through it, instead of growing with dead rows.
+  const remaining = master.filter((item) => {
+    const latest = currentConsolStatus(item.eccMaterial);
+    return !(latest && latest.synced);
+  });
+
+  const filtered = remaining.filter(
     (item) =>
       !filterVal ||
       normalize(item.description).includes(filterVal) ||
@@ -80,13 +99,21 @@ function renderConsolList() {
       normalize(item.destination).includes(filterVal)
   );
 
-  document.getElementById("consol-count").textContent = `${filtered.length} of ${master.length} item(s)`;
-  listEl.innerHTML = "";
+  const doneCount = master.length - remaining.length;
+  document.getElementById("consol-count").textContent =
+    `${filtered.length} of ${remaining.length} remaining` +
+    (doneCount > 0 ? ` · ${doneCount} completed & uploaded` : "");
+
+  tbody.innerHTML = "";
 
   if (filtered.length === 0) {
-    listEl.innerHTML = `<p class="hint">${
-      master.length === 0 ? "No consolidation items yet — paste the HQ list above." : "No items match that filter."
-    }</p>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="no-results">${
+      master.length === 0
+        ? "No consolidation items yet — paste the HQ list above."
+        : remaining.length === 0
+        ? "All items actioned and uploaded — nothing left to consolidate."
+        : "No items match that filter."
+    }</td></tr>`;
     return;
   }
 
@@ -98,46 +125,27 @@ function renderConsolList() {
     const latest = currentConsolStatus(item.eccMaterial);
     const currentStatusValue = latest ? latest.status : "";
 
-    const card = document.createElement("div");
-    card.className = "result-card";
-    card.innerHTML = `
-      <div class="sku">${escapeHtml(item.eccMaterial)}</div>
-      <h3>${escapeHtml(item.description)}</h3>
-      <div class="result-field">
-        <div class="label">Colour</div>
-        <div class="value">${escapeHtml(item.color)}</div>
-      </div>
-      <div class="result-field">
-        <div class="label">Destination</div>
-        <div class="value">${escapeHtml(item.destination)}</div>
-      </div>
-      <div class="result-field">
-        <div class="label">Total</div>
-        <div class="value">${escapeHtml(item.total)}</div>
-      </div>
-      <label>Status
-        <select class="consol-status-select" data-ecc="${escapeHtml(item.eccMaterial)}">
-          <option value="">Not yet actioned</option>
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(item.description)}</td>
+      <td>${escapeHtml(item.color)}</td>
+      <td>${escapeHtml(item.destination)}</td>
+      <td class="num">${item.total}</td>
+      <td>
+        <select class="consol-status-select" data-ecc="${escapeHtml(item.eccMaterial)}" aria-label="Status for ${escapeHtml(
+      item.description
+    )}">
+          <option value="">Not actioned</option>
           <option value="Completed" ${currentStatusValue === "Completed" ? "selected" : ""}>Completed</option>
           <option value="Needs Adjustment" ${currentStatusValue === "Needs Adjustment" ? "selected" : ""}>Needs Adjustment</option>
         </select>
-      </label>
-      ${
-        latest
-          ? `<div class="meta">Last: ${escapeHtml(latest.status)} · ${escapeHtml(latest.initials || "—")} · ${escapeHtml(
-              latest.date
-            )}${
-              latest.status === "Needs Adjustment"
-                ? ` · size ${escapeHtml(latest.size)} · ${latest.unitsOut} out`
-                : ""
-            }</div>`
-          : ""
-      }
+        ${latest ? `<div class="row-hint">${escapeHtml(statusHint(latest))}</div>` : ""}
+      </td>
     `;
-    listEl.appendChild(card);
+    tbody.appendChild(tr);
   }
 
-  listEl.querySelectorAll(".consol-status-select").forEach((sel) => {
+  tbody.querySelectorAll(".consol-status-select").forEach((sel) => {
     sel.addEventListener("change", () => handleConsolStatusChange(sel));
   });
 }
@@ -339,6 +347,7 @@ async function syncConsolData() {
 
   saveJSON(STORAGE.consolLog, log);
   renderConsolLog();
+  renderConsolList(); // drop any items that just became synced-and-done from the working list
 
   if (successCount === unsynced.length) {
     setStatus("consol-sync-status", `Saved ${successCount} entr${successCount === 1 ? "y" : "ies"} to the shared log.`, false);

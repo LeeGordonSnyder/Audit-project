@@ -188,7 +188,20 @@
     <h2>Items to Consolidate</h2>
     <input id="consol-filter" type="text" autocomplete="off" placeholder="Filter by description, colour, or destination…" class="filter-input">
     <p id="consol-count" class="hint"></p>
-    <div id="consol-list" class="results"></div>
+    <div class="table-wrap">
+      <table class="master-table consol-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Colour</th>
+            <th>Destination</th>
+            <th>Total</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="consol-table-body"></tbody>
+      </table>
+    </div>
 
     <div class="audit-list-header">
       <h2>Consolidation Log</h2>
