@@ -221,21 +221,23 @@ Setup, if you're starting fresh or need to redeploy:
    }
 
    // Flags one ConsolMaster row PROCESSED by ECC Generic Material — this is
-   // the only way the app ever writes to ConsolMaster.
+   // the only way the app ever writes to ConsolMaster. Uses a TextFinder
+   // scoped to just that one column instead of reading the whole sheet's
+   // values into memory — keeps this fast as ConsolMaster grows.
    function markConsolProcessed(eccMaterial) {
      const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("ConsolMaster");
-     if (!sheet || !eccMaterial) return;
-     const data = sheet.getDataRange().getValues();
-     if (data.length < 2) return;
-     const eccCol = findColumnIndex(data[0], "ECC GENERIC MATERIAL");
-     const processedCol = findColumnIndex(data[0], "PROCESSED");
+     if (!sheet || !eccMaterial || sheet.getLastRow() < 2) return;
+     const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+     const eccCol = findColumnIndex(headerRow, "ECC GENERIC MATERIAL");
+     const processedCol = findColumnIndex(headerRow, "PROCESSED");
      if (eccCol === -1 || processedCol === -1) return;
-     for (let i = 1; i < data.length; i++) {
-       if (data[i][eccCol - 1] === eccMaterial) {
-         sheet.getRange(i + 1, processedCol).setValue("Processed");
-         return;
-       }
-     }
+
+     const match = sheet
+       .getRange(2, eccCol, sheet.getLastRow() - 1, 1)
+       .createTextFinder(eccMaterial)
+       .matchEntireCell(true)
+       .findNext();
+     if (match) sheet.getRange(match.getRow(), processedCol).setValue("Processed");
    }
 
    function appendConsolLogRow(fields) {
@@ -316,13 +318,22 @@ Setup, if you're starting fresh or need to redeploy:
    // In/Out dashboard additions — appends within one section of a sheet
    // that has several independent sections side by side (so plain
    // appendRow(), which looks at the whole sheet's last row, can't be used).
+   // Uses getNextDataCell (the same thing Ctrl+Down does in the Sheets UI)
+   // to jump straight to the section's last used row instead of reading
+   // every row up to the sheet's max row count — that read grows (and
+   // slows down) as AuditLog's main columns accumulate more history, even
+   // though this section itself might only have a handful of rows.
+   //
+   // NOTE: if you already have an appendToSection with `lastRow + 2` in
+   // it, that's an off-by-one bug — it leaves one blank row before every
+   // entry (the header row itself gets counted as "last used row", so +2
+   // skips past both the header AND row 2). Replace it with this version,
+   // or change the +2 to +1.
    function appendToSection(sheet, startCol, numCols, rowValues) {
-     const values = sheet.getRange(1, startCol, sheet.getMaxRows(), numCols).getValues();
-     let lastRow = 0;
-     for (let i = 0; i < values.length; i++) {
-       if (values[i].some((v) => v !== "")) lastRow = i + 1;
-     }
-     sheet.getRange(lastRow + 2, startCol, 1, numCols).setValues([rowValues]);
+     const headerCell = sheet.getRange(1, startCol);
+     const lastCell = headerCell.getNextDataCell(SpreadsheetApp.Direction.DOWN);
+     const nextRow = lastCell.getRow() + 1;
+     sheet.getRange(nextRow, startCol, 1, numCols).setValues([rowValues]);
    }
 
    function getOrCreateSheet(name, header) {
@@ -425,6 +436,20 @@ hand. Batch operations (bulk import, Save to Sheet) also keep going through
 the rest of the batch if one entry still fails after its retries, instead
 of stopping the whole batch at the first
 failure.
+
+**Why a "Marking out…" status can outlast the sheet update:** the row
+write happens partway through the Apps Script function and is visible in
+the Sheet immediately, but the browser has no way to know that — it only
+finds out once the *entire* function finishes (every write it does, plus
+building the response) and the HTTP response makes it back. So there's an
+inherent gap between "visible in the sheet" and "the app's request
+resolves." That gap grows with how much work the script does per request
+and with Apps Script's own execution/cold-start overhead, which the app
+has no control over. The `markConsolProcessed`/`appendToSection` functions
+above are written to keep that work small (a scoped `TextFinder` and
+`getNextDataCell` instead of reading the whole sheet), but a couple of
+seconds of lag is normal for an Apps Script Web App and not something a
+static client PWA can eliminate entirely.
 
 ## Roadmap
 
