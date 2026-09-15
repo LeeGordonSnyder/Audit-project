@@ -7,6 +7,10 @@ const TAB_REFRESHERS = {
   },
   audit: () => renderAuditList(),
   master: () => renderMasterTable(),
+  consol: () => {
+    renderConsolList();
+    renderConsolLog();
+  },
 };
 
 function initTabs() {
@@ -40,10 +44,16 @@ window.addEventListener("offline", () => setOffline(true));
 document.addEventListener("DOMContentLoaded", async () => {
   initTabs();
   initScannerModal();
-  await Promise.all([loadSharedProductMaster(), loadSharedHistory()]);
+  await Promise.all([
+    loadSharedProductMaster(),
+    loadSharedHistory(),
+    loadSharedConsolMaster(),
+    loadSharedConsolLog(),
+  ]);
   initTagLookup();
   initAuditDashboard();
   initMasterList();
+  initConsol();
   setOffline(!navigator.onLine);
 
   if ("serviceWorker" in navigator) {

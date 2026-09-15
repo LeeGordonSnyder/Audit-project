@@ -160,7 +160,7 @@ label {
   letter-spacing: 0.4px;
 }
 
-label > input, label > textarea {
+label > input, label > textarea, label > select {
   margin-top: 6px;
   text-transform: none;
   letter-spacing: normal;

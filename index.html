@@ -24,6 +24,7 @@
     <button class="tab-btn active" data-tab="taglookup" role="tab" aria-selected="true">Tag Lookup</button>
     <button class="tab-btn" data-tab="audit" role="tab" aria-selected="false">Audit Dashboard</button>
     <button class="tab-btn" data-tab="master" role="tab" aria-selected="false">Product Master</button>
+    <button class="tab-btn" data-tab="consol" role="tab" aria-selected="false">Consolidations</button>
   </nav>
 </div>
 
@@ -169,6 +170,36 @@
     </div>
   </section>
 
+  <!-- CONSOLIDATIONS TAB -->
+  <section id="tab-consol" class="tab-panel" role="tabpanel" hidden>
+    <h2>Import Consolidation List</h2>
+    <p class="hint">Paste the HQ consolidation export below — Material Description, Colour, Generic Material, ECC Generic Material, FINAL consolidation Plan, Total (one row per style/colour; sizes aren't tracked here since HQ consolidates regardless of size) — then tap Import.</p>
+    <textarea id="consol-paste-area" rows="6" placeholder="Paste the HQ consolidation list here…"></textarea>
+    <div class="settings-row">
+      <button id="consol-import-btn" class="btn primary">Import / Update</button>
+    </div>
+    <p id="consol-import-status" class="status-msg" role="status"></p>
+
+    <div class="scan-buttons-row">
+      <button id="scan-packout-btn" class="btn primary">📷 Scan Packing Slip — Close Box</button>
+    </div>
+    <p id="consol-packout-status" class="status-msg" role="status"></p>
+
+    <h2>Items to Consolidate</h2>
+    <input id="consol-filter" type="text" autocomplete="off" placeholder="Filter by description, colour, or destination…" class="filter-input">
+    <p id="consol-count" class="hint"></p>
+    <div id="consol-list" class="results"></div>
+
+    <div class="audit-list-header">
+      <h2>Consolidation Log</h2>
+      <div class="audit-list-actions">
+        <button id="save-consol-btn" class="btn primary small">Save to Sheet</button>
+        <button id="export-consol-csv-btn" class="btn secondary small">Export CSV</button>
+      </div>
+    </div>
+    <p id="consol-sync-status" class="status-msg" role="status"></p>
+    <div id="consol-log-list" class="audit-list"></div>
+  </section>
 
 </main>
 
@@ -196,6 +227,24 @@
   </div>
 </div>
 
+<!-- Consolidation "Needs Adjustment" modal -->
+<div id="consol-adjust-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Mark Out — Needs Adjustment</h2>
+    <p id="consol-adjust-label" class="hint"></p>
+    <label>Size
+      <input type="text" id="consol-adjust-size" autocomplete="off" placeholder="e.g. M">
+    </label>
+    <label>Units to Mark Out
+      <input type="number" id="consol-adjust-units" inputmode="numeric" min="1" placeholder="Enter units">
+    </label>
+    <div class="active-item-actions">
+      <button id="consol-adjust-save-btn" class="btn primary">Save</button>
+      <button id="consol-adjust-cancel-btn" class="btn secondary">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/storage.js"></script>
@@ -203,6 +252,7 @@
 <script src="js/masterlist.js"></script>
 <script src="js/taglookup.js"></script>
 <script src="js/audit.js"></script>
+<script src="js/consol.js"></script>
 <script src="js/sync.js"></script>
 <script src="js/app.js"></script>
 </body>

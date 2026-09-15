@@ -32,6 +32,14 @@ function pushProductToSheet(url, item) {
   return postToSheet(url, { type: "master", ...item });
 }
 
+function pushConsolItemToSheet(url, item) {
+  return postToSheet(url, { type: "consolmaster", ...item });
+}
+
+function postConsolLogToSheet(url, entry) {
+  return postToSheet(url, { type: "consollog", ...entry });
+}
+
 function initSync() {
   const urlInput = document.getElementById("sheet-url-input");
   urlInput.value = getWebhookUrl();
@@ -125,6 +133,59 @@ async function loadSharedProductMaster() {
     const remoteRows = await fetchFromSheet(url, "master");
     if (!Array.isArray(remoteRows) || remoteRows.length === 0) return;
     upsertProductMaster(remoteRows.map(sheetRowToMasterItem));
+  } catch (e) {
+    // offline or unreachable — local data stands, next boot/refresh will retry
+  }
+}
+
+async function loadSharedConsolMaster() {
+  const url = getWebhookUrl();
+
+  try {
+    const remoteRows = await fetchFromSheet(url, "consolmaster");
+    if (!Array.isArray(remoteRows) || remoteRows.length === 0) return;
+    upsertConsolMaster(remoteRows.map(sheetRowToConsolItem));
+  } catch (e) {
+    // offline or unreachable — local data stands, next boot/refresh will retry
+  }
+}
+
+async function loadSharedConsolLog() {
+  const url = getWebhookUrl();
+
+  try {
+    const remoteRows = await fetchFromSheet(url, "consollog");
+    if (!Array.isArray(remoteRows) || remoteRows.length === 0) return;
+
+    const log = loadJSON(STORAGE.consolLog, []);
+    const knownIds = new Set(log.map((e) => e.id));
+    let added = 0;
+
+    for (const row of remoteRows) {
+      if (!row.id || knownIds.has(row.id)) continue;
+      log.push({
+        id: row.id,
+        entryType: row.entryType || "status",
+        timestamp: row.timestamp,
+        date: row.date,
+        initials: row.initials,
+        eccMaterial: row.eccMaterial,
+        description: row.description,
+        color: row.color,
+        status: row.status,
+        size: row.size,
+        unitsOut: Number(row.unitsOut) || 0,
+        referenceNumber: row.referenceNumber,
+        synced: true,
+      });
+      knownIds.add(row.id);
+      added++;
+    }
+
+    if (added > 0) {
+      log.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      saveJSON(STORAGE.consolLog, log);
+    }
   } catch (e) {
     // offline or unreachable — local data stands, next boot/refresh will retry
   }

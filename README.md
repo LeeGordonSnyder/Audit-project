@@ -7,7 +7,7 @@ Home Screen." There's no backend to run — the catalog and audit log both
 live in one Google Sheet, read and written directly from the browser via a
 small Apps Script.
 
-## The three tabs
+## The four tabs
 
 ### 1. Tag Lookup
 Scan or search a product to see the security-tag placement assigned to its
@@ -83,13 +83,49 @@ sourced from Manhattan Omni or the catalog.
 The local table is filterable (SKU, UPC, style, or description) and
 exportable to CSV.
 
+### 4. Consolidations
+For HQ-driven consolidation events. Paste the HQ export — copied straight out
+of Excel — into the paste box: **Material Description, Colour, Generic
+Material, ECC Generic Material, FINAL consolidation Plan, Total**. Tap
+**Import / Update** and it's pushed to the shared "ConsolMaster" sheet tab,
+same pattern as Product Master. Matching is by **ECC Generic Material**
+(unique per style/colour in the HQ export) — sizes aren't tracked here since
+consolidation happens regardless of size.
+
+Every item shows a **Status** dropdown:
+
+- **Completed** — logs it immediately as done.
+- **Needs Adjustment** — something showed in MAO during consolidation that
+  couldn't be found physically. Prompts for **Size** and **Units to Mark
+  Out**, then logs it. (Marking product *in* isn't needed here — anything
+  actually on hand gets consolidated through the normal process anyway.)
+
+Every status change is logged with the current Date/Initials (the same
+session fields used on the Audit Dashboard) — no separate sign-in step.
+
+When a box is packed and ready to go, tap **📷 Scan Packing Slip — Close
+Box** and scan the packing slip's barcode/QR (its reference number) — that
+logs who closed and shipped it and when.
+
+The **Consolidation Log** below lists every status change and box closure,
+synced to the shared sheet the same way the Audit Dashboard's log is — tap
+**Save to Sheet** to push anything not yet synced.
+
 ## The Google Sheet backend
 
-One spreadsheet with two tabs, both created automatically by the script the
+One spreadsheet with four tabs, all created automatically by the script the
 first time each is used:
 
-- **AuditLog** — every count logged from every device.
+- **AuditLog** — every count logged from every device (plus, layered on top
+  by hand in the sheet itself: Mark In / Mark Out sections, Supervisor
+  Initials + auto date-stamp via an `onEdit` trigger, and an Overdue
+  section built from Sheets formulas — see the sheet directly for those,
+  they aren't part of the base `Code.gs` below).
 - **ProductMaster** — the shared catalog.
+- **ConsolMaster** — the pasted HQ consolidation list (Description, Colour,
+  Generic Material, ECC Generic Material, Destination, Total), keyed by ECC
+  Generic Material.
+- **ConsolLog** — every consolidation status change and box closure.
 
 Setup, if you're starting fresh or need to redeploy:
 
@@ -99,23 +135,42 @@ Setup, if you're starting fresh or need to redeploy:
    ```javascript
    function doPost(e) {
      const body = JSON.parse(e.postData.contents);
-     return body.type === "master" ? handleMasterPost(body) : handleAuditPost(body);
+     if (body.type === "master") return handleMasterPost(body);
+     if (body.type === "consolmaster") return handleConsolMasterPost(body);
+     if (body.type === "consollog") return handleConsolLogPost(body);
+     return handleAuditPost(body);
    }
 
    function doGet(e) {
      const sheetParam = (e.parameter.sheet || "auditlog").toLowerCase();
-     return jsonResponse(sheetToObjects(getOrCreateSheet(
-       sheetParam === "master" ? "ProductMaster" : "AuditLog",
-       sheetParam === "master" ? MASTER_HEADER : AUDIT_HEADER
-     )));
+     const sheetsByParam = {
+       master: ["ProductMaster", MASTER_HEADER],
+       consolmaster: ["ConsolMaster", CONSOL_MASTER_HEADER],
+       consollog: ["ConsolLog", CONSOL_LOG_HEADER],
+       auditlog: ["AuditLog", AUDIT_HEADER],
+     };
+     const [name, header] = sheetsByParam[sheetParam] || sheetsByParam.auditlog;
+     return jsonResponse(sheetToObjects(getOrCreateSheet(name, header)));
    }
 
    const AUDIT_HEADER = ["id", "date", "initials", "sku", "upc", "style", "description", "expected", "counted", "variance", "result", "timestamp"];
    const MASTER_HEADER = ["sku", "upc", "dept", "style", "color", "size", "description", "updatedAt"];
+   const CONSOL_MASTER_HEADER = ["eccMaterial", "description", "color", "genericMaterial", "destination", "total", "updatedAt"];
+   const CONSOL_LOG_HEADER = ["id", "entryType", "date", "initials", "eccMaterial", "description", "color", "status", "size", "unitsOut", "referenceNumber", "timestamp"];
 
    function handleAuditPost(entry) {
      const sheet = getOrCreateSheet("AuditLog", AUDIT_HEADER);
-     sheet.appendRow(AUDIT_HEADER.map((key) => entry[key]));
+     // Parse as local midnight (not UTC) so the date doesn't shift a day when displayed,
+     // and write real Date objects — plain strings don't reliably become real Sheets
+     // dates, which breaks date-based formulas like the Overdue section's MAXIFS.
+     const auditDate = entry.date ? new Date(entry.date + "T00:00:00") : "";
+     const timestamp = entry.timestamp ? new Date(entry.timestamp) : "";
+     const row = AUDIT_HEADER.map((key) => {
+       if (key === "date") return auditDate;
+       if (key === "timestamp") return timestamp;
+       return entry[key];
+     });
+     sheet.appendRow(row);
      return jsonResponse({ ok: true });
    }
 
@@ -129,6 +184,33 @@ Setup, if you're starting fresh or need to redeploy:
      const row = [item.sku, item.upc, item.dept || "", item.style || "", item.color || "", item.size || "", item.description || "", new Date().toISOString()];
      if (rowIndex === -1) sheet.appendRow(row);
      else sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+     return jsonResponse({ ok: true });
+   }
+
+   // Matches ConsolMaster rows by ECC Generic Material — unique per style/colour.
+   function handleConsolMasterPost(item) {
+     const sheet = getOrCreateSheet("ConsolMaster", CONSOL_MASTER_HEADER);
+     const data = sheet.getDataRange().getValues();
+     let rowIndex = -1;
+     for (let i = 1; i < data.length; i++) {
+       if (data[i][0] === item.eccMaterial) { rowIndex = i + 1; break; }
+     }
+     const row = [item.eccMaterial, item.description || "", item.color || "", item.genericMaterial || "", item.destination || "", item.total || 0, new Date().toISOString()];
+     if (rowIndex === -1) sheet.appendRow(row);
+     else sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+     return jsonResponse({ ok: true });
+   }
+
+   function handleConsolLogPost(entry) {
+     const sheet = getOrCreateSheet("ConsolLog", CONSOL_LOG_HEADER);
+     const consolDate = entry.date ? new Date(entry.date + "T00:00:00") : "";
+     const timestamp = entry.timestamp ? new Date(entry.timestamp) : "";
+     const row = CONSOL_LOG_HEADER.map((key) => {
+       if (key === "date") return consolDate;
+       if (key === "timestamp") return timestamp;
+       return entry[key];
+     });
+     sheet.appendRow(row);
      return jsonResponse({ ok: true });
    }
 
@@ -155,6 +237,13 @@ Setup, if you're starting fresh or need to redeploy:
      return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
    }
    ```
+
+   If your live script already has the Mark In/Out/Overdue additions on top
+   of `handleAuditPost` (via a helper like `appendToSection` instead of plain
+   `appendRow`, plus `ensureDashboardHeaders` and an `onEdit` trigger), keep
+   those — just add the `CONSOL_MASTER_HEADER`/`CONSOL_LOG_HEADER` constants,
+   the two new handler functions, and the `doPost`/`doGet` routing shown
+   above; nothing about the audit dashboard sections needs to change.
 
 3. **Deploy → New deployment → Web app**. "Execute as: Me," "Who has
    access: Anyone." Deploy, copy the URL.
@@ -190,8 +279,9 @@ re-add it — iOS caches the name/icon from whatever was live at install time.
 ## Data & offline behavior
 
 Tag assignments and the session (date/initials) are purely local
-(`localStorage`) — there's no need to share those. Product Master and the
-audit log are backed by the Sheet and sync automatically:
+(`localStorage`) — there's no need to share those. Product Master, the audit
+log, the consolidation list, and the consolidation log are all backed by the
+Sheet and sync automatically:
 
 - **On boot/refresh**, the app pulls the latest catalog and audit history
   from the Sheet (needs a signal for that first fetch).

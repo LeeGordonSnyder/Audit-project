@@ -6,6 +6,8 @@ const STORAGE = {
   auditLog: "audit.auditEntries.v1",
   session: "audit.session.v1",
   webhookUrl: "audit.webhookUrl.v1",
+  consolMaster: "audit.consolMaster.v1",
+  consolLog: "audit.consolLog.v1",
 };
 
 // Baked-in default so the app works with zero setup. Settings can still
@@ -145,6 +147,74 @@ function combinedDescription(item) {
   const colorSize = [item.color, item.size].filter(Boolean).join(" / ");
   if (colorSize) parts.push(colorSize);
   return parts.join(" — ");
+}
+
+/* ---------- HQ consolidation list paste parsing ----------
+   Expected tab-separated rows (pasted straight out of Excel), one row per
+   style/colour — sizes are intentionally not tracked here, HQ consolidates
+   regardless of size:
+
+   Material Description   Colour   Generic Material   ECC Generic Material   FINAL consolidation Plan   Total
+*/
+function parseConsolPaste(text) {
+  const lines = (text || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const items = [];
+
+  for (const line of lines) {
+    let cols = line.split("\t");
+    if (cols.length < 6) cols = line.split(/ {2,}/);
+    if (cols.length < 6) continue;
+    cols = cols.slice(0, 6).map((c) => c.trim());
+
+    const [description, color, genericMaterial, eccMaterial, destination, totalRaw] = cols;
+    if (/^material description$/i.test(description)) continue; // header row
+    if (!eccMaterial) continue;
+
+    const total = parseInt(totalRaw, 10);
+    items.push({
+      eccMaterial,
+      description,
+      color,
+      genericMaterial,
+      destination,
+      total: isNaN(total) ? 0 : total,
+    });
+  }
+
+  return items;
+}
+
+// Keyed by ECC Generic Material — unique per style/colour in the HQ export.
+function upsertConsolMaster(parsedItems) {
+  const list = loadJSON(STORAGE.consolMaster, []);
+  let added = 0;
+  let updated = 0;
+  const now = new Date().toISOString();
+
+  for (const item of parsedItems) {
+    const idx = list.findIndex((p) => p.eccMaterial === item.eccMaterial);
+    if (idx === -1) {
+      list.push({ ...item, updatedAt: now });
+      added++;
+    } else {
+      list[idx] = { ...list[idx], ...item, updatedAt: now };
+      updated++;
+    }
+  }
+
+  saveJSON(STORAGE.consolMaster, list);
+  return { added, updated, total: list.length };
+}
+
+function sheetRowToConsolItem(row) {
+  return {
+    eccMaterial: row.eccMaterial || "",
+    description: row.description || "",
+    color: row.color || "",
+    genericMaterial: row.genericMaterial || "",
+    destination: row.destination || "",
+    total: Number(row.total) || 0,
+  };
 }
 
 function getTagLocation(style) {
