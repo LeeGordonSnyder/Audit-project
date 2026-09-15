@@ -94,18 +94,27 @@ consolidation happens regardless of size.
 
 Every item shows a **Status** dropdown:
 
-- **Completed** — logs it immediately as done.
+- **Completed** — moves it into the **Packed Box** section below (it's a
+  physical item that's actually going in the box being packed right now).
 - **Needs Adjustment** — something showed in MAO during consolidation that
   couldn't be found physically. Prompts for **Size** and **Units to Mark
-  Out**, then logs it. (Marking product *in* isn't needed here — anything
-  actually on hand gets consolidated through the normal process anyway.)
+  Out**, then logs it right away. (Marking product *in* isn't needed here —
+  anything actually on hand gets consolidated through the normal process
+  anyway.)
+
+The **Packed Box** is where Completed items collect while you're physically
+packing them — a lightweight, per-device staging area, not yet logged
+anywhere shared. Made a mistake? Tap **Remove** to send an item back to the
+list above. Once the box is actually packed, tap **📷 Scan Packing Slip —
+Close Box** and scan its barcode/QR (its reference number) — that logs every
+item currently in the box as Completed, tagged with that reference number,
+plus one closure record, all in one go, and uploads them immediately. The
+box then clears itself, ready for the next one. If the upload fails partway
+(no connection), whatever didn't go through stays in the box — just scan
+again once you're back online.
 
 Every status change is logged with the current Date/Initials (the same
 session fields used on the Audit Dashboard) — no separate sign-in step.
-
-When a box is packed and ready to go, tap **📷 Scan Packing Slip — Close
-Box** and scan the packing slip's barcode/QR (its reference number) — that
-logs who closed and shipped it and when.
 
 The **Consolidation Log** below lists every status change and box closure,
 synced to the shared sheet the same way the Audit Dashboard's log is — tap
@@ -297,6 +306,15 @@ Sheet and sync automatically:
 Since the service worker's own cache-first behavior only applies to the
 app's own files (HTML/CSS/JS), the Sheet fetch is always live, never served
 from a stale cache.
+
+**Reliability:** every request to the Sheet (reads and writes) automatically
+retries up to 3 times with a short backoff before giving up — Apps Script
+Web Apps occasionally drop or time out an individual request under load,
+and this clears most of those without anyone needing to notice or retry by
+hand. Batch operations (bulk import, Save to Sheet, the Packed Box upload)
+also keep going through the rest of the batch if one entry still fails
+after its retries, instead of stopping the whole batch at the first
+failure.
 
 ## Roadmap
 

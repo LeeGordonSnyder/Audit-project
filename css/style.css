@@ -116,6 +116,13 @@ main {
   margin: 0 auto;
 }
 
+/* On a wide (desktop) viewport, let content — mainly tables — use more of
+   the available width instead of being squeezed into the phone-width
+   column and forced to horizontal-scroll unnecessarily. */
+@media (min-width: 700px) {
+  main { max-width: 960px; }
+}
+
 .tab-panel[hidden] { display: none; }
 
 /* Shared form controls */
@@ -589,16 +596,12 @@ code {
 }
 
 .consol-table {
-  min-width: 680px;
+  min-width: 720px;
 }
 
 .consol-table th, .consol-table td {
   white-space: normal;
   vertical-align: top;
-}
-
-.consol-table td:first-child {
-  max-width: 200px;
 }
 
 .consol-table select {
@@ -612,6 +615,15 @@ code {
   color: var(--text-dim);
   margin-top: 5px;
   line-height: 1.4;
+}
+
+.consol-box-table {
+  min-width: 480px;
+}
+
+.consol-box-table th, .consol-box-table td {
+  white-space: normal;
+  vertical-align: middle;
 }
 
 

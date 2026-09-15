@@ -23,12 +23,17 @@ function initConsol() {
 
     const url = getWebhookUrl();
     let shared = 0;
-    for (const item of parsed) {
-      try {
-        await pushConsolItemToSheet(url, item);
-        shared++;
-      } catch (e) {
-        break; // likely offline — the rest stay local-only until the next import/sync
+    if (navigator.onLine) {
+      // pushConsolItemToSheet() already retries transient failures internally,
+      // so keep going through the rest of the batch rather than stopping at
+      // the first one that still fails.
+      for (const item of parsed) {
+        try {
+          await pushConsolItemToSheet(url, item);
+          shared++;
+        } catch (e) {
+          // leave this one local-only, keep going with the rest
+        }
       }
     }
 
@@ -54,7 +59,80 @@ function initConsol() {
   document.getElementById("export-consol-csv-btn").addEventListener("click", exportConsolCsv);
 
   renderConsolList();
+  renderConsolBox();
   renderConsolLog();
+}
+
+/* ---------- Packed Box (local staging before a packing-slip scan) ---------- */
+
+function loadConsolBox() {
+  return loadJSON(STORAGE.consolBox, []);
+}
+
+function saveConsolBox(box) {
+  saveJSON(STORAGE.consolBox, box);
+}
+
+function isBoxed(eccMaterial) {
+  return loadConsolBox().some((b) => b.eccMaterial === eccMaterial);
+}
+
+function addItemToBox(item) {
+  const box = loadConsolBox();
+  if (box.some((b) => b.eccMaterial === item.eccMaterial)) return;
+  box.push({
+    eccMaterial: item.eccMaterial,
+    description: item.description,
+    color: item.color,
+    destination: item.destination,
+    total: item.total,
+  });
+  saveConsolBox(box);
+}
+
+function removeItemFromBox(eccMaterial) {
+  saveConsolBox(loadConsolBox().filter((b) => b.eccMaterial !== eccMaterial));
+  renderConsolList();
+  renderConsolBox();
+}
+
+function renderConsolBox() {
+  const tbody = document.getElementById("consol-box-table-body");
+  const wrap = document.getElementById("consol-box-table-wrap");
+  const emptyMsg = document.getElementById("consol-box-empty");
+  const scanBtn = document.getElementById("scan-packout-btn");
+  const box = loadConsolBox();
+
+  document.getElementById("consol-box-count").textContent = box.length
+    ? `${box.length} item${box.length === 1 ? "" : "s"} staged`
+    : "";
+
+  if (box.length === 0) {
+    emptyMsg.hidden = false;
+    wrap.hidden = true;
+    scanBtn.disabled = true;
+    return;
+  }
+
+  emptyMsg.hidden = true;
+  wrap.hidden = false;
+  scanBtn.disabled = false;
+
+  tbody.innerHTML = "";
+  for (const item of box) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(item.description)}</td>
+      <td>${escapeHtml(item.color)}</td>
+      <td class="num">${item.total}</td>
+      <td><button class="btn secondary small consol-box-remove-btn" data-ecc="${escapeHtml(item.eccMaterial)}">Remove</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  tbody.querySelectorAll(".consol-box-remove-btn").forEach((btn) => {
+    btn.addEventListener("click", () => removeItemFromBox(btn.dataset.ecc));
+  });
 }
 
 // Most recent logged status entry for a given item, or null if never actioned.
@@ -82,12 +160,19 @@ function renderConsolList() {
   const master = loadJSON(STORAGE.consolMaster, []);
   const filterVal = normalize(document.getElementById("consol-filter").value);
 
-  // Anything actioned AND already uploaded to the sheet is done — drop it
-  // from the working list entirely so the list shrinks as the team works
-  // through it, instead of growing with dead rows.
+  // Drop anything already synced-and-done, or currently staged in the
+  // Packed Box, from the working list — so it shrinks as the team works
+  // through it instead of accumulating dead rows.
+  const syncedDoneCount = master.filter((item) => {
+    const latest = currentConsolStatus(item.eccMaterial);
+    return latest && latest.synced;
+  }).length;
+
   const remaining = master.filter((item) => {
     const latest = currentConsolStatus(item.eccMaterial);
-    return !(latest && latest.synced);
+    if (latest && latest.synced) return false;
+    if (isBoxed(item.eccMaterial)) return false;
+    return true;
   });
 
   const filtered = remaining.filter(
@@ -99,10 +184,11 @@ function renderConsolList() {
       normalize(item.destination).includes(filterVal)
   );
 
-  const doneCount = master.length - remaining.length;
+  const boxedCount = master.length - remaining.length - syncedDoneCount;
   document.getElementById("consol-count").textContent =
     `${filtered.length} of ${remaining.length} remaining` +
-    (doneCount > 0 ? ` · ${doneCount} completed & uploaded` : "");
+    (boxedCount > 0 ? ` · ${boxedCount} in packed box` : "") +
+    (syncedDoneCount > 0 ? ` · ${syncedDoneCount} completed & uploaded` : "");
 
   tbody.innerHTML = "";
 
@@ -164,7 +250,12 @@ function handleConsolStatusChange(sel) {
     return; // logging happens once the modal is saved
   }
 
-  logConsolStatus(item, status, "", 0);
+  // Completed — stage it in the Packed Box instead of logging right away;
+  // it's actually logged (with the packing slip's reference number) once
+  // the box is scanned and closed out.
+  addItemToBox(item);
+  renderConsolList();
+  renderConsolBox();
 }
 
 function openConsolAdjustModal(item) {
@@ -231,30 +322,96 @@ function logConsolStatus(item, status, size, unitsOut) {
   renderConsolLog();
 }
 
-function handlePackoutScan(text) {
-  const session = loadJSON(STORAGE.session, {});
-  const entry = {
-    id: uid(),
-    entryType: "packout",
-    timestamp: new Date().toISOString(),
-    date: session.date || todayISO(),
-    initials: (session.initials || "").trim(),
-    eccMaterial: "",
-    description: "",
-    color: "",
-    status: "",
-    size: "",
-    unitsOut: 0,
-    referenceNumber: text,
-    synced: false,
-  };
+async function handlePackoutScan(text) {
+  const box = loadConsolBox();
+  if (box.length === 0) {
+    setStatus("consol-packout-status", "Nothing staged in the box yet — mark items Completed above first.", true);
+    return;
+  }
 
+  if (!navigator.onLine) {
+    setStatus("consol-packout-status", "Offline — nothing was logged. Items stay in the box, try scanning again once you're connected.", true);
+    return;
+  }
+
+  setStatus("consol-packout-status", `Logging ${box.length} item${box.length === 1 ? "" : "s"} for box ${text}…`, false);
+
+  const url = getWebhookUrl();
+  const session = loadJSON(STORAGE.session, {});
   const log = loadJSON(STORAGE.consolLog, []);
-  log.unshift(entry);
+  const stillBoxed = [];
+  let successCount = 0;
+
+  // Each item is only ever added to the log once its POST actually
+  // succeeds — a failure just leaves it staged in the box for a retry
+  // (re-scan), rather than creating an unsynced log entry that would also
+  // need separate tracking to get out of the box.
+  for (const item of box) {
+    const entry = {
+      id: uid(),
+      entryType: "status",
+      timestamp: new Date().toISOString(),
+      date: session.date || todayISO(),
+      initials: (session.initials || "").trim(),
+      eccMaterial: item.eccMaterial,
+      description: item.description,
+      color: item.color,
+      status: "Completed",
+      size: "",
+      unitsOut: 0,
+      referenceNumber: text,
+      synced: true,
+    };
+
+    try {
+      await postConsolLogToSheet(url, entry);
+      log.unshift(entry);
+      successCount++;
+    } catch (e) {
+      stillBoxed.push(item);
+    }
+  }
+
+  if (successCount > 0) {
+    const packoutEntry = {
+      id: uid(),
+      entryType: "packout",
+      timestamp: new Date().toISOString(),
+      date: session.date || todayISO(),
+      initials: (session.initials || "").trim(),
+      eccMaterial: "",
+      description: "",
+      color: "",
+      status: "",
+      size: "",
+      unitsOut: successCount,
+      referenceNumber: text,
+      synced: true,
+    };
+    try {
+      await postConsolLogToSheet(url, packoutEntry);
+      log.unshift(packoutEntry);
+    } catch (e) {
+      // The box's items are already logged — just note the closure record itself didn't upload.
+    }
+  }
+
   saveJSON(STORAGE.consolLog, log);
+  saveConsolBox(stillBoxed);
 
   renderConsolLog();
-  setStatus("consol-packout-status", `Logged box closed — reference ${text}.`, false);
+  renderConsolList();
+  renderConsolBox();
+
+  if (stillBoxed.length === 0) {
+    setStatus("consol-packout-status", `Box ${text} closed — ${successCount} item${successCount === 1 ? "" : "s"} logged and uploaded.`, false);
+  } else {
+    setStatus(
+      "consol-packout-status",
+      `Box ${text}: ${successCount} of ${box.length} uploaded. ${stillBoxed.length} couldn't sync (check your connection) — still staged, scan again to retry.`,
+      true
+    );
+  }
 }
 
 function renderConsolLog() {
@@ -332,8 +489,16 @@ async function syncConsolData() {
     return;
   }
 
+  if (!navigator.onLine) {
+    setStatus("consol-sync-status", "Offline — nothing was saved. Try again once you have a connection.", true);
+    return;
+  }
+
   setStatus("consol-sync-status", `Saving ${unsynced.length} entr${unsynced.length === 1 ? "y" : "ies"}…`, false);
 
+  // postConsolLogToSheet() already retries transient failures internally,
+  // so keep going through the rest of the batch rather than stopping at
+  // the first one that still fails.
   let successCount = 0;
   for (const entry of unsynced) {
     try {
@@ -341,7 +506,7 @@ async function syncConsolData() {
       entry.synced = true;
       successCount++;
     } catch (e) {
-      break; // likely offline — stop here, leave the rest for next attempt
+      // leave this one unsynced for next attempt, keep going with the rest
     }
   }
 

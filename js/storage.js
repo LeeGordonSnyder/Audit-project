@@ -8,6 +8,7 @@ const STORAGE = {
   webhookUrl: "audit.webhookUrl.v1",
   consolMaster: "audit.consolMaster.v1",
   consolLog: "audit.consolLog.v1",
+  consolBox: "audit.consolBox.v1",
 };
 
 // Baked-in default so the app works with zero setup. Settings can still

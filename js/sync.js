@@ -8,20 +8,42 @@ function setWebhookUrl(url) {
   localStorage.setItem(STORAGE.webhookUrl, url);
 }
 
-async function postToSheet(url, payload) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" }, // avoids a CORS preflight Apps Script can't handle
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error("HTTP " + res.status);
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchFromSheet(url, sheet) {
+// Apps Script Web Apps occasionally drop or time out a request under load —
+// a few retries with backoff clears most of those without the caller (or
+// the person tapping the button) needing to notice or intervene.
+const SYNC_RETRIES = 3;
+const SYNC_RETRY_DELAY_MS = 700;
+
+async function postToSheet(url, payload, attempt = 1) {
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" }, // avoids a CORS preflight Apps Script can't handle
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+  } catch (e) {
+    if (attempt >= SYNC_RETRIES) throw e;
+    await sleep(SYNC_RETRY_DELAY_MS * attempt);
+    return postToSheet(url, payload, attempt + 1);
+  }
+}
+
+async function fetchFromSheet(url, sheet, attempt = 1) {
   const sep = url.includes("?") ? "&" : "?";
-  const res = await fetch(`${url}${sep}sheet=${sheet}`, { method: "GET", cache: "no-store" });
-  if (!res.ok) throw new Error("HTTP " + res.status);
-  return res.json();
+  try {
+    const res = await fetch(`${url}${sep}sheet=${sheet}`, { method: "GET", cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return await res.json();
+  } catch (e) {
+    if (attempt >= SYNC_RETRIES) throw e;
+    await sleep(SYNC_RETRY_DELAY_MS * attempt);
+    return fetchFromSheet(url, sheet, attempt + 1);
+  }
 }
 
 function postEntryToSheet(url, entry) {
@@ -62,8 +84,16 @@ async function syncUnsyncedEntries() {
     return;
   }
 
+  if (!navigator.onLine) {
+    setStatus("sync-status", "Offline — nothing was saved. Try again once you have a connection.", true);
+    return;
+  }
+
   setStatus("sync-status", `Saving ${unsynced.length} entr${unsynced.length === 1 ? "y" : "ies"}…`, false);
 
+  // Each postEntryToSheet() already retries transient failures internally,
+  // so a failure surviving that is worth logging and moving on from rather
+  // than aborting the whole batch over one bad entry.
   let successCount = 0;
   for (const entry of unsynced) {
     try {
@@ -71,7 +101,7 @@ async function syncUnsyncedEntries() {
       entry.synced = true;
       successCount++;
     } catch (e) {
-      break; // likely offline — stop here, leave the rest for next attempt
+      // leave this one unsynced for next attempt, keep going with the rest
     }
   }
 

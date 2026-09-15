@@ -20,12 +20,17 @@ function initMasterList() {
 
     const url = getWebhookUrl();
     let shared = 0;
-    for (const item of parsed) {
-      try {
-        await pushProductToSheet(url, item);
-        shared++;
-      } catch (e) {
-        break; // likely offline — the rest stay local-only until the next import/sync
+    if (navigator.onLine) {
+      // pushProductToSheet() already retries transient failures internally,
+      // so keep trying the rest of the batch rather than stopping at the
+      // first one that still fails.
+      for (const item of parsed) {
+        try {
+          await pushProductToSheet(url, item);
+          shared++;
+        } catch (e) {
+          // leave this one local-only, keep going with the rest
+        }
       }
     }
 

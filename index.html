@@ -180,11 +180,6 @@
     </div>
     <p id="consol-import-status" class="status-msg" role="status"></p>
 
-    <div class="scan-buttons-row">
-      <button id="scan-packout-btn" class="btn primary">📷 Scan Packing Slip — Close Box</button>
-    </div>
-    <p id="consol-packout-status" class="status-msg" role="status"></p>
-
     <h2>Items to Consolidate</h2>
     <input id="consol-filter" type="text" autocomplete="off" placeholder="Filter by description, colour, or destination…" class="filter-input">
     <p id="consol-count" class="hint"></p>
@@ -202,6 +197,34 @@
         <tbody id="consol-table-body"></tbody>
       </table>
     </div>
+
+    <div class="audit-list-header">
+      <h2>Packed Box</h2>
+      <div class="audit-list-actions">
+        <span id="consol-box-count" class="hint"></span>
+      </div>
+    </div>
+    <p class="hint">Items marked Completed above land here. Once the box is packed, scan the packing slip to log and upload everything in it as a group — the box then clears, ready for the next one.</p>
+
+    <p id="consol-box-empty" class="hint">Nothing staged yet — mark an item Completed above to add it here.</p>
+    <div id="consol-box-table-wrap" class="table-wrap" hidden>
+      <table class="master-table consol-box-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Colour</th>
+            <th>Total</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="consol-box-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="scan-buttons-row">
+      <button id="scan-packout-btn" class="btn primary" disabled>📷 Scan Packing Slip — Close Box</button>
+    </div>
+    <p id="consol-packout-status" class="status-msg" role="status"></p>
 
     <div class="audit-list-header">
       <h2>Consolidation Log</h2>
