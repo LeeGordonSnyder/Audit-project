@@ -130,16 +130,19 @@ function setExpectedCount(sku, expectedCount) {
 
 // Maps a row shape returned by the Sheet's ProductMaster tab into the same
 // item shape parseManhattanBlock() produces, so both sources can share
-// upsertProductMaster()'s merge logic.
+// upsertProductMaster()'s merge logic. The sheet's actual header row is
+// "SKU / UPC / DEPT / STYLE SKU / COLOR / SIZE / DESCRIPTION / UPDATED AT"
+// (edited directly in Sheets) — fall back to the original lowercase keys
+// too, in case a row was ever written before that header existed.
 function sheetRowToMasterItem(row) {
   return {
-    sku: row.sku || "",
-    upc: row.upc || "",
-    dept: row.dept || "",
-    style: row.style || "",
-    color: row.color || "",
-    size: row.size || "",
-    description: row.description || "",
+    sku: row["SKU"] || row.sku || "",
+    upc: row["UPC"] || row.upc || "",
+    dept: row["DEPT"] || row.dept || "",
+    style: row["STYLE SKU"] || row.style || "",
+    color: row["COLOR"] || row.color || "",
+    size: row["SIZE"] || row.size || "",
+    description: row["DESCRIPTION"] || row.description || "",
   };
 }
 
@@ -150,72 +153,34 @@ function combinedDescription(item) {
   return parts.join(" — ");
 }
 
-/* ---------- HQ consolidation list paste parsing ----------
-   Expected tab-separated rows (pasted straight out of Excel), one row per
-   style/colour — sizes are intentionally not tracked here, HQ consolidates
-   regardless of size:
+/* ---------- HQ consolidation list ----------
+   The HQ export is pasted directly into the "ConsolMaster" sheet tab now
+   (not through the app) — that keeps it in clean Excel-native columns for
+   reliable reference. The app only ever reads this sheet. Its header row
+   (edited directly in Sheets) is:
 
-   Material Description   Colour   Generic Material   ECC Generic Material   FINAL consolidation Plan   Total
+   MATERIAL | COLOR | STYLE SKU | ECC GENERIC MATERIAL | DESTINATION | TOTAL | PROCESSED
+
+   PROCESSED is the qualifier for whether a line still shows on the
+   website — any non-blank value there means it's done and gets filtered
+   out. The app sets it (via the Apps Script backend) when a Packed Box is
+   closed or an item is marked "Needs Adjustment."
 */
-function parseConsolPaste(text) {
-  const lines = (text || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const items = [];
-
-  for (const line of lines) {
-    let cols = line.split("\t");
-    if (cols.length < 6) cols = line.split(/ {2,}/);
-    if (cols.length < 6) continue;
-    cols = cols.slice(0, 6).map((c) => c.trim());
-
-    const [description, color, genericMaterial, eccMaterial, destination, totalRaw] = cols;
-    if (/^material description$/i.test(description)) continue; // header row
-    if (!eccMaterial) continue;
-
-    const total = parseInt(totalRaw, 10);
-    items.push({
-      eccMaterial,
-      description,
-      color,
-      genericMaterial,
-      destination,
-      total: isNaN(total) ? 0 : total,
-    });
-  }
-
-  return items;
-}
-
-// Keyed by ECC Generic Material — unique per style/colour in the HQ export.
-function upsertConsolMaster(parsedItems) {
-  const list = loadJSON(STORAGE.consolMaster, []);
-  let added = 0;
-  let updated = 0;
-  const now = new Date().toISOString();
-
-  for (const item of parsedItems) {
-    const idx = list.findIndex((p) => p.eccMaterial === item.eccMaterial);
-    if (idx === -1) {
-      list.push({ ...item, updatedAt: now });
-      added++;
-    } else {
-      list[idx] = { ...list[idx], ...item, updatedAt: now };
-      updated++;
-    }
-  }
-
-  saveJSON(STORAGE.consolMaster, list);
-  return { added, updated, total: list.length };
-}
 
 function sheetRowToConsolItem(row) {
   return {
-    eccMaterial: row.eccMaterial || "",
-    description: row.description || "",
-    color: row.color || "",
-    genericMaterial: row.genericMaterial || "",
-    destination: row.destination || "",
-    total: Number(row.total) || 0,
+    eccMaterial: row["ECC GENERIC MATERIAL"] || "",
+    description: row["MATERIAL"] || "",
+    color: row["COLOR"] || "",
+    styleSku: row["STYLE SKU"] || "",
+    destination: row["DESTINATION"] || "",
+    total: Number(row["TOTAL"]) || 0,
+    processed: row["PROCESSED"] || "",
   };
+}
+
+function isConsolProcessed(item) {
+  return (item.processed || "").toString().trim() !== "";
 }
 
 function getTagLocation(style) {

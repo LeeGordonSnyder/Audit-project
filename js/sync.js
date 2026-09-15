@@ -54,12 +54,18 @@ function pushProductToSheet(url, item) {
   return postToSheet(url, { type: "master", ...item });
 }
 
-function pushConsolItemToSheet(url, item) {
-  return postToSheet(url, { type: "consolmaster", ...item });
+// Closes a Packed Box: logs every staged item as Completed under one
+// packing-slip reference number, plus a closure record, and flags each as
+// Processed on the ConsolMaster sheet — all in a single request.
+function postConsolBoxCloseToSheet(url, payload) {
+  return postToSheet(url, { type: "consolboxclose", ...payload });
 }
 
-function postConsolLogToSheet(url, entry) {
-  return postToSheet(url, { type: "consollog", ...entry });
+// Logs a "Needs Adjustment" consolidation mark-out: records it in the
+// consolidation log, pushes the chosen UPC/units into the AuditLog's Mark
+// Out section, and flags the item Processed on the ConsolMaster sheet.
+function postConsolMarkoutToSheet(url, payload) {
+  return postToSheet(url, { type: "consolmarkout", ...payload });
 }
 
 function initSync() {
@@ -168,13 +174,17 @@ async function loadSharedProductMaster() {
   }
 }
 
+// The HQ list is now edited directly in the ConsolMaster sheet, so unlike
+// the other loadShared*() functions this is a full replace, not a merge —
+// the sheet is the single source of truth, rows deleted there should
+// disappear here too, not linger from a stale local cache.
 async function loadSharedConsolMaster() {
   const url = getWebhookUrl();
 
   try {
     const remoteRows = await fetchFromSheet(url, "consolmaster");
-    if (!Array.isArray(remoteRows) || remoteRows.length === 0) return;
-    upsertConsolMaster(remoteRows.map(sheetRowToConsolItem));
+    if (!Array.isArray(remoteRows)) return;
+    saveJSON(STORAGE.consolMaster, remoteRows.map(sheetRowToConsolItem));
   } catch (e) {
     // offline or unreachable — local data stands, next boot/refresh will retry
   }

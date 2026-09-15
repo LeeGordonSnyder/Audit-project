@@ -1,49 +1,14 @@
 "use strict";
 
 let consolAdjustItem = null;
+let consolAdjustVariants = [];
 
 function initConsol() {
-  document.getElementById("consol-import-btn").addEventListener("click", async () => {
-    const textarea = document.getElementById("consol-paste-area");
-    const parsed = parseConsolPaste(textarea.value);
-    if (!parsed.length) {
-      setStatus(
-        "consol-import-status",
-        "No rows found — check it's pasted with Description/Colour/Generic Material/ECC Generic Material/Destination/Total columns.",
-        true
-      );
-      return;
-    }
-
-    const result = upsertConsolMaster(parsed);
-    textarea.value = "";
+  document.getElementById("consol-refresh-btn").addEventListener("click", async () => {
+    setStatus("consol-list-status", "Refreshing from the sheet…", false);
+    await loadSharedConsolMaster();
     renderConsolList();
-
-    setStatus("consol-import-status", `Added ${result.added}, updated ${result.updated}. Sharing with the sheet…`, false);
-
-    const url = getWebhookUrl();
-    let shared = 0;
-    if (navigator.onLine) {
-      // pushConsolItemToSheet() already retries transient failures internally,
-      // so keep going through the rest of the batch rather than stopping at
-      // the first one that still fails.
-      for (const item of parsed) {
-        try {
-          await pushConsolItemToSheet(url, item);
-          shared++;
-        } catch (e) {
-          // leave this one local-only, keep going with the rest
-        }
-      }
-    }
-
-    setStatus(
-      "consol-import-status",
-      shared === parsed.length
-        ? `Added ${result.added}, updated ${result.updated}, and shared all ${shared} with the sheet.`
-        : `Added ${result.added}, updated ${result.updated} locally. Only shared ${shared} of ${parsed.length} with the sheet — check your connection and import again to finish sharing.`,
-      shared !== parsed.length
-    );
+    setStatus("consol-list-status", "Refreshed from the sheet.", false);
   });
 
   document.getElementById("consol-filter").addEventListener("input", renderConsolList);
@@ -55,7 +20,6 @@ function initConsol() {
   document.getElementById("consol-adjust-save-btn").addEventListener("click", saveConsolAdjustModal);
   document.getElementById("consol-adjust-cancel-btn").addEventListener("click", closeConsolAdjustModal);
 
-  document.getElementById("save-consol-btn").addEventListener("click", syncConsolData);
   document.getElementById("export-consol-csv-btn").addEventListener("click", exportConsolCsv);
 
   renderConsolList();
@@ -135,45 +99,20 @@ function renderConsolBox() {
   });
 }
 
-// Most recent logged status entry for a given item, or null if never actioned.
-function currentConsolStatus(eccMaterial) {
-  const log = loadJSON(STORAGE.consolLog, []);
-  const entries = log.filter((e) => e.entryType === "status" && e.eccMaterial === eccMaterial);
-  if (!entries.length) return null;
-  entries.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  return entries[0];
-}
-
-// A short "Completed · JD · 2026-09-15" (or size/units, or "not synced") line
-// shown under the status dropdown for anything already actioned.
-function statusHint(latest) {
-  if (!latest) return "";
-  const parts = [latest.status];
-  if (latest.status === "Needs Adjustment") parts.push(`Sz ${latest.size} × ${latest.unitsOut}`);
-  parts.push(latest.initials || "—", latest.date);
-  if (!latest.synced) parts.push("not synced yet");
-  return parts.filter(Boolean).join(" · ");
-}
+/* ---------- Items to Consolidate ---------- */
 
 function renderConsolList() {
   const tbody = document.getElementById("consol-table-body");
   const master = loadJSON(STORAGE.consolMaster, []);
   const filterVal = normalize(document.getElementById("consol-filter").value);
 
-  // Drop anything already synced-and-done, or currently staged in the
-  // Packed Box, from the working list — so it shrinks as the team works
-  // through it instead of accumulating dead rows.
-  const syncedDoneCount = master.filter((item) => {
-    const latest = currentConsolStatus(item.eccMaterial);
-    return latest && latest.synced;
-  }).length;
+  // ConsolMaster's own PROCESSED column is the source of truth for "done" —
+  // set server-side when a box closes or an item is marked Needs Adjustment.
+  // Anything currently staged in the Packed Box is also hidden here (it's
+  // showing there instead) until it's actually processed.
+  const processedCount = master.filter(isConsolProcessed).length;
 
-  const remaining = master.filter((item) => {
-    const latest = currentConsolStatus(item.eccMaterial);
-    if (latest && latest.synced) return false;
-    if (isBoxed(item.eccMaterial)) return false;
-    return true;
-  });
+  const remaining = master.filter((item) => !isConsolProcessed(item) && !isBoxed(item.eccMaterial));
 
   const filtered = remaining.filter(
     (item) =>
@@ -184,20 +123,20 @@ function renderConsolList() {
       normalize(item.destination).includes(filterVal)
   );
 
-  const boxedCount = master.length - remaining.length - syncedDoneCount;
+  const boxedCount = master.length - remaining.length - processedCount;
   document.getElementById("consol-count").textContent =
     `${filtered.length} of ${remaining.length} remaining` +
     (boxedCount > 0 ? ` · ${boxedCount} in packed box` : "") +
-    (syncedDoneCount > 0 ? ` · ${syncedDoneCount} completed & uploaded` : "");
+    (processedCount > 0 ? ` · ${processedCount} processed` : "");
 
   tbody.innerHTML = "";
 
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="5" class="no-results">${
       master.length === 0
-        ? "No consolidation items yet — paste the HQ list above."
+        ? "No consolidation items yet — paste the HQ list into the ConsolMaster sheet, then tap Refresh."
         : remaining.length === 0
-        ? "All items actioned and uploaded — nothing left to consolidate."
+        ? "All items processed — nothing left to consolidate."
         : "No items match that filter."
     }</td></tr>`;
     return;
@@ -208,9 +147,6 @@ function renderConsolList() {
     .sort((a, b) => a.description.localeCompare(b.description) || a.color.localeCompare(b.color));
 
   for (const item of sorted) {
-    const latest = currentConsolStatus(item.eccMaterial);
-    const currentStatusValue = latest ? latest.status : "";
-
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(item.description)}</td>
@@ -222,10 +158,9 @@ function renderConsolList() {
       item.description
     )}">
           <option value="">Not actioned</option>
-          <option value="Completed" ${currentStatusValue === "Completed" ? "selected" : ""}>Completed</option>
-          <option value="Needs Adjustment" ${currentStatusValue === "Needs Adjustment" ? "selected" : ""}>Needs Adjustment</option>
+          <option value="Completed">Completed</option>
+          <option value="Needs Adjustment">Needs Adjustment</option>
         </select>
-        ${latest ? `<div class="row-hint">${escapeHtml(statusHint(latest))}</div>` : ""}
       </td>
     `;
     tbody.appendChild(tr);
@@ -243,46 +178,66 @@ function handleConsolStatusChange(sel) {
   const item = master.find((p) => p.eccMaterial === eccMaterial);
   if (!item) return;
 
-  if (!status) return; // "Not yet actioned" is just a view state, nothing to log
+  if (!status) return; // "Not actioned" is just a view state, nothing to do
 
   if (status === "Needs Adjustment") {
     openConsolAdjustModal(item);
-    return; // logging happens once the modal is saved
+    return; // logging + push happens once the modal is saved
   }
 
-  // Completed — stage it in the Packed Box instead of logging right away;
-  // it's actually logged (with the packing slip's reference number) once
-  // the box is scanned and closed out.
+  // Completed — stage it in the Packed Box instead of processing it right
+  // away; it's actually logged and flagged Processed once the box is
+  // scanned and closed out.
   addItemToBox(item);
   renderConsolList();
   renderConsolBox();
 }
 
+/* ---------- Needs Adjustment: cross-reference Product Master by style ---------- */
+
 function openConsolAdjustModal(item) {
   consolAdjustItem = item;
+  const master = loadJSON(STORAGE.master, []);
+  consolAdjustVariants = master.filter((p) => item.styleSku && p.style === item.styleSku);
+
   document.getElementById("consol-adjust-label").textContent = `${item.description} — ${item.color}`;
-  document.getElementById("consol-adjust-size").value = "";
+
+  const select = document.getElementById("consol-adjust-variant");
+  const saveBtn = document.getElementById("consol-adjust-save-btn");
+
+  if (consolAdjustVariants.length === 0) {
+    select.innerHTML = `<option value="">No sizes found for style ${escapeHtml(item.styleSku || "—")}</option>`;
+    select.disabled = true;
+    saveBtn.disabled = true;
+  } else {
+    select.innerHTML = consolAdjustVariants
+      .map((v) => `<option value="${escapeHtml(v.upc)}">${escapeHtml(v.color)} — ${escapeHtml(v.size)}</option>`)
+      .join("");
+    select.disabled = false;
+    saveBtn.disabled = false;
+  }
+
   document.getElementById("consol-adjust-units").value = "";
   document.getElementById("consol-adjust-modal").hidden = false;
-  document.getElementById("consol-adjust-size").focus();
 }
 
 function closeConsolAdjustModal() {
   consolAdjustItem = null;
+  consolAdjustVariants = [];
   document.getElementById("consol-adjust-modal").hidden = true;
-  // Re-render so the dropdown falls back to its last actual logged status.
-  renderConsolList();
+  renderConsolList(); // dropdown falls back to "Not actioned" since nothing changed
 }
 
-function saveConsolAdjustModal() {
+async function saveConsolAdjustModal() {
   if (!consolAdjustItem) return;
 
-  const size = document.getElementById("consol-adjust-size").value.trim();
+  const upc = document.getElementById("consol-adjust-variant").value;
   const unitsRaw = document.getElementById("consol-adjust-units").value;
   const units = parseInt(unitsRaw, 10);
 
-  if (!size) {
-    alert("Enter the size.");
+  const variant = consolAdjustVariants.find((v) => v.upc === upc);
+  if (!variant) {
+    alert("Select a size/colour first.");
     return;
   }
   if (isNaN(units) || units <= 0) {
@@ -290,37 +245,72 @@ function saveConsolAdjustModal() {
     return;
   }
 
+  if (!navigator.onLine) {
+    alert("Offline — can't mark out right now. Try again once you have a connection.");
+    return;
+  }
+
   const item = consolAdjustItem;
-  consolAdjustItem = null;
-  document.getElementById("consol-adjust-modal").hidden = true;
-  logConsolStatus(item, "Needs Adjustment", size, units);
-}
-
-function logConsolStatus(item, status, size, unitsOut) {
   const session = loadJSON(STORAGE.session, {});
-  const entry = {
-    id: uid(),
-    entryType: "status",
-    timestamp: new Date().toISOString(),
-    date: session.date || todayISO(),
-    initials: (session.initials || "").trim(),
-    eccMaterial: item.eccMaterial,
-    description: item.description,
-    color: item.color,
-    status,
-    size,
-    unitsOut,
-    referenceNumber: "",
-    synced: false,
-  };
+  const date = session.date || todayISO();
+  const initials = (session.initials || "").trim();
+  const productDescription = combinedDescription(variant);
 
-  const log = loadJSON(STORAGE.consolLog, []);
-  log.unshift(entry);
-  saveJSON(STORAGE.consolLog, log);
+  setStatus("consol-list-status", `Marking out ${units} × ${variant.upc}…`, false);
 
-  renderConsolList();
-  renderConsolLog();
+  try {
+    await postConsolMarkoutToSheet(getWebhookUrl(), {
+      date,
+      initials,
+      eccMaterial: item.eccMaterial,
+      description: item.description,
+      color: item.color,
+      size: variant.size,
+      units,
+      upc: variant.upc,
+      productDescription,
+    });
+
+    // Mark it Processed locally so it drops off the list immediately —
+    // the server just did the same to the sheet.
+    const master = loadJSON(STORAGE.consolMaster, []);
+    const idx = master.findIndex((p) => p.eccMaterial === item.eccMaterial);
+    if (idx !== -1) {
+      master[idx].processed = "Processed";
+      saveJSON(STORAGE.consolMaster, master);
+    }
+
+    const log = loadJSON(STORAGE.consolLog, []);
+    log.unshift({
+      id: uid(),
+      entryType: "status",
+      timestamp: new Date().toISOString(),
+      date,
+      initials,
+      eccMaterial: item.eccMaterial,
+      description: item.description,
+      color: item.color,
+      status: "Needs Adjustment",
+      size: variant.size,
+      unitsOut: units,
+      referenceNumber: "",
+      synced: true,
+    });
+    saveJSON(STORAGE.consolLog, log);
+
+    consolAdjustItem = null;
+    consolAdjustVariants = [];
+    document.getElementById("consol-adjust-modal").hidden = true;
+
+    renderConsolList();
+    renderConsolLog();
+    setStatus("consol-list-status", `Marked out ${units} × ${variant.upc} — pushed to the Mark Out queue.`, false);
+  } catch (e) {
+    setStatus("consol-list-status", "Couldn't reach the sheet — check your connection and try again.", true);
+  }
 }
+
+/* ---------- Packing slip scan: close the box as a group ---------- */
 
 async function handlePackoutScan(text) {
   const box = loadConsolBox();
@@ -336,83 +326,80 @@ async function handlePackoutScan(text) {
 
   setStatus("consol-packout-status", `Logging ${box.length} item${box.length === 1 ? "" : "s"} for box ${text}…`, false);
 
-  const url = getWebhookUrl();
   const session = loadJSON(STORAGE.session, {});
-  const log = loadJSON(STORAGE.consolLog, []);
-  const stillBoxed = [];
-  let successCount = 0;
+  const date = session.date || todayISO();
+  const initials = (session.initials || "").trim();
 
-  // Each item is only ever added to the log once its POST actually
-  // succeeds — a failure just leaves it staged in the box for a retry
-  // (re-scan), rather than creating an unsynced log entry that would also
-  // need separate tracking to get out of the box.
-  for (const item of box) {
-    const entry = {
-      id: uid(),
-      entryType: "status",
-      timestamp: new Date().toISOString(),
-      date: session.date || todayISO(),
-      initials: (session.initials || "").trim(),
-      eccMaterial: item.eccMaterial,
-      description: item.description,
-      color: item.color,
-      status: "Completed",
-      size: "",
-      unitsOut: 0,
+  try {
+    await postConsolBoxCloseToSheet(getWebhookUrl(), {
       referenceNumber: text,
-      synced: true,
-    };
+      date,
+      initials,
+      items: box.map((item) => ({ eccMaterial: item.eccMaterial, description: item.description, color: item.color })),
+    });
 
-    try {
-      await postConsolLogToSheet(url, entry);
-      log.unshift(entry);
-      successCount++;
-    } catch (e) {
-      stillBoxed.push(item);
+    // Success — mirror the same effects locally: flag every boxed item
+    // Processed, record the log entries, and clear the box.
+    const master = loadJSON(STORAGE.consolMaster, []);
+    for (const boxItem of box) {
+      const idx = master.findIndex((p) => p.eccMaterial === boxItem.eccMaterial);
+      if (idx !== -1) master[idx].processed = "Processed";
     }
-  }
+    saveJSON(STORAGE.consolMaster, master);
 
-  if (successCount > 0) {
-    const packoutEntry = {
+    const log = loadJSON(STORAGE.consolLog, []);
+    const timestamp = new Date().toISOString();
+    for (const boxItem of box) {
+      log.unshift({
+        id: uid(),
+        entryType: "status",
+        timestamp,
+        date,
+        initials,
+        eccMaterial: boxItem.eccMaterial,
+        description: boxItem.description,
+        color: boxItem.color,
+        status: "Completed",
+        size: "",
+        unitsOut: 0,
+        referenceNumber: text,
+        synced: true,
+      });
+    }
+    log.unshift({
       id: uid(),
       entryType: "packout",
-      timestamp: new Date().toISOString(),
-      date: session.date || todayISO(),
-      initials: (session.initials || "").trim(),
+      timestamp,
+      date,
+      initials,
       eccMaterial: "",
       description: "",
       color: "",
       status: "",
       size: "",
-      unitsOut: successCount,
+      unitsOut: box.length,
       referenceNumber: text,
       synced: true,
-    };
-    try {
-      await postConsolLogToSheet(url, packoutEntry);
-      log.unshift(packoutEntry);
-    } catch (e) {
-      // The box's items are already logged — just note the closure record itself didn't upload.
-    }
-  }
+    });
+    saveJSON(STORAGE.consolLog, log);
 
-  saveJSON(STORAGE.consolLog, log);
-  saveConsolBox(stillBoxed);
+    saveConsolBox([]);
 
-  renderConsolLog();
-  renderConsolList();
-  renderConsolBox();
+    renderConsolLog();
+    renderConsolList();
+    renderConsolBox();
 
-  if (stillBoxed.length === 0) {
-    setStatus("consol-packout-status", `Box ${text} closed — ${successCount} item${successCount === 1 ? "" : "s"} logged and uploaded.`, false);
-  } else {
+    setStatus("consol-packout-status", `Box ${text} closed — ${box.length} item${box.length === 1 ? "" : "s"} logged and uploaded.`, false);
+  } catch (e) {
     setStatus(
       "consol-packout-status",
-      `Box ${text}: ${successCount} of ${box.length} uploaded. ${stillBoxed.length} couldn't sync (check your connection) — still staged, scan again to retry.`,
+      `Box ${text}: couldn't reach the sheet — check your connection. Items stay staged, scan again to retry.`,
       true
     );
   }
 }
+
+/* ---------- Consolidation Log (history) ---------- */
 
 function renderConsolLog() {
   const listEl = document.getElementById("consol-log-list");
@@ -435,8 +422,7 @@ function renderConsolLog() {
           <span class="result-pill match">${escapeHtml(e.referenceNumber)}</span>
         </div>
         <div class="meta">
-          ${escapeHtml(e.initials || "—")} · ${escapeHtml(e.date)}
-          · <span class="sync-pill">${e.synced ? "synced" : "not synced"}</span>
+          ${e.unitsOut} item${e.unitsOut === 1 ? "" : "s"} · ${escapeHtml(e.initials || "—")} · ${escapeHtml(e.date)}
         </div>
       `;
     } else {
@@ -451,7 +437,6 @@ function renderConsolLog() {
           ${e.status === "Needs Adjustment" ? `Size ${escapeHtml(e.size)} · ${e.unitsOut} out · ` : ""}${escapeHtml(
         e.initials || "—"
       )} · ${escapeHtml(e.date)}
-          · <span class="sync-pill">${e.synced ? "synced" : "not synced"}</span>
         </div>
       `;
     }
@@ -473,50 +458,7 @@ function exportConsolCsv() {
     "unitsOut",
     "referenceNumber",
     "timestamp",
-    "synced",
   ];
   const rows = [header, ...log.map((e) => header.map((k) => e[k]))];
   downloadCsv(`consolidation-log-${todayISO()}.csv`, rows);
-}
-
-async function syncConsolData() {
-  const url = getWebhookUrl();
-
-  const log = loadJSON(STORAGE.consolLog, []);
-  const unsynced = log.filter((e) => !e.synced);
-  if (unsynced.length === 0) {
-    setStatus("consol-sync-status", "Nothing new to save — everything is already in the shared log.", false);
-    return;
-  }
-
-  if (!navigator.onLine) {
-    setStatus("consol-sync-status", "Offline — nothing was saved. Try again once you have a connection.", true);
-    return;
-  }
-
-  setStatus("consol-sync-status", `Saving ${unsynced.length} entr${unsynced.length === 1 ? "y" : "ies"}…`, false);
-
-  // postConsolLogToSheet() already retries transient failures internally,
-  // so keep going through the rest of the batch rather than stopping at
-  // the first one that still fails.
-  let successCount = 0;
-  for (const entry of unsynced) {
-    try {
-      await postConsolLogToSheet(url, entry);
-      entry.synced = true;
-      successCount++;
-    } catch (e) {
-      // leave this one unsynced for next attempt, keep going with the rest
-    }
-  }
-
-  saveJSON(STORAGE.consolLog, log);
-  renderConsolLog();
-  renderConsolList(); // drop any items that just became synced-and-done from the working list
-
-  if (successCount === unsynced.length) {
-    setStatus("consol-sync-status", `Saved ${successCount} entr${successCount === 1 ? "y" : "ies"} to the shared log.`, false);
-  } else {
-    setStatus("consol-sync-status", `Saved ${successCount} of ${unsynced.length} — check your connection and try Save again.`, true);
-  }
 }

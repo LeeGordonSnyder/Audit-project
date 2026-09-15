@@ -172,15 +172,14 @@
 
   <!-- CONSOLIDATIONS TAB -->
   <section id="tab-consol" class="tab-panel" role="tabpanel" hidden>
-    <h2>Import Consolidation List</h2>
-    <p class="hint">Paste the HQ consolidation export below — Material Description, Colour, Generic Material, ECC Generic Material, FINAL consolidation Plan, Total (one row per style/colour; sizes aren't tracked here since HQ consolidates regardless of size) — then tap Import.</p>
-    <textarea id="consol-paste-area" rows="6" placeholder="Paste the HQ consolidation list here…"></textarea>
-    <div class="settings-row">
-      <button id="consol-import-btn" class="btn primary">Import / Update</button>
+    <div class="audit-list-header">
+      <h2>Items to Consolidate</h2>
+      <div class="audit-list-actions">
+        <button id="consol-refresh-btn" class="btn secondary small">🔄 Refresh from Sheet</button>
+      </div>
     </div>
-    <p id="consol-import-status" class="status-msg" role="status"></p>
-
-    <h2>Items to Consolidate</h2>
+    <p class="hint">The HQ consolidation list is pasted directly into the "ConsolMaster" tab of the Google Sheet, not here — this just reflects what's there. Tap Refresh after pasting a new list into the sheet.</p>
+    <p id="consol-list-status" class="status-msg" role="status"></p>
     <input id="consol-filter" type="text" autocomplete="off" placeholder="Filter by description, colour, or destination…" class="filter-input">
     <p id="consol-count" class="hint"></p>
     <div class="table-wrap">
@@ -229,11 +228,9 @@
     <div class="audit-list-header">
       <h2>Consolidation Log</h2>
       <div class="audit-list-actions">
-        <button id="save-consol-btn" class="btn primary small">Save to Sheet</button>
         <button id="export-consol-csv-btn" class="btn secondary small">Export CSV</button>
       </div>
     </div>
-    <p id="consol-sync-status" class="status-msg" role="status"></p>
     <div id="consol-log-list" class="audit-list"></div>
   </section>
 
@@ -268,8 +265,8 @@
   <div class="scanner-modal-inner">
     <h2>Mark Out — Needs Adjustment</h2>
     <p id="consol-adjust-label" class="hint"></p>
-    <label>Size
-      <input type="text" id="consol-adjust-size" autocomplete="off" placeholder="e.g. M">
+    <label>Size / Colour
+      <select id="consol-adjust-variant"></select>
     </label>
     <label>Units to Mark Out
       <input type="number" id="consol-adjust-units" inputmode="numeric" min="1" placeholder="Enter units">
