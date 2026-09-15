@@ -235,7 +235,7 @@ async function saveConsolAdjustModal() {
   const unitsRaw = document.getElementById("consol-adjust-units").value;
   const units = parseInt(unitsRaw, 10);
 
-  const variant = consolAdjustVariants.find((v) => v.upc === upc);
+  const variant = consolAdjustVariants.find((v) => String(v.upc) === upc);
   if (!variant) {
     alert("Select a size/colour first.");
     return;

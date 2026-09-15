@@ -33,7 +33,7 @@ function initAuditDashboard() {
 
 function handleProductScan(upc) {
   const master = loadJSON(STORAGE.master, []);
-  const item = master.find((p) => p.upc === upc);
+  const item = master.find((p) => String(p.upc) === upc);
 
   if (!item) {
     clearScanStatus();

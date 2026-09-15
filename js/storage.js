@@ -135,14 +135,18 @@ function setExpectedCount(sku, expectedCount) {
 // (edited directly in Sheets) — fall back to the original lowercase keys
 // too, in case a row was ever written before that header existed.
 function sheetRowToMasterItem(row) {
+  // Sheets auto-types a numeric-looking cell (a UPC barcode, especially) as
+  // a number, not text — String()-coerce everything so items compare
+  // correctly (===) against scanned/typed strings everywhere else in the
+  // app, instead of silently never matching a number-vs-string mismatch.
   return {
-    sku: row["SKU"] || row.sku || "",
-    upc: row["UPC"] || row.upc || "",
-    dept: row["DEPT"] || row.dept || "",
-    style: row["STYLE SKU"] || row.style || "",
-    color: row["COLOR"] || row.color || "",
-    size: row["SIZE"] || row.size || "",
-    description: row["DESCRIPTION"] || row.description || "",
+    sku: String(row["SKU"] ?? row.sku ?? ""),
+    upc: String(row["UPC"] ?? row.upc ?? ""),
+    dept: String(row["DEPT"] ?? row.dept ?? ""),
+    style: String(row["STYLE SKU"] ?? row.style ?? ""),
+    color: String(row["COLOR"] ?? row.color ?? ""),
+    size: String(row["SIZE"] ?? row.size ?? ""),
+    description: String(row["DESCRIPTION"] ?? row.description ?? ""),
   };
 }
 
@@ -169,13 +173,13 @@ function combinedDescription(item) {
 
 function sheetRowToConsolItem(row) {
   return {
-    eccMaterial: row["ECC GENERIC MATERIAL"] || "",
-    description: row["MATERIAL"] || "",
-    color: row["COLOR"] || "",
-    styleSku: row["STYLE SKU"] || "",
-    destination: row["DESTINATION"] || "",
+    eccMaterial: String(row["ECC GENERIC MATERIAL"] ?? ""),
+    description: String(row["MATERIAL"] ?? ""),
+    color: String(row["COLOR"] ?? ""),
+    styleSku: String(row["STYLE SKU"] ?? ""),
+    destination: String(row["DESTINATION"] ?? ""),
     total: Number(row["TOTAL"]) || 0,
-    processed: row["PROCESSED"] || "",
+    processed: String(row["PROCESSED"] ?? ""),
   };
 }
 
