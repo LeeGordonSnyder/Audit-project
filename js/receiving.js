@@ -53,6 +53,11 @@ function initReceiving() {
   document.getElementById("receiving-mark-physical-btn").addEventListener("click", () => markHeldReceiving("physical"));
   document.getElementById("receiving-mark-mao-btn").addEventListener("click", () => markHeldReceiving("mao"));
 
+  document.getElementById("receiving-add-selected-btn").addEventListener("click", addSelectedToHolding);
+  document.getElementById("receiving-select-all").addEventListener("change", (e) => {
+    document.querySelectorAll(".receiving-select-checkbox").forEach((cb) => (cb.checked = e.target.checked));
+  });
+
   document.getElementById("export-receiving-csv-btn").addEventListener("click", exportReceivingCsv);
 
   renderReceivingList();
@@ -73,40 +78,59 @@ function isHeld(barcode) {
   return loadReceivingHolding().some((b) => b.barcode === barcode);
 }
 
-// Called on every decode while the continuous scanner is open — feedback
-// goes into the scanner modal itself (scanner-modal-feedback) since the
-// modal covers the whole page while scanning.
-function handleReceivingScan(text) {
-  const barcode = text.trim();
+// Shared by both the scanner and the manual checkbox picker below — the
+// two are just different ways of choosing the same barcode.
+function addBoxToHolding(barcode) {
   const master = loadJSON(STORAGE.receivingMaster, []);
   const item = master.find((p) => p.barcode === barcode);
 
-  if (!item) {
-    setStatus("scanner-modal-feedback", `${barcode} — not in the expected shipment list.`, true);
-    return;
-  }
-
-  if (item.receivedIntoMaoDate) {
-    setStatus("scanner-modal-feedback", `${barcode} — already received into MAO.`, true);
-    return;
-  }
+  if (!item) return { ok: false, message: `${barcode} — not in the expected shipment list.` };
+  if (item.receivedIntoMaoDate) return { ok: false, message: `${barcode} — already received into MAO.` };
 
   const holding = loadReceivingHolding();
   if (holding.some((b) => b.barcode === barcode)) {
-    setStatus("scanner-modal-feedback", `${barcode} — already in the holding list.`, false);
-    return;
+    return { ok: false, message: `${barcode} — already in the holding list.` };
   }
 
   holding.push({ barcode: item.barcode, po: item.po });
   saveReceivingHolding(holding);
+  return { ok: true, message: `Added ${barcode} (PO ${item.po}).`, heldCount: holding.length };
+}
 
+// Called on every decode while the continuous scanner is open — feedback
+// goes into the scanner modal itself (scanner-modal-feedback) since the
+// modal covers the whole page while scanning.
+function handleReceivingScan(text) {
+  const result = addBoxToHolding(text.trim());
+
+  if (result.ok) {
+    renderReceivingList();
+    renderReceivingHolding();
+    setStatus(
+      "scanner-modal-feedback",
+      `${result.message} ${result.heldCount} box${result.heldCount === 1 ? "" : "es"} held.`,
+      false
+    );
+  } else {
+    setStatus("scanner-modal-feedback", result.message, true);
+  }
+}
+
+// No camera handy (e.g. working from a computer)? Check boxes in the
+// Expected Boxes table and add them the same way a scan would.
+function addSelectedToHolding() {
+  const checkboxes = document.querySelectorAll(".receiving-select-checkbox:checked");
+  if (checkboxes.length === 0) return;
+
+  let addedCount = 0;
+  checkboxes.forEach((cb) => {
+    if (addBoxToHolding(cb.dataset.barcode).ok) addedCount++;
+  });
+
+  document.getElementById("receiving-select-all").checked = false;
   renderReceivingList();
   renderReceivingHolding();
-  setStatus(
-    "scanner-modal-feedback",
-    `Added ${barcode} (PO ${item.po}) — ${holding.length} box${holding.length === 1 ? "" : "es"} held.`,
-    false
-  );
+  setStatus("receiving-status-msg", `Added ${addedCount} box${addedCount === 1 ? "" : "es"} to holding.`, false);
 }
 
 function removeFromHolding(barcode) {
@@ -228,8 +252,10 @@ function renderReceivingList() {
 
   tbody.innerHTML = "";
 
+  document.getElementById("receiving-select-all").checked = false;
+
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" class="no-results">${
+    tbody.innerHTML = `<tr><td colspan="5" class="no-results">${
       master.length === 0
         ? "No expected shipments yet — paste the MAO list above."
         : remaining.length === 0
@@ -247,6 +273,7 @@ function renderReceivingList() {
       ? `On shelf · ${escapeHtml(item.physicallyReceivedBy || "—")} ${escapeHtml(item.physicallyReceivedDate)}`
       : "Not yet received";
     tr.innerHTML = `
+      <td><input type="checkbox" class="receiving-select-checkbox" data-barcode="${escapeHtml(item.barcode)}" aria-label="Select ${escapeHtml(item.barcode)}"></td>
       <td class="mono">${escapeHtml(item.barcode)}</td>
       <td>${escapeHtml(item.po)}</td>
       <td>${escapeHtml(item.expectedDate)}</td>

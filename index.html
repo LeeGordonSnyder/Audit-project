@@ -252,15 +252,18 @@
     <div class="audit-list-header">
       <h2>Expected Boxes</h2>
       <div class="audit-list-actions">
+        <button id="receiving-add-selected-btn" class="btn primary small">Add Selected to Holding</button>
         <button id="export-receiving-csv-btn" class="btn secondary small">Export CSV</button>
       </div>
     </div>
+    <p class="hint">No camera handy? Check the box(es) below and tap Add Selected to Holding — same effect as scanning them.</p>
     <input id="receiving-filter" type="text" autocomplete="off" placeholder="Filter by PO or barcode…" class="filter-input">
     <p id="receiving-count" class="hint"></p>
     <div class="table-wrap">
       <table class="master-table receiving-table">
         <thead>
           <tr>
+            <th><input type="checkbox" id="receiving-select-all" aria-label="Select all"></th>
             <th>Barcode</th>
             <th>PO #</th>
             <th>Expected</th>

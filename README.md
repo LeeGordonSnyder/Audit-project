@@ -143,6 +143,11 @@ Each recognized barcode drops that box into the **Scanned — Holding**
 section at the bottom (with live feedback right in the camera view), and
 you close the camera yourself when done (**Done Scanning**).
 
+No camera handy — working from a computer instead of a phone? Check the
+box(es) next to the relevant rows in the Expected Boxes table and tap
+**Add Selected to Holding** — it's the same effect as scanning them, and
+the header checkbox selects/deselects everything currently shown.
+
 Once one or more boxes are held, tap either:
 
 - **Mark Physically Received** — the box arrived and is on the shelf.
