@@ -7,6 +7,19 @@ Home Screen." There's no backend to run — the catalog and audit log both
 live in one Google Sheet, read and written directly from the browser via a
 small Apps Script.
 
+## Signing in
+
+Opening the app always starts with a full-screen **"Who's Working?"**
+prompt — pick your initials from the dropdown and tap Continue before
+anything else loads. This is deliberately required on every fresh load
+(not just once and remembered), specifically so a shared device changing
+hands between staff can't keep running under the previous person's
+initials. The date is never asked for or editable anywhere — every
+action (a count, a consolidation, a receiving scan) is always stamped
+with the actual current date automatically. The staff roster is the
+`STAFF_INITIALS` array at the top of `js/storage.js` — add or remove
+people there directly.
+
 ## The five tabs
 
 ### 1. Tag Lookup
@@ -21,8 +34,8 @@ every assigned style/location pair is shown below the search box.
 ### 2. Audit Dashboard
 The daily driver:
 
-1. Set **Date** and **Initials** once — remembered until changed again.
-2. Tap **📷 Scan Product to Count**.
+1. Tap **📷 Scan Product to Count** (date/initials are already set from
+   signing in).
    - **If the UPC is in the catalog**, its description loads and you move
      straight to counting.
    - **If it isn't**, a small form appears right there — SKU, Description,

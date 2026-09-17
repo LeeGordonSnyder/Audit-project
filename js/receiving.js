@@ -187,7 +187,7 @@ async function markHeldReceiving(status) {
   }
 
   const session = loadJSON(STORAGE.session, {});
-  const date = session.date || todayISO();
+  const date = todayISO();
   const initials = (session.initials || "").trim();
   const barcodes = holding.map((b) => b.barcode);
   const label = status === "mao" ? "Received into MAO" : "Physically Received";

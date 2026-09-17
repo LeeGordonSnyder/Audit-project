@@ -3,19 +3,6 @@
 let activeAuditItem = null;
 
 function initAuditDashboard() {
-  const session = loadJSON(STORAGE.session, {});
-  const dateInput = document.getElementById("audit-date");
-  const initialsInput = document.getElementById("audit-initials");
-  dateInput.value = session.date || todayISO();
-  initialsInput.value = session.initials || "";
-
-  function saveSession() {
-    saveJSON(STORAGE.session, { date: dateInput.value || todayISO(), initials: initialsInput.value.trim() });
-  }
-  dateInput.addEventListener("change", saveSession);
-  initialsInput.addEventListener("change", saveSession);
-  saveSession();
-
   document.getElementById("scan-product-btn").addEventListener("click", () => {
     openScanner("Scanning product to count…", handleProductScan);
   });
@@ -171,7 +158,7 @@ function submitCount() {
   const entry = {
     id: uid(),
     timestamp: new Date().toISOString(),
-    date: session.date || todayISO(),
+    date: todayISO(),
     initials: (session.initials || "").trim(),
     sku: activeAuditItem.sku,
     upc: activeAuditItem.upc,

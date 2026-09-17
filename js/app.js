@@ -46,24 +46,29 @@ function setOffline(isOffline) {
 window.addEventListener("online", () => setOffline(false));
 window.addEventListener("offline", () => setOffline(true));
 
-document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener("DOMContentLoaded", () => {
   initTabs();
   initScannerModal();
-  await Promise.all([
-    loadSharedProductMaster(),
-    loadSharedHistory(),
-    loadSharedConsolMaster(),
-    loadSharedConsolLog(),
-    loadSharedReceivingMaster(),
-  ]);
-  initTagLookup();
-  initAuditDashboard();
-  initMasterList();
-  initConsol();
-  initReceiving();
-  setOffline(!navigator.onLine);
 
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
-  }
+  // Nothing else starts — no data load, no tab setup — until someone
+  // confirms their initials on the mandatory login gate.
+  initLoginGate(async () => {
+    await Promise.all([
+      loadSharedProductMaster(),
+      loadSharedHistory(),
+      loadSharedConsolMaster(),
+      loadSharedConsolLog(),
+      loadSharedReceivingMaster(),
+    ]);
+    initTagLookup();
+    initAuditDashboard();
+    initMasterList();
+    initConsol();
+    initReceiving();
+    setOffline(!navigator.onLine);
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    }
+  });
 });

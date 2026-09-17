@@ -307,17 +307,6 @@ textarea { font-size: 0.9rem; resize: vertical; }
 
 .empty-state .hint { font-size: 0.8rem; margin-top: 8px; }
 
-/* Session bar / Audit Dashboard */
-.session-bar {
-  display: flex;
-  gap: 12px;
-}
-
-.session-bar .field-date { flex: 1.6; }
-.session-bar .field-initials { flex: 1; max-width: 100px; }
-
-.field-initials input { text-transform: uppercase; text-align: center; }
-
 .scan-buttons-row {
   display: flex;
   flex-direction: column;

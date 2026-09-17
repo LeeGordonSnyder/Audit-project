@@ -18,6 +18,10 @@ const STORAGE = {
 const DEFAULT_WEBHOOK_URL =
   "https://script.google.com/macros/s/AKfycbz_Xhbfp_Cpko5kBIsNik8dhXLNrQ5D2DKpjmqMZpVAxUPyNkgVHi-7417HQQrFJpIr/exec";
 
+// The mandatory login screen's roster — add/remove staff initials here as
+// the team changes.
+const STAFF_INITIALS = ["LS", "SC", "SG", "JV"];
+
 function loadJSON(key, fallback) {
   try {
     const raw = localStorage.getItem(key);

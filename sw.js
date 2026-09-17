@@ -1,10 +1,11 @@
-const CACHE_NAME = "audit-tool-v17";
+const CACHE_NAME = "audit-tool-v18";
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./css/style.css",
   "./js/utils.js",
   "./js/storage.js",
+  "./js/login.js",
   "./js/scanner.js",
   "./js/masterlist.js",
   "./js/taglookup.js",

@@ -252,7 +252,7 @@ async function saveConsolAdjustModal() {
 
   const item = consolAdjustItem;
   const session = loadJSON(STORAGE.session, {});
-  const date = session.date || todayISO();
+  const date = todayISO();
   const initials = (session.initials || "").trim();
   const productDescription = combinedDescription(variant);
 
@@ -327,7 +327,7 @@ async function handlePackoutScan(text) {
   setStatus("consol-packout-status", `Logging ${box.length} item${box.length === 1 ? "" : "s"} for box ${text}…`, false);
 
   const session = loadJSON(STORAGE.session, {});
-  const date = session.date || todayISO();
+  const date = todayISO();
   const initials = (session.initials || "").trim();
 
   try {

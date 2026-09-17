@@ -53,14 +53,6 @@
 
   <!-- AUDIT DASHBOARD TAB -->
   <section id="tab-audit" class="tab-panel" role="tabpanel" hidden>
-    <div class="session-bar">
-      <label class="field-date">Date
-        <input type="date" id="audit-date">
-      </label>
-      <label class="field-initials">Initials
-        <input type="text" id="audit-initials" placeholder="Initials" autocomplete="off" maxlength="4">
-      </label>
-    </div>
 
     <div class="scan-buttons-row">
       <button id="scan-product-btn" class="btn primary">📷 Scan Product to Count</button>
@@ -305,6 +297,20 @@
 
 </main>
 
+<!-- Mandatory login gate — blocks everything until initials are picked -->
+<div id="login-gate" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Who's Working?</h2>
+    <p class="hint">Select your initials to continue — this is required every time the app is opened.</p>
+    <label>Initials
+      <select id="login-initials-select"></select>
+    </label>
+    <div class="active-item-actions">
+      <button id="login-continue-btn" class="btn primary">Continue</button>
+    </div>
+  </div>
+</div>
+
 <!-- Shared camera scanner overlay -->
 <div id="scanner-modal" class="scanner-modal" hidden>
   <div class="scanner-modal-inner">
@@ -351,6 +357,7 @@
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/storage.js"></script>
+<script src="js/login.js"></script>
 <script src="js/scanner.js"></script>
 <script src="js/masterlist.js"></script>
 <script src="js/taglookup.js"></script>
