@@ -291,8 +291,19 @@ Setup, if you're starting fresh or need to redeploy:
    // Upserts one expected box by barcode — only ever touches the
    // expected-shipment facts (po/expectedDate), never the received-status
    // columns, so re-importing a box can't accidentally wipe real status.
+   // A 16-digit barcode is exactly the kind of value Sheets auto-detects
+   // as a NUMBER on write (even though the app sends it as a string) and
+   // then displays in scientific notation once it's long enough — "@" is
+   // Sheets' Plain Text format code, which stops that auto-detection for
+   // this column entirely. Cheap to call every time; harmless if already set.
+   function ensurePlainTextColumn(sheet, col) {
+     sheet.getRange(1, col, sheet.getMaxRows(), 1).setNumberFormat("@");
+   }
+
    function handleReceivingImportPost(item) {
      const sheet = getOrCreateSheet("ReceivingLog", RECEIVING_HEADER);
+     ensurePlainTextColumn(sheet, 1); // barcode
+     ensurePlainTextColumn(sheet, 2); // po
      const rowIndex = findReceivingRow(sheet, item.barcode);
      const now = new Date().toISOString();
      if (rowIndex === -1) {
