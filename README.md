@@ -1,9 +1,10 @@
-# Store Audit Tool
+# Oakridge Ops Suite
 
 An offline-friendly web app for store associates: look up security-tag
-placement by style, and run physical inventory counts against a shared
-catalog. It installs to the home screen like an app via Safari's "Add to
-Home Screen." There's no backend to run — the catalog and audit log both
+placement by style, run physical inventory counts, consolidate product for
+HQ, and log incoming shipments — all against a shared catalog. It installs
+to the home screen like an app via Safari's "Add to Home Screen." There's
+no backend to run — the catalog, audit log, and every other tab's data all
 live in one Google Sheet, read and written directly from the browser via a
 small Apps Script.
 
