@@ -196,7 +196,27 @@ Setup, if you're starting fresh or need to redeploy:
        if (key === "timestamp") return timestamp;
        return entry[key];
      });
+     // Plain appendRow() is fine here — columns A:L are the main log and
+     // nothing else shares that row space, unlike the Mark In/Out sections
+     // further right. What actually matters in this function is the
+     // variance block below: if you're pasting this over an existing
+     // handleAuditPost, make sure that block survives — it's easy to lose
+     // by copying just the "write the log row" half of this function,
+     // which silently stops discrepant counts from ever reaching Mark
+     // In/Mark Out.
      sheet.appendRow(row);
+
+     // A nonzero variance means the physical count didn't match expected —
+     // push it into the shared Mark In (over) or Mark Out (under) queue so
+     // a supervisor can action it. Column 14 (N) = Mark In, column 21 (U)
+     // = Mark Out, both 6 columns wide — adjust if your sections start
+     // elsewhere.
+     const variance = Number(entry.variance);
+     if (variance !== 0) {
+       const adjRow = [auditDate, entry.upc, entry.description, Math.abs(variance), "", ""];
+       appendToSection(sheet, variance > 0 ? 14 : 21, 6, adjRow);
+     }
+
      return jsonResponse({ ok: true });
    }
 
