@@ -4,12 +4,17 @@ let html5QrCode = null;
 let activeScanCallback = null;
 let startPromise = null; // the in-flight start() call, if any — never stop() before this settles
 let scannerBusy = false; // guards against a second scan session opening before the first tears down
+let scannerContinuous = false; // when true, the camera stays open across multiple decodes
 
 function initScannerModal() {
   document.getElementById("scanner-modal-cancel").addEventListener("click", closeScanner);
 }
 
-async function openScanner(title, onDecode) {
+// opts.continuous: true keeps the camera running after every decode
+// (calling onDecode repeatedly) instead of closing after the first one —
+// for scanning a stack of boxes/items in one session. The user closes it
+// themselves via the modal's button (labeled "Done Scanning" in this mode).
+async function openScanner(title, onDecode, opts = {}) {
   if (typeof Html5Qrcode === "undefined") {
     alert("Camera scanner library failed to load (needs an internet connection the first time). You can still type values in manually, or use a handheld scanner.");
     return;
@@ -24,8 +29,11 @@ async function openScanner(title, onDecode) {
     await closeScanner();
   }
   scannerBusy = true;
+  scannerContinuous = !!opts.continuous;
 
   document.getElementById("scanner-modal-title").textContent = title;
+  document.getElementById("scanner-modal-cancel").textContent = scannerContinuous ? "Done Scanning" : "Cancel";
+  document.getElementById("scanner-modal-feedback").textContent = "";
   document.getElementById("scanner-modal").hidden = false;
   activeScanCallback = onDecode;
 
@@ -37,9 +45,14 @@ async function openScanner(title, onDecode) {
       { facingMode: "environment" },
       { fps: 10, qrbox: { width: 260, height: 130 } },
       (decodedText) => {
-        const cb = activeScanCallback;
-        closeScanner();
-        if (cb) cb(decodedText.trim());
+        if (scannerContinuous) {
+          if (activeScanCallback) activeScanCallback(decodedText.trim());
+          // camera keeps running — the user closes it manually when done
+        } else {
+          const cb = activeScanCallback;
+          closeScanner();
+          if (cb) cb(decodedText.trim());
+        }
       },
       () => {} /* ignore per-frame decode errors */
     )
@@ -54,6 +67,7 @@ async function openScanner(title, onDecode) {
 async function closeScanner() {
   document.getElementById("scanner-modal").hidden = true;
   activeScanCallback = null;
+  scannerContinuous = false;
 
   const instance = html5QrCode;
   html5QrCode = null;

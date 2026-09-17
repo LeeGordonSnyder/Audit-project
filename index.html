@@ -25,6 +25,7 @@
     <button class="tab-btn" data-tab="audit" role="tab" aria-selected="false">Audit Dashboard</button>
     <button class="tab-btn" data-tab="master" role="tab" aria-selected="false">Product Master</button>
     <button class="tab-btn" data-tab="consol" role="tab" aria-selected="false">Consolidations</button>
+    <button class="tab-btn" data-tab="receiving" role="tab" aria-selected="false">Receiving Log</button>
   </nav>
 </div>
 
@@ -234,6 +235,71 @@
     <div id="consol-log-list" class="audit-list"></div>
   </section>
 
+  <!-- RECEIVING LOG TAB -->
+  <section id="tab-receiving" class="tab-panel" role="tabpanel" hidden>
+    <h2>Import Expected Shipments</h2>
+    <p class="hint">Paste the MAO shipment data below — ETA, Package (barcode), PO # (Origin/Receipt Type/For/Carrier are ignored) — then tap Import. Pasting the same box again just refreshes its PO/ETA.</p>
+    <textarea id="receiving-paste-area" rows="6" placeholder="Paste MAO shipment data here…"></textarea>
+    <div class="settings-row">
+      <button id="receiving-import-btn" class="btn primary">Import / Update</button>
+    </div>
+    <p id="receiving-import-status" class="status-msg" role="status"></p>
+
+    <div class="scan-buttons-row">
+      <button id="receiving-scan-btn" class="btn primary">📷 Scan Boxes</button>
+    </div>
+
+    <div class="audit-list-header">
+      <h2>Expected Boxes</h2>
+      <div class="audit-list-actions">
+        <button id="export-receiving-csv-btn" class="btn secondary small">Export CSV</button>
+      </div>
+    </div>
+    <input id="receiving-filter" type="text" autocomplete="off" placeholder="Filter by PO or barcode…" class="filter-input">
+    <p id="receiving-count" class="hint"></p>
+    <div class="table-wrap">
+      <table class="master-table receiving-table">
+        <thead>
+          <tr>
+            <th>Barcode</th>
+            <th>PO #</th>
+            <th>Expected</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="receiving-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="audit-list-header">
+      <h2>Scanned — Holding</h2>
+      <div class="audit-list-actions">
+        <span id="receiving-holding-count" class="hint"></span>
+      </div>
+    </div>
+    <p class="hint">Boxes you scan land here. Once you've got one or more, mark them Physically Received (on arrival) or Received into MAO (once processed in the system) — both push to the sheet with the current date and your initials.</p>
+
+    <p id="receiving-holding-empty" class="hint">Nothing scanned yet — tap Scan Boxes above.</p>
+    <div id="receiving-holding-table-wrap" class="table-wrap" hidden>
+      <table class="master-table receiving-holding-table">
+        <thead>
+          <tr>
+            <th>Barcode</th>
+            <th>PO #</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="receiving-holding-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="active-item-actions">
+      <button id="receiving-mark-physical-btn" class="btn primary" disabled>Mark Physically Received</button>
+      <button id="receiving-mark-mao-btn" class="btn primary" disabled>Mark Received into MAO</button>
+    </div>
+    <p id="receiving-status-msg" class="status-msg" role="status"></p>
+  </section>
+
 </main>
 
 <!-- Shared camera scanner overlay -->
@@ -241,6 +307,7 @@
   <div class="scanner-modal-inner">
     <h2 id="scanner-modal-title">Scanning…</h2>
     <div id="scanner-modal-view"></div>
+    <p id="scanner-modal-feedback" class="status-msg" role="status"></p>
     <button id="scanner-modal-cancel" class="btn secondary">Cancel</button>
   </div>
 </div>
@@ -286,6 +353,7 @@
 <script src="js/taglookup.js"></script>
 <script src="js/audit.js"></script>
 <script src="js/consol.js"></script>
+<script src="js/receiving.js"></script>
 <script src="js/sync.js"></script>
 <script src="js/app.js"></script>
 </body>

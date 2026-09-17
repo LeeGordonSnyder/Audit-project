@@ -626,6 +626,24 @@ code {
   vertical-align: middle;
 }
 
+.receiving-table {
+  min-width: 560px;
+}
+
+.receiving-table th, .receiving-table td {
+  white-space: normal;
+  vertical-align: top;
+}
+
+.receiving-holding-table {
+  min-width: 420px;
+}
+
+.receiving-holding-table th, .receiving-holding-table td {
+  white-space: normal;
+  vertical-align: middle;
+}
+
 
 /* Shared camera scanner modal */
 .scanner-modal {

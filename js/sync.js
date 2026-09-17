@@ -68,6 +68,15 @@ function postConsolMarkoutToSheet(url, payload) {
   return postToSheet(url, { type: "consolmarkout", ...payload });
 }
 
+function pushReceivingItemToSheet(url, item) {
+  return postToSheet(url, { type: "receivingimport", ...item });
+}
+
+// Marks a batch of scanned boxes "physical" or "mao" in one request.
+function postReceivingStatusToSheet(url, payload) {
+  return postToSheet(url, { type: "receivingstatus", ...payload });
+}
+
 function initSync() {
   const urlInput = document.getElementById("sheet-url-input");
   urlInput.value = getWebhookUrl();
@@ -185,6 +194,21 @@ async function loadSharedConsolMaster() {
     const remoteRows = await fetchFromSheet(url, "consolmaster");
     if (!Array.isArray(remoteRows)) return;
     saveJSON(STORAGE.consolMaster, remoteRows.map(sheetRowToConsolItem));
+  } catch (e) {
+    // offline or unreachable — local data stands, next boot/refresh will retry
+  }
+}
+
+// Full replace, like loadSharedConsolMaster() — this sheet holds both the
+// expected-shipment facts AND the received-status fields in the same row,
+// so the sheet is the single source of truth for the whole thing.
+async function loadSharedReceivingMaster() {
+  const url = getWebhookUrl();
+
+  try {
+    const remoteRows = await fetchFromSheet(url, "receiving");
+    if (!Array.isArray(remoteRows)) return;
+    saveJSON(STORAGE.receivingMaster, remoteRows.map(sheetRowToReceivingItem));
   } catch (e) {
     // offline or unreachable — local data stands, next boot/refresh will retry
   }

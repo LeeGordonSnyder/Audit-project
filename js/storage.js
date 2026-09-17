@@ -9,6 +9,8 @@ const STORAGE = {
   consolMaster: "audit.consolMaster.v1",
   consolLog: "audit.consolLog.v1",
   consolBox: "audit.consolBox.v1",
+  receivingMaster: "audit.receivingMaster.v1",
+  receivingHolding: "audit.receivingHolding.v1",
 };
 
 // Baked-in default so the app works with zero setup. Settings can still
@@ -185,6 +187,106 @@ function sheetRowToConsolItem(row) {
 
 function isConsolProcessed(item) {
   return (item.processed || "").toString().trim() !== "";
+}
+
+/* ---------- MAO incoming-shipment paste parsing ----------
+   Repeating block, pasted straight out of MAO — no blank-line separator,
+   a new block just starts at the next "ETA:" line:
+
+   ETA:  09-16-2026
+   Package  8069559026403610
+   Origin  9120
+   Receipt Type  Package
+   For  Store Inventory
+   Carrier  UPS
+   PO # 6390185302
+
+   Only ETA (expected date), Package (barcode), and PO # are kept — Origin,
+   Receipt Type, For, and Carrier are intentionally ignored.
+*/
+function mmddyyyyToISO(s) {
+  const m = (s || "").trim().match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  return m ? `${m[3]}-${m[1]}-${m[2]}` : (s || "").trim();
+}
+
+function parseReceivingPaste(text) {
+  const lines = (text || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const items = [];
+  let current = null;
+
+  for (const line of lines) {
+    const etaMatch = line.match(/^ETA:?\s*(.+)$/i);
+    if (etaMatch) {
+      if (current) items.push(current);
+      current = { expectedDate: mmddyyyyToISO(etaMatch[1]), barcode: "", po: "" };
+      continue;
+    }
+    if (!current) continue;
+
+    const packageMatch = line.match(/^Package\s+(.+)$/i);
+    if (packageMatch) {
+      current.barcode = packageMatch[1].trim();
+      continue;
+    }
+
+    const poMatch = line.match(/^PO\s*#\s*(.+)$/i);
+    if (poMatch) {
+      current.po = poMatch[1].trim();
+      continue;
+    }
+    // Origin / Receipt Type / For / Carrier lines fall through, unused.
+  }
+  if (current) items.push(current);
+
+  return items.filter((item) => item.barcode && item.po);
+}
+
+// Keyed by barcode (MAO's "Package" number). Only ever sets the expected-
+// shipment facts (po/expectedDate) — the received-status fields are only
+// ever set by the server after a successful markHeldReceiving() push, never
+// locally guessed, so a re-import can't accidentally clear real status.
+function upsertReceivingMaster(items) {
+  const master = loadJSON(STORAGE.receivingMaster, []);
+  let added = 0;
+  let updated = 0;
+
+  for (const item of items) {
+    const idx = master.findIndex((p) => p.barcode === item.barcode);
+    if (idx === -1) {
+      master.push({
+        barcode: item.barcode,
+        po: item.po,
+        expectedDate: item.expectedDate,
+        physicallyReceivedDate: "",
+        physicallyReceivedBy: "",
+        receivedIntoMaoDate: "",
+        receivedIntoMaoBy: "",
+      });
+      added++;
+    } else {
+      master[idx].po = item.po;
+      master[idx].expectedDate = item.expectedDate;
+      updated++;
+    }
+  }
+
+  saveJSON(STORAGE.receivingMaster, master);
+  return { added, updated, total: master.length };
+}
+
+function sheetRowToReceivingItem(row) {
+  // Package/barcode numbers are long digit strings — Sheets will happily
+  // auto-type that cell as a number rather than text, so String()-coerce
+  // everything the same way ProductMaster's UPC needed to be.
+  return {
+    barcode: String(row.barcode ?? ""),
+    po: String(row.po ?? ""),
+    expectedDate: String(row.expectedDate ?? ""),
+    physicallyReceivedDate: String(row.physicallyReceivedDate ?? ""),
+    physicallyReceivedBy: String(row.physicallyReceivedBy ?? ""),
+    receivedIntoMaoDate: String(row.receivedIntoMaoDate ?? ""),
+    receivedIntoMaoBy: String(row.receivedIntoMaoBy ?? ""),
+  };
 }
 
 function getTagLocation(style) {

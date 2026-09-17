@@ -7,7 +7,7 @@ Home Screen." There's no backend to run — the catalog and audit log both
 live in one Google Sheet, read and written directly from the browser via a
 small Apps Script.
 
-## The four tabs
+## The five tabs
 
 ### 1. Tag Lookup
 Scan or search a product to see the security-tag placement assigned to its
@@ -128,9 +128,39 @@ The **Consolidation Log** below lists every status change and box closure —
 there's nothing to manually sync here, every action pushes to the sheet
 immediately when it happens.
 
+### 5. Receiving Log
+For incoming shipments. Paste the MAO shipment export — ETA, Package,
+Origin, Receipt Type, For, Carrier, PO # (repeating, no blank line between
+blocks) — into the paste box and tap **Import / Update**. Only **ETA**
+(expected date), **Package** (the barcode), and **PO #** are kept; the rest
+are ignored. This pushes straight to the shared "ReceivingLog" sheet tab,
+keyed by barcode — pasting the same box again just refreshes its PO/ETA.
+
+Tap **📷 Scan Boxes** to start scanning — unlike the other scan buttons in
+this app, **this camera stays open across multiple scans** instead of
+closing after one, since you're usually working through a stack of boxes.
+Each recognized barcode drops that box into the **Scanned — Holding**
+section at the bottom (with live feedback right in the camera view), and
+you close the camera yourself when done (**Done Scanning**).
+
+Once one or more boxes are held, tap either:
+
+- **Mark Physically Received** — the box arrived and is on the shelf.
+- **Mark Received into MAO** — the box has been processed into the
+  inventory system.
+
+Both push to the sheet in one request, tagged with the current session's
+Date/Initials (the same fields used on the Audit Dashboard). These are two
+independent steps that typically happen at different times (and possibly by
+different people) — a box can be marked Physically Received now and Received
+into MAO later, by scanning it again in a second session. **A box only
+disappears from the Expected Boxes list once it's been marked Received into
+MAO** — being physically received alone just adds an "On shelf" note next to
+it, since it's still awaiting the MAO step.
+
 ## The Google Sheet backend
 
-One spreadsheet with four tabs:
+One spreadsheet with five tabs:
 
 - **AuditLog** — every count logged from every device, created automatically
   by the script. Plus, layered on top by hand in the sheet itself: Mark
@@ -150,6 +180,11 @@ One spreadsheet with four tabs:
   column (via the backend, when a box closes or an item is marked out).
 - **ConsolLog** — every consolidation status change and box closure,
   created automatically by the script.
+- **ReceivingLog** — one row per expected box, created automatically by the
+  script and fully app-managed (unlike ConsolMaster, nothing here needs
+  hand-editing). Columns: `barcode / po / expectedDate /
+  physicallyReceivedDate / physicallyReceivedBy / receivedIntoMaoDate /
+  receivedIntoMaoBy / updatedAt`.
 
 Setup, if you're starting fresh or need to redeploy:
 
@@ -162,6 +197,8 @@ Setup, if you're starting fresh or need to redeploy:
      if (body.type === "master") return handleMasterPost(body);
      if (body.type === "consolboxclose") return handleConsolBoxClose(body);
      if (body.type === "consolmarkout") return handleConsolMarkout(body);
+     if (body.type === "receivingimport") return handleReceivingImportPost(body);
+     if (body.type === "receivingstatus") return handleReceivingStatusPost(body);
      return handleAuditPost(body);
    }
 
@@ -171,6 +208,7 @@ Setup, if you're starting fresh or need to redeploy:
        master: ["ProductMaster", MASTER_HEADER],
        consolmaster: ["ConsolMaster", CONSOL_MASTER_HEADER],
        consollog: ["ConsolLog", CONSOL_LOG_HEADER],
+       receiving: ["ReceivingLog", RECEIVING_HEADER],
        auditlog: ["AuditLog", AUDIT_HEADER],
      };
      const [name, header] = sheetsByParam[sheetParam] || sheetsByParam.auditlog;
@@ -183,6 +221,7 @@ Setup, if you're starting fresh or need to redeploy:
    // header row, hand-edited directly in Sheets; the app never creates it.
    const CONSOL_MASTER_HEADER = ["MATERIAL", "COLOR", "STYLE SKU", "ECC GENERIC MATERIAL", "DESTINATION", "TOTAL", "PROCESSED"];
    const CONSOL_LOG_HEADER = ["id", "entryType", "date", "initials", "eccMaterial", "description", "color", "status", "size", "unitsOut", "referenceNumber", "timestamp"];
+   const RECEIVING_HEADER = ["barcode", "po", "expectedDate", "physicallyReceivedDate", "physicallyReceivedBy", "receivedIntoMaoDate", "receivedIntoMaoBy", "updatedAt"];
 
    function handleAuditPost(entry) {
      const sheet = getOrCreateSheet("AuditLog", AUDIT_HEADER);
@@ -231,6 +270,50 @@ Setup, if you're starting fresh or need to redeploy:
      if (rowIndex === -1) sheet.appendRow(row);
      else sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
      return jsonResponse({ ok: true });
+   }
+
+   // Row index (1-based) of a ReceivingLog row by barcode, or -1. String()
+   // both sides — a long digit-only barcode is exactly the kind of value
+   // Sheets auto-types as a number rather than text.
+   function findReceivingRow(sheet, barcode) {
+     const data = sheet.getDataRange().getValues();
+     for (let i = 1; i < data.length; i++) {
+       if (String(data[i][0]) === String(barcode)) return i + 1;
+     }
+     return -1;
+   }
+
+   // Upserts one expected box by barcode — only ever touches the
+   // expected-shipment facts (po/expectedDate), never the received-status
+   // columns, so re-importing a box can't accidentally wipe real status.
+   function handleReceivingImportPost(item) {
+     const sheet = getOrCreateSheet("ReceivingLog", RECEIVING_HEADER);
+     const rowIndex = findReceivingRow(sheet, item.barcode);
+     const now = new Date().toISOString();
+     if (rowIndex === -1) {
+       sheet.appendRow([item.barcode, item.po || "", item.expectedDate || "", "", "", "", "", now]);
+     } else {
+       sheet.getRange(rowIndex, 2, 1, 2).setValues([[item.po || "", item.expectedDate || ""]]);
+       sheet.getRange(rowIndex, 8).setValue(now);
+     }
+     return jsonResponse({ ok: true });
+   }
+
+   // Marks a batch of scanned boxes "physical" (physicallyReceived*, cols
+   // D:E) or "mao" (receivedIntoMao*, cols F:G) in one request — the app
+   // sends every barcode from its holding list together instead of one
+   // request per box.
+   function handleReceivingStatusPost(body) {
+     const sheet = getOrCreateSheet("ReceivingLog", RECEIVING_HEADER);
+     const date = body.date ? new Date(body.date + "T00:00:00") : new Date();
+     const initials = body.initials || "";
+     const dateCol = body.status === "mao" ? 6 : 4;
+     (body.barcodes || []).forEach((barcode) => {
+       const rowIndex = findReceivingRow(sheet, barcode);
+       if (rowIndex === -1) return;
+       sheet.getRange(rowIndex, dateCol, 1, 2).setValues([[date, initials]]);
+     });
+     return jsonResponse({ ok: true, updated: (body.barcodes || []).length });
    }
 
    // Looks up a header's column by name (1-based) instead of a hardcoded

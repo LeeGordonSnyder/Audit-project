@@ -12,6 +12,10 @@ const TAB_REFRESHERS = {
     renderConsolBox();
     renderConsolLog();
   },
+  receiving: () => {
+    renderReceivingList();
+    renderReceivingHolding();
+  },
 };
 
 function initTabs() {
@@ -50,11 +54,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadSharedHistory(),
     loadSharedConsolMaster(),
     loadSharedConsolLog(),
+    loadSharedReceivingMaster(),
   ]);
   initTagLookup();
   initAuditDashboard();
   initMasterList();
   initConsol();
+  initReceiving();
   setOffline(!navigator.onLine);
 
   if ("serviceWorker" in navigator) {
