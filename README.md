@@ -209,14 +209,31 @@ Setup, if you're starting fresh or need to redeploy:
 
    function doGet(e) {
      const sheetParam = (e.parameter.sheet || "auditlog").toLowerCase();
+
+     // AuditLog, ConsolLog, and ReceivingLog are fully app-managed — only
+     // this app ever writes to them, always at fixed column positions (see
+     // the *_HEADER arrays below). Read them back by POSITION, not by
+     // matching the header row's text — renaming a header for readability
+     // (e.g. "date" -> "DATE", or two columns both renamed "RECEIVER") can
+     // never silently break a read again.
+     const positionalSheets = {
+       auditlog: ["AuditLog", AUDIT_HEADER],
+       consollog: ["ConsolLog", CONSOL_LOG_HEADER],
+       receiving: ["ReceivingLog", RECEIVING_HEADER],
+     };
+     if (positionalSheets[sheetParam]) {
+       const [name, keys] = positionalSheets[sheetParam];
+       return jsonResponse(sheetToObjectsByPosition(getOrCreateSheet(name, keys), keys));
+     }
+
+     // ProductMaster and ConsolMaster are hand-edited directly in Sheets —
+     // their header text IS the contract, matched by name (see
+     // sheetRowToMasterItem / sheetRowToConsolItem on the app side).
      const sheetsByParam = {
        master: ["ProductMaster", MASTER_HEADER],
        consolmaster: ["ConsolMaster", CONSOL_MASTER_HEADER],
-       consollog: ["ConsolLog", CONSOL_LOG_HEADER],
-       receiving: ["ReceivingLog", RECEIVING_HEADER],
-       auditlog: ["AuditLog", AUDIT_HEADER],
      };
-     const [name, header] = sheetsByParam[sheetParam] || sheetsByParam.auditlog;
+     const [name, header] = sheetsByParam[sheetParam] || sheetsByParam.master;
      return jsonResponse(sheetToObjects(getOrCreateSheet(name, header)));
    }
 
@@ -479,6 +496,22 @@ Setup, if you're starting fresh or need to redeploy:
        header.forEach((key, i) => (obj[key] = row[i]));
        return obj;
      });
+   }
+
+   // Same idea as sheetToObjects(), but keyed by a fixed array of names
+   // (the sheet's actual column ORDER) instead of whatever text is
+   // currently in row 1 — see the note on doGet() above for why.
+   function sheetToObjectsByPosition(sheet, keys) {
+     const values = sheet.getDataRange().getValues();
+     if (values.length < 2) return [];
+     return values
+       .slice(1)
+       .filter((row) => row[0] !== "")
+       .map((row) => {
+         const obj = {};
+         keys.forEach((key, i) => (obj[key] = row[i]));
+         return obj;
+       });
    }
 
    function jsonResponse(obj) {
