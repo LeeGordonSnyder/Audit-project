@@ -115,11 +115,13 @@ Every item shows a **Status** dropdown:
   physical item that's actually going in the box being packed right now).
 - **Needs Adjustment** — something showed in MAO during consolidation that
   couldn't be found physically. Opens a picker of every size/colour Product
-  Master has on file for that item's Style SKU — pick the specific
-  size/colour and how many units, and it's pushed straight to the
-  **AuditLog's shared Mark Out section** by UPC, the same queue a
-  discrepant physical count feeds. (Marking product *in* isn't needed here
-  — anything actually on hand gets consolidated through the normal process
+  Master has on file for that item's Style SKU — pick a size/colour, enter
+  units, and tap **+ Add Size**; repeat for every size that's actually
+  short (it's common for more than one size of a style to need marking
+  out) before tapping **Save**, which pushes every added size in one go,
+  straight to the **AuditLog's shared Mark Out section** by UPC, the same
+  queue a discrepant physical count feeds. (Marking product *in* isn't
+  needed here — anything actually on hand gets consolidated through the normal process
   anyway.)
 
 The **Packed Box** is where Completed items collect while you're physically
@@ -215,7 +217,7 @@ Setup, if you're starting fresh or need to redeploy:
      const body = JSON.parse(e.postData.contents);
      if (body.type === "master") return handleMasterPost(body);
      if (body.type === "consolboxclose") return handleConsolBoxClose(body);
-     if (body.type === "consolmarkout") return handleConsolMarkout(body);
+     if (body.type === "consolmarkoutbatch") return handleConsolMarkoutBatch(body);
      if (body.type === "receivingimport") return handleReceivingImportPost(body);
      if (body.type === "receivingstatus") return handleReceivingStatusPost(body);
      return handleAuditPost(body);
@@ -432,36 +434,41 @@ Setup, if you're starting fresh or need to redeploy:
      return jsonResponse({ ok: true, processed: items.length });
    }
 
-   // "Needs Adjustment": logs it in the consolidation log, flags the
-   // ConsolMaster row Processed, and pushes the chosen UPC/units into the
-   // AuditLog's existing shared Mark Out section (same queue regular audit
-   // shrink uses) — reuse your own appendToSection helper if the column
-   // start differs; this assumes Mark Out starts at column U (21), 6
-   // columns wide: Date, UPC, Description, Units to Remove, Lead Initials,
-   // Date Complete.
-   function handleConsolMarkout(body) {
+   // "Needs Adjustment" for one or more sizes of the same style, submitted
+   // together in one request (body.items = [{ upc, size, units,
+   // productDescription }, ...]): logs each in the consolidation log,
+   // pushes each chosen UPC/units into the AuditLog's existing shared Mark
+   // Out section (same queue regular audit shrink uses — reuse your own
+   // appendToSection helper if the column start differs; this assumes Mark
+   // Out starts at column U (21), 6 columns wide: Date, UPC, Description,
+   // Units to Remove, Lead Initials, Date Complete), and flags the
+   // ConsolMaster row Processed once at the end.
+   function handleConsolMarkoutBatch(body) {
      const date = body.date ? new Date(body.date + "T00:00:00") : new Date();
+     const items = body.items || [];
+     const auditSheet = getOrCreateSheet("AuditLog", AUDIT_HEADER);
 
-     appendConsolLogRow({
-       id: Utilities.getUuid(),
-       entryType: "status",
-       date: date,
-       timestamp: new Date(),
-       initials: body.initials || "",
-       eccMaterial: body.eccMaterial || "",
-       description: body.description || "",
-       color: body.color || "",
-       status: "Needs Adjustment",
-       size: body.size || "",
-       unitsOut: body.units || 0,
+     items.forEach((item) => {
+       appendConsolLogRow({
+         id: Utilities.getUuid(),
+         entryType: "status",
+         date: date,
+         timestamp: new Date(),
+         initials: body.initials || "",
+         eccMaterial: body.eccMaterial || "",
+         description: body.description || "",
+         color: body.color || "",
+         status: "Needs Adjustment",
+         size: item.size || "",
+         unitsOut: item.units || 0,
+       });
+
+       appendToSection(auditSheet, 21, 6, [date, item.upc || "", item.productDescription || "", item.units || 0, "", ""]);
      });
 
      markConsolProcessed(body.eccMaterial);
 
-     const auditSheet = getOrCreateSheet("AuditLog", AUDIT_HEADER);
-     appendToSection(auditSheet, 21, 6, [date, body.upc || "", body.productDescription || "", body.units || 0, "", ""]);
-
-     return jsonResponse({ ok: true });
+     return jsonResponse({ ok: true, items: items.length });
    }
 
    // Only needed if your script doesn't already have one from the Mark

@@ -2,6 +2,10 @@
 
 let consolAdjustItem = null;
 let consolAdjustVariants = [];
+// Staged size/unit rows for the current "Needs Adjustment" modal session —
+// more than one size of a style can be short, so the modal collects
+// several before Save submits all of them together.
+let consolAdjustRows = [];
 
 function initConsol() {
   document.getElementById("consol-refresh-btn").addEventListener("click", async () => {
@@ -17,6 +21,7 @@ function initConsol() {
     openScanner("Scanning packing slip…", handlePackoutScan);
   });
 
+  document.getElementById("consol-adjust-add-row-btn").addEventListener("click", addConsolAdjustRow);
   document.getElementById("consol-adjust-save-btn").addEventListener("click", saveConsolAdjustModal);
   document.getElementById("consol-adjust-cancel-btn").addEventListener("click", closeConsolAdjustModal);
 
@@ -197,40 +202,41 @@ function handleConsolStatusChange(sel) {
 
 function openConsolAdjustModal(item) {
   consolAdjustItem = item;
+  consolAdjustRows = [];
   const master = loadJSON(STORAGE.master, []);
   consolAdjustVariants = master.filter((p) => item.styleSku && p.style === item.styleSku);
 
   document.getElementById("consol-adjust-label").textContent = `${item.description} — ${item.color}`;
 
   const select = document.getElementById("consol-adjust-variant");
-  const saveBtn = document.getElementById("consol-adjust-save-btn");
+  const addBtn = document.getElementById("consol-adjust-add-row-btn");
 
   if (consolAdjustVariants.length === 0) {
     select.innerHTML = `<option value="">No sizes found for style ${escapeHtml(item.styleSku || "—")}</option>`;
     select.disabled = true;
-    saveBtn.disabled = true;
+    addBtn.disabled = true;
   } else {
     select.innerHTML = consolAdjustVariants
       .map((v) => `<option value="${escapeHtml(v.upc)}">${escapeHtml(v.color)} — ${escapeHtml(v.size)}</option>`)
       .join("");
     select.disabled = false;
-    saveBtn.disabled = false;
+    addBtn.disabled = false;
   }
 
   document.getElementById("consol-adjust-units").value = "";
+  renderConsolAdjustRows();
   document.getElementById("consol-adjust-modal").hidden = false;
 }
 
 function closeConsolAdjustModal() {
   consolAdjustItem = null;
   consolAdjustVariants = [];
+  consolAdjustRows = [];
   document.getElementById("consol-adjust-modal").hidden = true;
   renderConsolList(); // dropdown falls back to "Not actioned" since nothing changed
 }
 
-async function saveConsolAdjustModal() {
-  if (!consolAdjustItem) return;
-
+function addConsolAdjustRow() {
   const upc = document.getElementById("consol-adjust-variant").value;
   const unitsRaw = document.getElementById("consol-adjust-units").value;
   const units = parseInt(unitsRaw, 10);
@@ -244,6 +250,57 @@ async function saveConsolAdjustModal() {
     alert("Enter a valid number of units to mark out.");
     return;
   }
+  if (consolAdjustRows.some((r) => r.upc === variant.upc)) {
+    alert("That size is already added — remove it below first if you need to change the units.");
+    return;
+  }
+
+  consolAdjustRows.push({
+    upc: variant.upc,
+    size: variant.size,
+    color: variant.color,
+    units,
+    productDescription: combinedDescription(variant),
+  });
+
+  document.getElementById("consol-adjust-units").value = "";
+  renderConsolAdjustRows();
+}
+
+function removeConsolAdjustRow(upc) {
+  consolAdjustRows = consolAdjustRows.filter((r) => r.upc !== upc);
+  renderConsolAdjustRows();
+}
+
+function renderConsolAdjustRows() {
+  const wrap = document.getElementById("consol-adjust-rows");
+  const saveBtn = document.getElementById("consol-adjust-save-btn");
+
+  if (consolAdjustRows.length === 0) {
+    wrap.innerHTML = `<p class="hint">No sizes added yet — pick one above and tap + Add Size.</p>`;
+    saveBtn.disabled = true;
+    return;
+  }
+
+  wrap.innerHTML = consolAdjustRows
+    .map(
+      (r) => `
+      <div class="consol-adjust-row">
+        <span>${escapeHtml(r.color)} — ${escapeHtml(r.size)} × ${r.units}</span>
+        <button type="button" class="btn secondary small consol-adjust-row-remove" data-upc="${escapeHtml(r.upc)}">Remove</button>
+      </div>
+    `
+    )
+    .join("");
+  saveBtn.disabled = false;
+
+  wrap.querySelectorAll(".consol-adjust-row-remove").forEach((btn) => {
+    btn.addEventListener("click", () => removeConsolAdjustRow(btn.dataset.upc));
+  });
+}
+
+async function saveConsolAdjustModal() {
+  if (!consolAdjustItem || consolAdjustRows.length === 0) return;
 
   if (!navigator.onLine) {
     alert("Offline — can't mark out right now. Try again once you have a connection.");
@@ -251,12 +308,12 @@ async function saveConsolAdjustModal() {
   }
 
   const item = consolAdjustItem;
+  const rows = consolAdjustRows;
   const session = loadJSON(STORAGE.session, {});
   const date = todayISO();
   const initials = (session.initials || "").trim();
-  const productDescription = combinedDescription(variant);
 
-  setStatus("consol-list-status", `Marking out ${units} × ${variant.upc}…`, false);
+  setStatus("consol-list-status", `Marking out ${rows.length} size${rows.length === 1 ? "" : "s"}…`, false);
 
   try {
     await postConsolMarkoutToSheet(getWebhookUrl(), {
@@ -265,10 +322,7 @@ async function saveConsolAdjustModal() {
       eccMaterial: item.eccMaterial,
       description: item.description,
       color: item.color,
-      size: variant.size,
-      units,
-      upc: variant.upc,
-      productDescription,
+      items: rows.map((r) => ({ upc: r.upc, size: r.size, units: r.units, productDescription: r.productDescription })),
     });
 
     // Mark it Processed locally so it drops off the list immediately —
@@ -281,30 +335,38 @@ async function saveConsolAdjustModal() {
     }
 
     const log = loadJSON(STORAGE.consolLog, []);
-    log.unshift({
-      id: uid(),
-      entryType: "status",
-      timestamp: new Date().toISOString(),
-      date,
-      initials,
-      eccMaterial: item.eccMaterial,
-      description: item.description,
-      color: item.color,
-      status: "Needs Adjustment",
-      size: variant.size,
-      unitsOut: units,
-      referenceNumber: "",
-      synced: true,
-    });
+    const timestamp = new Date().toISOString();
+    for (const r of rows) {
+      log.unshift({
+        id: uid(),
+        entryType: "status",
+        timestamp,
+        date,
+        initials,
+        eccMaterial: item.eccMaterial,
+        description: item.description,
+        color: item.color,
+        status: "Needs Adjustment",
+        size: r.size,
+        unitsOut: r.units,
+        referenceNumber: "",
+        synced: true,
+      });
+    }
     saveJSON(STORAGE.consolLog, log);
 
     consolAdjustItem = null;
     consolAdjustVariants = [];
+    consolAdjustRows = [];
     document.getElementById("consol-adjust-modal").hidden = true;
 
     renderConsolList();
     renderConsolLog();
-    setStatus("consol-list-status", `Marked out ${units} × ${variant.upc} — pushed to the Mark Out queue.`, false);
+    setStatus(
+      "consol-list-status",
+      `Marked out ${rows.length} size${rows.length === 1 ? "" : "s"} for ${item.description} — pushed to the Mark Out queue.`,
+      false
+    );
   } catch (e) {
     setStatus("consol-list-status", "Couldn't reach the sheet — check your connection and try again.", true);
   }

@@ -61,11 +61,13 @@ function postConsolBoxCloseToSheet(url, payload) {
   return postToSheet(url, { type: "consolboxclose", ...payload });
 }
 
-// Logs a "Needs Adjustment" consolidation mark-out: records it in the
-// consolidation log, pushes the chosen UPC/units into the AuditLog's Mark
-// Out section, and flags the item Processed on the ConsolMaster sheet.
+// Logs a "Needs Adjustment" consolidation mark-out for one or more sizes of
+// the same style in one request: records each in the consolidation log,
+// pushes each chosen UPC/units into the AuditLog's Mark Out section, and
+// flags the item Processed on the ConsolMaster sheet once. payload.items
+// is an array of { upc, size, units, productDescription }.
 function postConsolMarkoutToSheet(url, payload) {
-  return postToSheet(url, { type: "consolmarkout", ...payload });
+  return postToSheet(url, { type: "consolmarkoutbatch", ...payload });
 }
 
 function pushReceivingItemToSheet(url, item) {

@@ -341,14 +341,19 @@
   <div class="scanner-modal-inner">
     <h2>Mark Out — Needs Adjustment</h2>
     <p id="consol-adjust-label" class="hint"></p>
+    <p class="hint">Add every size that's short before saving — more than one size of this style can need marking out.</p>
     <label>Size / Colour
       <select id="consol-adjust-variant"></select>
     </label>
     <label>Units to Mark Out
       <input type="number" id="consol-adjust-units" inputmode="numeric" min="1" placeholder="Enter units">
     </label>
+    <div class="settings-row">
+      <button id="consol-adjust-add-row-btn" class="btn secondary">+ Add Size</button>
+    </div>
+    <div id="consol-adjust-rows" class="consol-adjust-rows"></div>
     <div class="active-item-actions">
-      <button id="consol-adjust-save-btn" class="btn primary">Save</button>
+      <button id="consol-adjust-save-btn" class="btn primary" disabled>Save</button>
       <button id="consol-adjust-cancel-btn" class="btn secondary">Cancel</button>
     </div>
   </div>
