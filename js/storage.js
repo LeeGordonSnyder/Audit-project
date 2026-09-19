@@ -12,7 +12,6 @@ const STORAGE = {
   receivingMaster: "audit.receivingMaster.v1",
   receivingHolding: "audit.receivingHolding.v1",
   floorRestock: "audit.floorRestock.v1",
-  floorReplen: "audit.floorReplen.v1",
   checkFloorHolding: "audit.checkFloorHolding.v1",
   replenHolding: "audit.replenHolding.v1",
 };
@@ -304,8 +303,9 @@ function sheetRowToReceivingItem(row) {
 }
 
 /* ---------- Floor Restock / Floor Replen / 86 Board ----------
-   The MAO "items sold" export is pasted directly into the "FloorRestock"
-   sheet tab (same pattern as ConsolMaster — staff paste straight into
+   Everything for this feature lives on one sheet, "FloorRestock" — no
+   separate app-managed tab. The MAO "items sold" export is pasted directly
+   into it (same pattern as ConsolMaster — staff paste straight into
    Sheets, the app only reads it). Its header row (staff-managed, matched
    by name so it can be renamed freely) is expected to be, all caps to
    match ProductMaster/ConsolMaster's convention:
@@ -314,20 +314,17 @@ function sheetRowToReceivingItem(row) {
    QUANTITY SOLD | ON HAND QUANTITY | STATUS | CHECKED BY | CHECKED DATE |
    86 | RESTOCKED
 
-   STATUS/CHECKED BY/CHECKED DATE/86/RESTOCKED are the five columns the app
-   itself writes (via the backend) — staff need to add these five empty
-   columns once when first setting up the tab. Status is the qualifier for
-   whether a row still shows in the Check Floor section — any non-blank
-   value there means it's done. 86/RESTOCKED are the qualifiers for the 86
-   Board: 86 non-blank and RESTOCKED blank means the row is on the board.
+   STATUS is a single lifecycle field the whole feature drives off of:
+   blank (shows in Check Floor) -> "Not Needed" (done) or "Needed" (shows
+   in Replen) -> "Picked" (done) or "Out of Stock" (also stamps 86, shows
+   on the 86 Board) -> eventually RESTOCKED gets stamped too, clearing it
+   off the 86 Board. CHECKED BY/CHECKED DATE are only ever touched by a
+   Check Floor decision, not by picking/restocking.
 
-   FloorReplen is a completely separate, fully app-managed sheet (like
-   ReceivingLog) — one row per size actually needed, created when a Check
-   Floor "Needed" decision is committed. Its own status field then tracks
-   the picking step (open -> picked or outOfStock) and, for anything
-   marked outOfStock, the 86 Board close-out step (-> restocked). It's the
-   only record of a "Needed" size that was never actually sold, so has no
-   FloorRestock row of its own to carry an 86/RESTOCKED flag.
+   A "Needed" decision that checks sizes beyond the row's own size appends
+   one new row per extra size (Quantity Sold/On Hand left blank, Status
+   "Needed") — those rows are the Replen queue entries for sizes that were
+   never actually sold, still on this same sheet.
 */
 function sheetRowToFloorRestockItem(row) {
   return {
@@ -351,25 +348,12 @@ function isFloorRestockChecked(item) {
   return (item.status || "").toString().trim() !== "";
 }
 
-function isFloorRestockOnBoard86(item) {
-  return (item.outOfStock || "").toString().trim() !== "" && (item.restocked || "").toString().trim() === "";
+function isFloorRestockNeeded(item) {
+  return item.status === "Needed";
 }
 
-function sheetRowToFloorReplenItem(row) {
-  return {
-    id: String(row.id ?? ""),
-    sku: String(row.sku ?? ""),
-    description: String(row.description ?? ""),
-    color: String(row.color ?? ""),
-    size: String(row.size ?? ""),
-    status: String(row.status ?? ""),
-    checkedBy: String(row.checkedBy ?? ""),
-    checkedDate: String(row.checkedDate ?? ""),
-    pickedBy: String(row.pickedBy ?? ""),
-    pickedDate: String(row.pickedDate ?? ""),
-    restockedBy: String(row.restockedBy ?? ""),
-    restockedDate: String(row.restockedDate ?? ""),
-  };
+function isFloorRestockOnBoard86(item) {
+  return (item.outOfStock || "").toString().trim() !== "" && (item.restocked || "").toString().trim() === "";
 }
 
 function getTagLocation(style) {

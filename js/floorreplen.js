@@ -28,8 +28,8 @@ function saveCheckFloorHolding(holding) {
   saveJSON(STORAGE.checkFloorHolding, holding);
 }
 
-function isCheckFloorHeld(sku) {
-  return loadCheckFloorHolding().some((h) => h.sku === sku);
+function isCheckFloorHeld(sku, size) {
+  return loadCheckFloorHolding().some((h) => h.sku === sku && h.size === size);
 }
 
 function renderCheckFloorList() {
@@ -41,7 +41,7 @@ function renderCheckFloorList() {
   // of its life in this section. Anything currently staged shows in the
   // holding table instead, not duplicated here.
   const checkedCount = restock.filter(isFloorRestockChecked).length;
-  const remaining = restock.filter((item) => !isFloorRestockChecked(item) && !isCheckFloorHeld(item.sku));
+  const remaining = restock.filter((item) => !isFloorRestockChecked(item) && !isCheckFloorHeld(item.sku, item.size));
 
   const filtered = remaining.filter(
     (item) =>
@@ -82,8 +82,8 @@ function renderCheckFloorList() {
       <td class="num">${item.qtySold}</td>
       <td class="num">${item.onHand}</td>
       <td>
-        <button class="btn secondary small checkfloor-needed-btn" data-sku="${escapeHtml(item.sku)}">Needed</button>
-        <button class="btn secondary small checkfloor-notneeded-btn" data-sku="${escapeHtml(item.sku)}">Not Needed</button>
+        <button class="btn secondary small checkfloor-needed-btn" data-sku="${escapeHtml(item.sku)}" data-size="${escapeHtml(item.size)}">Needed</button>
+        <button class="btn secondary small checkfloor-notneeded-btn" data-sku="${escapeHtml(item.sku)}" data-size="${escapeHtml(item.size)}">Not Needed</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -91,31 +91,31 @@ function renderCheckFloorList() {
 
   tbody.querySelectorAll(".checkfloor-needed-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const item = restock.find((p) => p.sku === btn.dataset.sku);
+      const item = restock.find((p) => p.sku === btn.dataset.sku && p.size === btn.dataset.size);
       if (item) openFloorNeededModal(item);
     });
   });
   tbody.querySelectorAll(".checkfloor-notneeded-btn").forEach((btn) => {
-    btn.addEventListener("click", () => stageCheckFloorDecision(btn.dataset.sku, "Not Needed", []));
+    btn.addEventListener("click", () => stageCheckFloorDecision(btn.dataset.sku, btn.dataset.size, "Not Needed", []));
   });
 }
 
-function stageCheckFloorDecision(sku, status, sizes) {
+function stageCheckFloorDecision(sku, size, status, sizes) {
   const holding = loadCheckFloorHolding();
-  if (holding.some((h) => h.sku === sku)) return;
+  if (holding.some((h) => h.sku === sku && h.size === size)) return;
   const restock = loadJSON(STORAGE.floorRestock, []);
-  const item = restock.find((p) => p.sku === sku);
+  const item = restock.find((p) => p.sku === sku && p.size === size);
   if (!item) return;
 
-  holding.push({ sku, description: item.description, color: item.color, status, sizes });
+  holding.push({ sku, size, description: item.description, color: item.color, status, sizes });
   saveCheckFloorHolding(holding);
 
   renderCheckFloorList();
   renderCheckFloorHolding();
 }
 
-function removeCheckFloorHolding(sku) {
-  saveCheckFloorHolding(loadCheckFloorHolding().filter((h) => h.sku !== sku));
+function removeCheckFloorHolding(sku, size) {
+  saveCheckFloorHolding(loadCheckFloorHolding().filter((h) => !(h.sku === sku && h.size === size)));
   renderCheckFloorList();
   renderCheckFloorHolding();
 }
@@ -147,13 +147,13 @@ function renderCheckFloorHolding() {
       <td>${escapeHtml(h.description)} — ${escapeHtml(h.color)}</td>
       <td>${escapeHtml(h.status)}</td>
       <td>${escapeHtml(sizesText)}</td>
-      <td><button class="btn secondary small checkfloor-holding-remove-btn" data-sku="${escapeHtml(h.sku)}">Remove</button></td>
+      <td><button class="btn secondary small checkfloor-holding-remove-btn" data-sku="${escapeHtml(h.sku)}" data-size="${escapeHtml(h.size)}">Remove</button></td>
     `;
     tbody.appendChild(tr);
   }
 
   tbody.querySelectorAll(".checkfloor-holding-remove-btn").forEach((btn) => {
-    btn.addEventListener("click", () => removeCheckFloorHolding(btn.dataset.sku));
+    btn.addEventListener("click", () => removeCheckFloorHolding(btn.dataset.sku, btn.dataset.size));
   });
 }
 
@@ -210,9 +210,9 @@ function saveFloorNeededModal() {
     return;
   }
 
-  const sku = floorNeededItem.sku;
+  const { sku, size } = floorNeededItem;
   closeFloorNeededModal();
-  stageCheckFloorDecision(sku, "Needed", sizes);
+  stageCheckFloorDecision(sku, size, "Needed", sizes);
 }
 
 /* ---------- Commit Check Floor holding to the sheet ---------- */
@@ -237,42 +237,46 @@ async function commitCheckFloorUpdate() {
     await postCheckFloorUpdate(getWebhookUrl(), {
       initials,
       date,
-      decisions: holding.map((h) => ({ sku: h.sku, status: h.status, sizes: h.sizes })),
+      decisions: holding.map((h) => ({ sku: h.sku, size: h.size, status: h.status, sizes: h.sizes })),
     });
 
-    // Mirror the same effects locally instead of waiting on a fresh GET.
+    // Mirror the same effects locally instead of waiting on a fresh GET —
+    // matches handleCheckFloorUpdate in the Apps Script: the checked row
+    // gets Status/Checked By/Checked Date, and every extra size (besides
+    // the row's own) becomes a new FloorRestock row in the Replen queue.
     const restock = loadJSON(STORAGE.floorRestock, []);
-    const replen = loadJSON(STORAGE.floorReplen, []);
 
     for (const h of holding) {
-      const idx = restock.findIndex((p) => p.sku === h.sku);
-      if (idx !== -1) {
-        restock[idx].status = h.status;
-        restock[idx].checkedBy = initials;
-        restock[idx].checkedDate = nowIso;
-      }
+      const idx = restock.findIndex((p) => p.sku === h.sku && p.size === h.size);
+      if (idx === -1) continue;
+      const item = restock[idx];
+      item.status = h.status;
+      item.checkedBy = initials;
+      item.checkedDate = nowIso;
+
       if (h.status === "Needed") {
-        for (const size of h.sizes) {
-          replen.push({
-            id: uid(),
-            sku: h.sku,
-            description: h.description,
-            color: h.color,
+        const extraSizes = h.sizes.filter((size) => size !== h.size);
+        for (const size of extraSizes) {
+          restock.push({
+            gender: item.gender,
+            category: item.category,
+            description: item.description,
+            color: item.color,
             size,
-            status: "open",
+            sku: item.sku,
+            qtySold: 0,
+            onHand: 0,
+            status: "Needed",
             checkedBy: initials,
             checkedDate: nowIso,
-            pickedBy: "",
-            pickedDate: "",
-            restockedBy: "",
-            restockedDate: "",
+            outOfStock: "",
+            restocked: "",
           });
         }
       }
     }
 
     saveJSON(STORAGE.floorRestock, restock);
-    saveJSON(STORAGE.floorReplen, replen);
     saveCheckFloorHolding([]);
 
     renderCheckFloorList();
@@ -313,15 +317,15 @@ function saveReplenHolding(holding) {
   saveJSON(STORAGE.replenHolding, holding);
 }
 
-function isReplenHeld(id) {
-  return loadReplenHolding().some((h) => h.id === id);
+function isReplenHeld(sku, size) {
+  return loadReplenHolding().some((h) => h.sku === sku && h.size === size);
 }
 
 function renderReplenList() {
   const tbody = document.getElementById("replen-table-body");
-  const replen = loadJSON(STORAGE.floorReplen, []);
+  const restock = loadJSON(STORAGE.floorRestock, []);
 
-  const remaining = replen.filter((item) => item.status === "open" && !isReplenHeld(item.id));
+  const remaining = restock.filter((item) => isFloorRestockNeeded(item) && !isReplenHeld(item.sku, item.size));
 
   document.getElementById("replen-count").textContent =
     `${remaining.length} item${remaining.length === 1 ? "" : "s"} to pick`;
@@ -339,37 +343,37 @@ function renderReplenList() {
       <td>${escapeHtml(item.description)} — ${escapeHtml(item.color)}</td>
       <td>${escapeHtml(item.size)}</td>
       <td>
-        <button class="btn secondary small replen-picked-btn" data-id="${escapeHtml(item.id)}">Picked</button>
-        <button class="btn secondary small replen-oos-btn" data-id="${escapeHtml(item.id)}">Out of Stock</button>
+        <button class="btn secondary small replen-picked-btn" data-sku="${escapeHtml(item.sku)}" data-size="${escapeHtml(item.size)}">Picked</button>
+        <button class="btn secondary small replen-oos-btn" data-sku="${escapeHtml(item.sku)}" data-size="${escapeHtml(item.size)}">Out of Stock</button>
       </td>
     `;
     tbody.appendChild(tr);
   }
 
   tbody.querySelectorAll(".replen-picked-btn").forEach((btn) => {
-    btn.addEventListener("click", () => stageReplenDecision(btn.dataset.id, "picked"));
+    btn.addEventListener("click", () => stageReplenDecision(btn.dataset.sku, btn.dataset.size, "picked"));
   });
   tbody.querySelectorAll(".replen-oos-btn").forEach((btn) => {
-    btn.addEventListener("click", () => stageReplenDecision(btn.dataset.id, "outOfStock"));
+    btn.addEventListener("click", () => stageReplenDecision(btn.dataset.sku, btn.dataset.size, "outOfStock"));
   });
 }
 
-function stageReplenDecision(id, action) {
+function stageReplenDecision(sku, size, action) {
   const holding = loadReplenHolding();
-  if (holding.some((h) => h.id === id)) return;
-  const replen = loadJSON(STORAGE.floorReplen, []);
-  const item = replen.find((p) => p.id === id);
+  if (holding.some((h) => h.sku === sku && h.size === size)) return;
+  const restock = loadJSON(STORAGE.floorRestock, []);
+  const item = restock.find((p) => p.sku === sku && p.size === size);
   if (!item) return;
 
-  holding.push({ id, description: item.description, color: item.color, size: item.size, action });
+  holding.push({ sku, size, description: item.description, color: item.color, action });
   saveReplenHolding(holding);
 
   renderReplenList();
   renderReplenHolding();
 }
 
-function removeReplenHolding(id) {
-  saveReplenHolding(loadReplenHolding().filter((h) => h.id !== id));
+function removeReplenHolding(sku, size) {
+  saveReplenHolding(loadReplenHolding().filter((h) => !(h.sku === sku && h.size === size)));
   renderReplenList();
   renderReplenHolding();
 }
@@ -399,13 +403,13 @@ function renderReplenHolding() {
       <td>${escapeHtml(h.description)} — ${escapeHtml(h.color)}</td>
       <td>${escapeHtml(h.size)}</td>
       <td>${escapeHtml(actionLabel)}</td>
-      <td><button class="btn secondary small replen-holding-remove-btn" data-id="${escapeHtml(h.id)}">Remove</button></td>
+      <td><button class="btn secondary small replen-holding-remove-btn" data-sku="${escapeHtml(h.sku)}" data-size="${escapeHtml(h.size)}">Remove</button></td>
     `;
     tbody.appendChild(tr);
   }
 
   tbody.querySelectorAll(".replen-holding-remove-btn").forEach((btn) => {
-    btn.addEventListener("click", () => removeReplenHolding(btn.dataset.id));
+    btn.addEventListener("click", () => removeReplenHolding(btn.dataset.sku, btn.dataset.size));
   });
 }
 
@@ -418,38 +422,23 @@ async function commitReplenUpdate() {
     return;
   }
 
-  const session = loadJSON(STORAGE.session, {});
-  const initials = (session.initials || "").trim();
-  const nowIso = new Date().toISOString();
-
   setStatus("replen-status-msg", `Updating ${holding.length} item${holding.length === 1 ? "" : "s"}…`, false);
 
+  const nowIso = new Date().toISOString();
+
   try {
-    await postFloorReplenUpdate(getWebhookUrl(), {
-      initials,
+    await postFloorPickUpdate(getWebhookUrl(), {
       date: todayISO(),
-      decisions: holding.map((h) => ({ id: h.id, action: h.action })),
+      decisions: holding.map((h) => ({ sku: h.sku, size: h.size, action: h.action })),
     });
 
-    const replen = loadJSON(STORAGE.floorReplen, []);
     const restock = loadJSON(STORAGE.floorRestock, []);
     for (const h of holding) {
-      const idx = replen.findIndex((p) => p.id === h.id);
+      const idx = restock.findIndex((p) => p.sku === h.sku && p.size === h.size);
       if (idx === -1) continue;
-      replen[idx].status = h.action;
-      replen[idx].pickedBy = initials;
-      replen[idx].pickedDate = nowIso;
-
-      // Mirrors the backend's cross-write onto the matching FloorRestock
-      // row (same sku+size), so the 86 Board's primary source reflects
-      // this immediately on this device too, instead of waiting on a
-      // fresh fetch.
-      if (h.action === "outOfStock") {
-        const rIdx = restock.findIndex((p) => p.sku === replen[idx].sku && p.size === replen[idx].size);
-        if (rIdx !== -1) restock[rIdx].outOfStock = nowIso;
-      }
+      restock[idx].status = h.action === "picked" ? "Picked" : "Out of Stock";
+      if (h.action === "outOfStock") restock[idx].outOfStock = nowIso;
     }
-    saveJSON(STORAGE.floorReplen, replen);
     saveJSON(STORAGE.floorRestock, restock);
     saveReplenHolding([]);
 

@@ -80,22 +80,22 @@ function postReceivingStatusToSheet(url, payload) {
 }
 
 // Commits every staged Check Floor decision in one request. payload.decisions
-// is an array of { sku, status: "Needed"|"Not Needed", sizes: [...] } — a
-// "Needed" decision also creates one FloorReplen row per size server-side.
+// is an array of { sku, size, status: "Needed"|"Not Needed", sizes: [...] } —
+// a "Needed" decision also appends one new FloorRestock row for every size
+// checked besides the row's own, server-side.
 function postCheckFloorUpdate(url, payload) {
   return postToSheet(url, { type: "checkfloorupdate", ...payload });
 }
 
 // Commits every staged Replen picking decision in one request.
-// payload.decisions is an array of { id, action: "picked"|"outOfStock" }.
-function postFloorReplenUpdate(url, payload) {
-  return postToSheet(url, { type: "floorreplenupdate", ...payload });
+// payload.decisions is an array of { sku, size, action: "picked"|"outOfStock" }.
+function postFloorPickUpdate(url, payload) {
+  return postToSheet(url, { type: "floorpickupdate", ...payload });
 }
 
 // Closes out one or more 86 Board entries as restocked. payload.items is an
-// array of { id, sku, size } — id when the entry only exists in FloorReplen,
-// sku+size when a matching FloorRestock row should get its RESTOCKED column
-// stamped (either or both may apply to the same entry).
+// array of { sku, size } — stamps the matching FloorRestock row's RESTOCKED
+// column.
 function postFloor86Restock(url, payload) {
   return postToSheet(url, { type: "floor86restock", ...payload });
 }
@@ -247,21 +247,6 @@ async function loadSharedFloorRestock() {
     const remoteRows = await fetchFromSheet(url, "floorrestock");
     if (!Array.isArray(remoteRows)) return;
     saveJSON(STORAGE.floorRestock, remoteRows.map(sheetRowToFloorRestockItem));
-  } catch (e) {
-    // offline or unreachable — local data stands, next boot/refresh will retry
-  }
-}
-
-// Full replace — FloorReplen is fully app-managed (like ReceivingLog), one
-// row per size, whose own status field moves through the picking and
-// 86 Board lifecycle.
-async function loadSharedFloorReplen() {
-  const url = getWebhookUrl();
-
-  try {
-    const remoteRows = await fetchFromSheet(url, "floorreplen");
-    if (!Array.isArray(remoteRows)) return;
-    saveJSON(STORAGE.floorReplen, remoteRows.map(sheetRowToFloorReplenItem));
   } catch (e) {
     // offline or unreachable — local data stands, next boot/refresh will retry
   }

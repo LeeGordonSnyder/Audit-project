@@ -68,7 +68,6 @@ document.addEventListener("DOMContentLoaded", () => {
       loadSharedConsolLog(),
       loadSharedReceivingMaster(),
       loadSharedFloorRestock(),
-      loadSharedFloorReplen(),
     ]);
     initTagLookup();
     initAuditDashboard();
