@@ -14,7 +14,7 @@ function renderBoard86List() {
 
   tbody.innerHTML = "";
   if (outOfStock.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" class="no-results">Nothing on the 86 board.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="3" class="no-results">Nothing on the 86 board.</td></tr>`;
     return;
   }
 
@@ -23,7 +23,6 @@ function renderBoard86List() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(item.description)} — ${escapeHtml(item.color)}</td>
-      <td>${escapeHtml(item.size)}</td>
       <td>${item.outOfStock ? new Date(item.outOfStock).toLocaleString() : "—"}</td>
       <td><button class="btn secondary small board86-restock-btn" data-sku="${escapeHtml(item.sku)}" data-size="${escapeHtml(item.size)}">Restocked</button></td>
     `;
