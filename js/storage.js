@@ -307,12 +307,13 @@ function sheetRowToReceivingItem(row) {
    The MAO "items sold" export is pasted directly into the "FloorRestock"
    sheet tab (same pattern as ConsolMaster — staff paste straight into
    Sheets, the app only reads it). Its header row (staff-managed, matched
-   by name so it can be renamed freely) is expected to be:
+   by name so it can be renamed freely) is expected to be, all caps to
+   match ProductMaster/ConsolMaster's convention:
 
-   Gender | Clothing Category | Model Name | Color | Size | SKU |
-   Quantity Sold | On Hand Quantity | Status | Checked By | Checked Date
+   GENDER | CLOTHING CATEGORY | MODEL NAME | COLOR | SIZE | SKU |
+   QUANTITY SOLD | ON HAND QUANTITY | STATUS | CHECKED BY | CHECKED DATE
 
-   Status/Checked By/Checked Date are the three columns the app itself
+   STATUS/CHECKED BY/CHECKED DATE are the three columns the app itself
    writes (via the backend) when a Check Floor decision is committed —
    staff need to add these three empty columns once when first setting up
    the tab. Status is the qualifier for whether a row still shows in the
@@ -326,17 +327,17 @@ function sheetRowToReceivingItem(row) {
 */
 function sheetRowToFloorRestockItem(row) {
   return {
-    gender: String(row["Gender"] ?? ""),
-    category: String(row["Clothing Category"] ?? ""),
-    description: String(row["Model Name"] ?? ""),
-    color: String(row["Color"] ?? ""),
-    size: String(row["Size"] ?? ""),
+    gender: String(row["GENDER"] ?? ""),
+    category: String(row["CLOTHING CATEGORY"] ?? ""),
+    description: String(row["MODEL NAME"] ?? ""),
+    color: String(row["COLOR"] ?? ""),
+    size: String(row["SIZE"] ?? ""),
     sku: String(row["SKU"] ?? ""),
-    qtySold: Number(row["Quantity Sold"]) || 0,
-    onHand: Number(row["On Hand Quantity"]) || 0,
-    status: String(row["Status"] ?? ""),
-    checkedBy: String(row["Checked By"] ?? ""),
-    checkedDate: String(row["Checked Date"] ?? ""),
+    qtySold: Number(row["QUANTITY SOLD"]) || 0,
+    onHand: Number(row["ON HAND QUANTITY"]) || 0,
+    status: String(row["STATUS"] ?? ""),
+    checkedBy: String(row["CHECKED BY"] ?? ""),
+    checkedDate: String(row["CHECKED DATE"] ?? ""),
   };
 }
 

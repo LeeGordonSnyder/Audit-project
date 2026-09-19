@@ -248,10 +248,10 @@ One spreadsheet with seven tabs:
 - **FloorRestock** — **not created or written by the app at all**, same as
   ConsolMaster. Paste the MAO "items sold" export straight into this tab
   yourself, then add three empty columns after it for the app to write into:
-  `Gender / Clothing Category / Model Name / Color / Size / SKU / Quantity
-  Sold / On Hand Quantity / Status / Checked By / Checked Date`. The app
-  only reads the first eight columns and only ever writes Status/Checked
-  By/Checked Date (via the backend, when a Check Floor decision is
+  `GENDER / CLOTHING CATEGORY / MODEL NAME / COLOR / SIZE / SKU / QUANTITY
+  SOLD / ON HAND QUANTITY / STATUS / CHECKED BY / CHECKED DATE`. The app
+  only reads the first eight columns and only ever writes STATUS/CHECKED
+  BY/CHECKED DATE (via the backend, when a Check Floor decision is
   committed).
 - **FloorReplen** — one row per size actually needed, created automatically
   by the script and fully app-managed, like ReceivingLog. Columns: `id /
@@ -323,7 +323,7 @@ Setup, if you're starting fresh or need to redeploy:
    // header row (plus the three trailing columns staff add themselves), and
    // is hand-managed directly in Sheets like ConsolMaster; the app never
    // creates it.
-   const FLOOR_RESTOCK_HEADER = ["Gender", "Clothing Category", "Model Name", "Color", "Size", "SKU", "Quantity Sold", "On Hand Quantity", "Status", "Checked By", "Checked Date"];
+   const FLOOR_RESTOCK_HEADER = ["GENDER", "CLOTHING CATEGORY", "MODEL NAME", "COLOR", "SIZE", "SKU", "QUANTITY SOLD", "ON HAND QUANTITY", "STATUS", "CHECKED BY", "CHECKED DATE"];
 
    function handleAuditPost(entry) {
      const sheet = getOrCreateSheet("AuditLog", AUDIT_HEADER);
@@ -452,13 +452,13 @@ Setup, if you're starting fresh or need to redeploy:
 
      const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
      const skuCol = findColumnIndex(headerRow, "SKU");
-     const descCol = findColumnIndex(headerRow, "Model Name");
-     const colorCol = findColumnIndex(headerRow, "Color");
-     const statusCol = findColumnIndex(headerRow, "Status");
-     const checkedByCol = findColumnIndex(headerRow, "Checked By");
-     const checkedDateCol = findColumnIndex(headerRow, "Checked Date");
+     const descCol = findColumnIndex(headerRow, "MODEL NAME");
+     const colorCol = findColumnIndex(headerRow, "COLOR");
+     const statusCol = findColumnIndex(headerRow, "STATUS");
+     const checkedByCol = findColumnIndex(headerRow, "CHECKED BY");
+     const checkedDateCol = findColumnIndex(headerRow, "CHECKED DATE");
      if (skuCol === -1 || statusCol === -1 || checkedByCol === -1 || checkedDateCol === -1) {
-       return jsonResponse({ ok: false, error: "FloorRestock is missing an expected column (SKU/Status/Checked By/Checked Date)." });
+       return jsonResponse({ ok: false, error: "FloorRestock is missing an expected column (SKU/STATUS/CHECKED BY/CHECKED DATE)." });
      }
 
      const timestamp = new Date();
