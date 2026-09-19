@@ -1,13 +1,14 @@
 :root {
-  --bg: #eef3f4;
+  /* Palette pulled from the Oakridge Park / Arc'teryx logo badge */
+  --bg: #f7eef1;
   --bg-elevated: #ffffff;
-  --bg-subtle: #f4f8f9;
-  --border: #dbe4e6;
-  --text: #16232a;
-  --text-dim: #62767c;
-  --accent: #3f8fa3;
-  --accent-dark: #2c6b7c;
-  --accent-soft: rgba(63, 143, 163, 0.1);
+  --bg-subtle: #fbf5f6;
+  --border: #e6d3d8;
+  --text: #241419;
+  --text-dim: #7c6469;
+  --accent: #894554;
+  --accent-dark: #6b3341;
+  --accent-soft: rgba(137, 69, 84, 0.1);
   --ok: #2f9e64;
   --ok-soft: rgba(47, 158, 100, 0.12);
   --warn: #b8790f;
@@ -34,7 +35,7 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: linear-gradient(135deg, #e7f0f2 0%, #f3f8f9 40%, #fbfdfd 75%);
+  background: linear-gradient(135deg, #f5e9ec 0%, #faf1f3 40%, #fdfbfb 75%);
   background-attachment: fixed;
 }
 
@@ -50,10 +51,17 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  padding: calc(env(safe-area-inset-top) + 16px) 16px 14px;
-  background: linear-gradient(135deg, var(--accent) 0%, #6fb0bf 100%);
-  box-shadow: 0 2px 10px rgba(20, 60, 70, 0.15);
+  gap: 6px;
+  padding: calc(env(safe-area-inset-top) + 14px) 16px 14px;
+  background: linear-gradient(135deg, var(--accent) 0%, #c17a92 100%);
+  box-shadow: 0 2px 10px rgba(70, 20, 30, 0.15);
+}
+
+.topbar-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
 }
 
 .topbar h1 {
@@ -320,7 +328,7 @@ textarea { font-size: 0.9rem; resize: vertical; }
   border: 1px solid var(--accent);
   border-radius: var(--radius);
   padding: 16px 18px;
-  box-shadow: 0 2px 10px rgba(63, 143, 163, 0.12);
+  box-shadow: 0 2px 10px rgba(137, 69, 84, 0.12);
 }
 
 .active-item-actions {
