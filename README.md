@@ -21,7 +21,7 @@ with the actual current date automatically. The staff roster is the
 `STAFF_INITIALS` array at the top of `js/storage.js` — add or remove
 people there directly.
 
-## The five tabs
+## The seven tabs
 
 ### 1. Tag Lookup
 Scan or search a product to see the security-tag placement assigned to its
@@ -179,9 +179,48 @@ disappears from the Expected Boxes list once it's been marked Received into
 MAO** — being physically received alone just adds an "On shelf" note next to
 it, since it's still awaiting the MAO step.
 
+### 6. Floor Replen
+Two sections built around a shared "items sold" export.
+
+**Check Floor** — someone exports the "items sold" list from MAO (Gender,
+Clothing Category, Model Name, Color, Size, SKU, Quantity Sold, On Hand
+Quantity) and pastes it directly into the **"FloorRestock"** tab of the
+Google Sheet, same pattern as ConsolMaster — the app never writes the
+import itself, only reads it. Each row shows a **Needed** / **Not Needed**
+button:
+
+- **Not Needed** — stages it straight into the holding section below.
+- **Needed** — opens a picker of the core sizes (S, M, L, 30, 32, 34, 2, 4,
+  6) or **Other** (any size is fine, just keep the minimum-three-on-the-floor
+  rule satisfied) — check every size that's actually needed (more than one
+  is common) before saving.
+
+Both decisions land in a **holding** list first — nothing hits the sheet
+until you tap **Update**, which commits every staged decision in one
+request: it writes Status/Checked By/Checked Date back onto the matching
+FloorRestock rows (a row with any Status set drops off the Check Floor list
+— that's the qualifier that keeps the page decluttered) and, for every
+"Needed" decision, creates one new row per selected size in **Replen**
+below. The moment Update succeeds, the **Last Floor Check** stamp updates
+to the current date/time and your initials — that's the only thing that
+moves it.
+
+**Replen** is the picking list — every size someone flagged Needed shows
+here until it's dealt with. Check off **Picked** once it's actually placed
+on the floor, or **Out of Stock** if there's none in the back. Like Check
+Floor, these stage into a holding list first; tapping **Update** commits
+the whole batch in one request. Anything marked Out of Stock disappears
+from Replen and reappears on the **86 Board**.
+
+### 7. 86 Board
+Everything currently marked Out of Stock from the Replen picking step,
+with the date/time it was marked. Tap **Restocked** once it's actually back
+on the floor — that pushes to the sheet immediately and removes it from the
+board.
+
 ## The Google Sheet backend
 
-One spreadsheet with five tabs:
+One spreadsheet with seven tabs:
 
 - **AuditLog** — every count logged from every device, created automatically
   by the script. Plus, layered on top by hand in the sheet itself: Mark
@@ -206,6 +245,20 @@ One spreadsheet with five tabs:
   hand-editing). Columns: `barcode / po / expectedDate /
   physicallyReceivedDate / physicallyReceivedBy / receivedIntoMaoDate /
   receivedIntoMaoBy / updatedAt`.
+- **FloorRestock** — **not created or written by the app at all**, same as
+  ConsolMaster. Paste the MAO "items sold" export straight into this tab
+  yourself, then add three empty columns after it for the app to write into:
+  `Gender / Clothing Category / Model Name / Color / Size / SKU / Quantity
+  Sold / On Hand Quantity / Status / Checked By / Checked Date`. The app
+  only reads the first eight columns and only ever writes Status/Checked
+  By/Checked Date (via the backend, when a Check Floor decision is
+  committed).
+- **FloorReplen** — one row per size actually needed, created automatically
+  by the script and fully app-managed, like ReceivingLog. Columns: `id /
+  sku / description / color / size / status / checkedBy / checkedDate /
+  pickedBy / pickedDate / restockedBy / restockedDate / timestamp`. `status`
+  moves through `open` → `picked` or `outOfStock` → (if `outOfStock`)
+  `restocked`.
 
 Setup, if you're starting fresh or need to redeploy:
 
@@ -220,6 +273,9 @@ Setup, if you're starting fresh or need to redeploy:
      if (body.type === "consolmarkoutbatch") return handleConsolMarkoutBatch(body);
      if (body.type === "receivingimport") return handleReceivingImportPost(body);
      if (body.type === "receivingstatus") return handleReceivingStatusPost(body);
+     if (body.type === "checkfloorupdate") return handleCheckFloorUpdate(body);
+     if (body.type === "floorreplenupdate") return handleFloorReplenUpdate(body);
+     if (body.type === "floor86restock") return handleFloor86Restock(body);
      return handleAuditPost(body);
    }
 
@@ -236,6 +292,7 @@ Setup, if you're starting fresh or need to redeploy:
        auditlog: ["AuditLog", AUDIT_HEADER],
        consollog: ["ConsolLog", CONSOL_LOG_HEADER],
        receiving: ["ReceivingLog", RECEIVING_HEADER],
+       floorreplen: ["FloorReplen", FLOOR_REPLEN_HEADER],
      };
      if (positionalSheets[sheetParam]) {
        const [name, keys] = positionalSheets[sheetParam];
@@ -248,6 +305,7 @@ Setup, if you're starting fresh or need to redeploy:
      const sheetsByParam = {
        master: ["ProductMaster", MASTER_HEADER],
        consolmaster: ["ConsolMaster", CONSOL_MASTER_HEADER],
+       floorrestock: ["FloorRestock", FLOOR_RESTOCK_HEADER],
      };
      const [name, header] = sheetsByParam[sheetParam] || sheetsByParam.master;
      return jsonResponse(sheetToObjects(getOrCreateSheet(name, header)));
@@ -260,6 +318,12 @@ Setup, if you're starting fresh or need to redeploy:
    const CONSOL_MASTER_HEADER = ["MATERIAL", "COLOR", "STYLE SKU", "ECC GENERIC MATERIAL", "DESTINATION", "TOTAL", "PROCESSED"];
    const CONSOL_LOG_HEADER = ["id", "entryType", "date", "initials", "eccMaterial", "description", "color", "status", "size", "unitsOut", "referenceNumber", "timestamp"];
    const RECEIVING_HEADER = ["barcode", "po", "expectedDate", "physicallyReceivedDate", "physicallyReceivedBy", "receivedIntoMaoDate", "receivedIntoMaoBy", "updatedAt"];
+   const FLOOR_REPLEN_HEADER = ["id", "sku", "description", "color", "size", "status", "checkedBy", "checkedDate", "pickedBy", "pickedDate", "restockedBy", "restockedDate", "timestamp"];
+   // Defensive fallback only — FloorRestock already exists with this exact
+   // header row (plus the three trailing columns staff add themselves), and
+   // is hand-managed directly in Sheets like ConsolMaster; the app never
+   // creates it.
+   const FLOOR_RESTOCK_HEADER = ["Gender", "Clothing Category", "Model Name", "Color", "Size", "SKU", "Quantity Sold", "On Hand Quantity", "Status", "Checked By", "Checked Date"];
 
    function handleAuditPost(entry) {
      const sheet = getOrCreateSheet("AuditLog", AUDIT_HEADER);
@@ -363,6 +427,115 @@ Setup, if you're starting fresh or need to redeploy:
        sheet.getRange(rowIndex, dateCol, 1, 2).setValues([[date, initials]]);
      });
      return jsonResponse({ ok: true, updated: (body.barcodes || []).length });
+   }
+
+   // Row index (1-based) of a FloorReplen row by id, or -1 — same pattern
+   // as findReceivingRow.
+   function findFloorReplenRow(sheet, id) {
+     const data = sheet.getDataRange().getValues();
+     for (let i = 1; i < data.length; i++) {
+       if (String(data[i][0]) === String(id)) return i + 1;
+     }
+     return -1;
+   }
+
+   // Commits every staged Check Floor decision in one request. body.decisions
+   // is an array of { sku, status: "Needed"|"Not Needed", sizes: [...] }.
+   // FloorRestock is hand-managed (like ConsolMaster), so its columns are
+   // found by name via findColumnIndex, not a fixed position — staff must
+   // have added the Status/Checked By/Checked Date columns themselves. A
+   // "Needed" decision also appends one new FloorReplen row per size.
+   function handleCheckFloorUpdate(body) {
+     const sheet = getOrCreateSheet("FloorRestock", FLOOR_RESTOCK_HEADER);
+     const decisions = body.decisions || [];
+     if (decisions.length === 0) return jsonResponse({ ok: true, updated: 0 });
+
+     const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+     const skuCol = findColumnIndex(headerRow, "SKU");
+     const descCol = findColumnIndex(headerRow, "Model Name");
+     const colorCol = findColumnIndex(headerRow, "Color");
+     const statusCol = findColumnIndex(headerRow, "Status");
+     const checkedByCol = findColumnIndex(headerRow, "Checked By");
+     const checkedDateCol = findColumnIndex(headerRow, "Checked Date");
+     if (skuCol === -1 || statusCol === -1 || checkedByCol === -1 || checkedDateCol === -1) {
+       return jsonResponse({ ok: false, error: "FloorRestock is missing an expected column (SKU/Status/Checked By/Checked Date)." });
+     }
+
+     const timestamp = new Date();
+     const data = sheet.getDataRange().getValues();
+     const replenRows = [];
+
+     decisions.forEach((d) => {
+       for (let i = 1; i < data.length; i++) {
+         if (String(data[i][skuCol - 1]) !== String(d.sku)) continue;
+         sheet.getRange(i + 1, statusCol).setValue(d.status || "");
+         sheet.getRange(i + 1, checkedByCol).setValue(body.initials || "");
+         sheet.getRange(i + 1, checkedDateCol).setValue(timestamp);
+
+         if (d.status === "Needed") {
+           const description = descCol !== -1 ? data[i][descCol - 1] : "";
+           const color = colorCol !== -1 ? data[i][colorCol - 1] : "";
+           (d.sizes || []).forEach((size) => {
+             replenRows.push({
+               id: Utilities.getUuid(),
+               sku: d.sku,
+               description: description,
+               color: color,
+               size: size,
+               status: "open",
+               checkedBy: body.initials || "",
+               checkedDate: timestamp,
+               pickedBy: "",
+               pickedDate: "",
+               restockedBy: "",
+               restockedDate: "",
+               timestamp: timestamp,
+             });
+           });
+         }
+         break;
+       }
+     });
+
+     if (replenRows.length > 0) {
+       const replenSheet = getOrCreateSheet("FloorReplen", FLOOR_REPLEN_HEADER);
+       replenSheet
+         .getRange(replenSheet.getLastRow() + 1, 1, replenRows.length, FLOOR_REPLEN_HEADER.length)
+         .setValues(replenRows.map((r) => FLOOR_REPLEN_HEADER.map((key) => r[key])));
+     }
+
+     return jsonResponse({ ok: true, updated: decisions.length });
+   }
+
+   // Commits a batch of picking decisions in one request. body.decisions is
+   // an array of { id, action: "picked"|"outOfStock" } — sets status (col F)
+   // plus pickedBy/pickedDate (cols I:J) on each matching FloorReplen row.
+   function handleFloorReplenUpdate(body) {
+     const sheet = getOrCreateSheet("FloorReplen", FLOOR_REPLEN_HEADER);
+     const timestamp = new Date();
+     const decisions = body.decisions || [];
+     decisions.forEach((d) => {
+       const rowIndex = findFloorReplenRow(sheet, d.id);
+       if (rowIndex === -1) return;
+       sheet.getRange(rowIndex, 6).setValue(d.action || "");
+       sheet.getRange(rowIndex, 9, 1, 2).setValues([[body.initials || "", timestamp]]);
+     });
+     return jsonResponse({ ok: true, updated: decisions.length });
+   }
+
+   // Closes out one or more 86 Board entries as restocked — sets status
+   // (col F) to "restocked" plus restockedBy/restockedDate (cols K:L).
+   function handleFloor86Restock(body) {
+     const sheet = getOrCreateSheet("FloorReplen", FLOOR_REPLEN_HEADER);
+     const timestamp = new Date();
+     const ids = body.ids || [];
+     ids.forEach((id) => {
+       const rowIndex = findFloorReplenRow(sheet, id);
+       if (rowIndex === -1) return;
+       sheet.getRange(rowIndex, 6).setValue("restocked");
+       sheet.getRange(rowIndex, 11, 1, 2).setValues([[body.initials || "", timestamp]]);
+     });
+     return jsonResponse({ ok: true, updated: ids.length });
    }
 
    // Looks up a header's column by name (1-based) instead of a hardcoded
@@ -603,6 +776,12 @@ Sheet and sync automatically:
 - **The consolidation list itself is never written by the app** — it's
   pasted directly into the ConsolMaster sheet, and the app only ever reads
   it (on boot/refresh, or on demand via **🔄 Refresh from Sheet**).
+- **Floor Restock/Replen decisions** (Check Floor's Update, Replen's Update,
+  and 86 Board's Restocked) push immediately and atomically, same as
+  consolidation actions — if the request fails, nothing staged is lost, so
+  it's always safe to just try again. **The FloorRestock import itself is
+  never written by the app** either — it's pasted directly into that sheet
+  tab, same as ConsolMaster, and only read on boot/refresh.
 
 Since the service worker's own cache-first behavior only applies to the
 app's own files (HTML/CSS/JS), the Sheet fetch is always live, never served

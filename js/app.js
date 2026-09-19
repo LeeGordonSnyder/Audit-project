@@ -16,6 +16,14 @@ const TAB_REFRESHERS = {
     renderReceivingList();
     renderReceivingHolding();
   },
+  floorreplen: () => {
+    renderCheckFloorList();
+    renderCheckFloorHolding();
+    renderReplenList();
+    renderReplenHolding();
+    renderLastFloorCheck();
+  },
+  board86: () => renderBoard86List(),
 };
 
 function initTabs() {
@@ -59,12 +67,16 @@ document.addEventListener("DOMContentLoaded", () => {
       loadSharedConsolMaster(),
       loadSharedConsolLog(),
       loadSharedReceivingMaster(),
+      loadSharedFloorRestock(),
+      loadSharedFloorReplen(),
     ]);
     initTagLookup();
     initAuditDashboard();
     initMasterList();
     initConsol();
     initReceiving();
+    initFloorReplen();
+    initBoard86();
     setOffline(!navigator.onLine);
 
     if ("serviceWorker" in navigator) {

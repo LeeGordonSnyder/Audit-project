@@ -11,7 +11,17 @@ const STORAGE = {
   consolBox: "audit.consolBox.v1",
   receivingMaster: "audit.receivingMaster.v1",
   receivingHolding: "audit.receivingHolding.v1",
+  floorRestock: "audit.floorRestock.v1",
+  floorReplen: "audit.floorReplen.v1",
+  checkFloorHolding: "audit.checkFloorHolding.v1",
+  replenHolding: "audit.replenHolding.v1",
 };
+
+// The core sizes offered when flagging an item "Needed" on Check Floor —
+// tops (S/M/L) and men's/women's bottoms (30/32/34, 2/4/6) shown together
+// since the MAO export doesn't reliably say which an item is; "Other"
+// means any size will do to hit the minimum-3-on-floor rule.
+const FLOOR_CORE_SIZES = ["S", "M", "L", "30", "32", "34", "2", "4", "6"];
 
 // Baked-in default so the app works with zero setup. Settings can still
 // override this (e.g. if the sheet is ever redeployed to a new URL).
@@ -290,6 +300,64 @@ function sheetRowToReceivingItem(row) {
     physicallyReceivedBy: String(row.physicallyReceivedBy ?? ""),
     receivedIntoMaoDate: String(row.receivedIntoMaoDate ?? ""),
     receivedIntoMaoBy: String(row.receivedIntoMaoBy ?? ""),
+  };
+}
+
+/* ---------- Floor Restock / Floor Replen / 86 Board ----------
+   The MAO "items sold" export is pasted directly into the "FloorRestock"
+   sheet tab (same pattern as ConsolMaster — staff paste straight into
+   Sheets, the app only reads it). Its header row (staff-managed, matched
+   by name so it can be renamed freely) is expected to be:
+
+   Gender | Clothing Category | Model Name | Color | Size | SKU |
+   Quantity Sold | On Hand Quantity | Status | Checked By | Checked Date
+
+   Status/Checked By/Checked Date are the three columns the app itself
+   writes (via the backend) when a Check Floor decision is committed —
+   staff need to add these three empty columns once when first setting up
+   the tab. Status is the qualifier for whether a row still shows in the
+   Check Floor section — any non-blank value there means it's done.
+
+   FloorReplen is a completely separate, fully app-managed sheet (like
+   ReceivingLog) — one row per size actually needed, created when a Check
+   Floor "Needed" decision is committed. Its own status field then tracks
+   the picking step (open -> picked or outOfStock) and, for anything
+   marked outOfStock, the 86 Board close-out step (-> restocked).
+*/
+function sheetRowToFloorRestockItem(row) {
+  return {
+    gender: String(row["Gender"] ?? ""),
+    category: String(row["Clothing Category"] ?? ""),
+    description: String(row["Model Name"] ?? ""),
+    color: String(row["Color"] ?? ""),
+    size: String(row["Size"] ?? ""),
+    sku: String(row["SKU"] ?? ""),
+    qtySold: Number(row["Quantity Sold"]) || 0,
+    onHand: Number(row["On Hand Quantity"]) || 0,
+    status: String(row["Status"] ?? ""),
+    checkedBy: String(row["Checked By"] ?? ""),
+    checkedDate: String(row["Checked Date"] ?? ""),
+  };
+}
+
+function isFloorRestockChecked(item) {
+  return (item.status || "").toString().trim() !== "";
+}
+
+function sheetRowToFloorReplenItem(row) {
+  return {
+    id: String(row.id ?? ""),
+    sku: String(row.sku ?? ""),
+    description: String(row.description ?? ""),
+    color: String(row.color ?? ""),
+    size: String(row.size ?? ""),
+    status: String(row.status ?? ""),
+    checkedBy: String(row.checkedBy ?? ""),
+    checkedDate: String(row.checkedDate ?? ""),
+    pickedBy: String(row.pickedBy ?? ""),
+    pickedDate: String(row.pickedDate ?? ""),
+    restockedBy: String(row.restockedBy ?? ""),
+    restockedDate: String(row.restockedDate ?? ""),
   };
 }
 

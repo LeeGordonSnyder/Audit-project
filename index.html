@@ -26,6 +26,8 @@
     <button class="tab-btn" data-tab="master" role="tab" aria-selected="false">Product Master</button>
     <button class="tab-btn" data-tab="consol" role="tab" aria-selected="false">Consolidations</button>
     <button class="tab-btn" data-tab="receiving" role="tab" aria-selected="false">Receiving Log</button>
+    <button class="tab-btn" data-tab="floorreplen" role="tab" aria-selected="false">Floor Replen</button>
+    <button class="tab-btn" data-tab="board86" role="tab" aria-selected="false">86 Board</button>
   </nav>
 </div>
 
@@ -295,6 +297,120 @@
     <p id="receiving-status-msg" class="status-msg" role="status"></p>
   </section>
 
+  <!-- FLOOR REPLEN TAB -->
+  <section id="tab-floorreplen" class="tab-panel" role="tabpanel" hidden>
+    <h2>Check Floor</h2>
+    <p class="hint">The MAO "items sold" export is pasted directly into the "FloorRestock" tab of the Google Sheet, not here — this just reflects what's there. Tap Refresh after pasting a new list into the sheet. Mark each item Needed (pick a size, or Other if any size will do) or Not Needed.</p>
+    <p id="last-floor-check" class="hint"></p>
+    <input id="checkfloor-filter" type="text" autocomplete="off" placeholder="Filter by description, colour, or SKU…" class="filter-input">
+    <p id="checkfloor-count" class="hint"></p>
+    <div class="table-wrap">
+      <table class="master-table floor-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Colour</th>
+            <th>Size</th>
+            <th>SKU</th>
+            <th>Sold</th>
+            <th>On Hand</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="checkfloor-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="audit-list-header">
+      <h2>Check Floor — Holding</h2>
+      <div class="audit-list-actions">
+        <span id="checkfloor-holding-count" class="hint"></span>
+      </div>
+    </div>
+    <p id="checkfloor-holding-empty" class="hint">Nothing staged yet — mark an item Needed or Not Needed above.</p>
+    <div id="checkfloor-holding-table-wrap" class="table-wrap" hidden>
+      <table class="master-table floor-holding-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Status</th>
+            <th>Sizes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="checkfloor-holding-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="active-item-actions">
+      <button id="checkfloor-update-btn" class="btn primary" disabled>Update</button>
+    </div>
+    <p id="checkfloor-status-msg" class="status-msg" role="status"></p>
+
+    <h2>Replen</h2>
+    <p class="hint">Items marked Needed above land here for picking. Check off Picked once it's on the floor, or Out of Stock if there's none in the back.</p>
+    <p id="replen-count" class="hint"></p>
+    <div class="table-wrap">
+      <table class="master-table floor-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Size</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="replen-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="audit-list-header">
+      <h2>Replen — Holding</h2>
+      <div class="audit-list-actions">
+        <span id="replen-holding-count" class="hint"></span>
+      </div>
+    </div>
+    <p id="replen-holding-empty" class="hint">Nothing staged yet — mark an item Picked or Out of Stock above.</p>
+    <div id="replen-holding-table-wrap" class="table-wrap" hidden>
+      <table class="master-table floor-holding-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Size</th>
+            <th>Action</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="replen-holding-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="active-item-actions">
+      <button id="replen-update-btn" class="btn primary" disabled>Update</button>
+    </div>
+    <p id="replen-status-msg" class="status-msg" role="status"></p>
+  </section>
+
+  <!-- 86 BOARD TAB -->
+  <section id="tab-board86" class="tab-panel" role="tabpanel" hidden>
+    <h2>86 Board</h2>
+    <p class="hint">Items marked Out of Stock while picking Replen show here. Tap Restocked once it's back on the floor.</p>
+    <p id="board86-count" class="hint"></p>
+    <div class="table-wrap">
+      <table class="master-table floor-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Size</th>
+            <th>Marked Out</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="board86-table-body"></tbody>
+      </table>
+    </div>
+    <p id="board86-status-msg" class="status-msg" role="status"></p>
+  </section>
+
 </main>
 
 <!-- Mandatory login gate — blocks everything until initials are picked -->
@@ -359,6 +475,20 @@
   </div>
 </div>
 
+<!-- Floor Replen "Needed" sizing modal -->
+<div id="floor-needed-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Needed — Pick Size(s)</h2>
+    <p id="floor-needed-label" class="hint"></p>
+    <p class="hint">Select every size that's needed, or Other if any size will do to keep the minimum three on the floor.</p>
+    <div id="floor-needed-sizes" class="floor-size-grid"></div>
+    <div class="active-item-actions">
+      <button id="floor-needed-save-btn" class="btn primary">Save</button>
+      <button id="floor-needed-cancel-btn" class="btn secondary">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/storage.js"></script>
@@ -369,6 +499,8 @@
 <script src="js/audit.js"></script>
 <script src="js/consol.js"></script>
 <script src="js/receiving.js"></script>
+<script src="js/floorreplen.js"></script>
+<script src="js/board86.js"></script>
 <script src="js/sync.js"></script>
 <script src="js/app.js"></script>
 </body>

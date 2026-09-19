@@ -633,6 +633,42 @@ code {
   vertical-align: middle;
 }
 
+.floor-table {
+  min-width: 640px;
+}
+
+.floor-table th, .floor-table td {
+  white-space: normal;
+  vertical-align: top;
+}
+
+.floor-holding-table {
+  min-width: 420px;
+}
+
+.floor-holding-table th, .floor-holding-table td {
+  white-space: normal;
+  vertical-align: middle;
+}
+
+.floor-size-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+
+.floor-size-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
 .consol-adjust-rows {
   margin: 4px 0 14px;
 }

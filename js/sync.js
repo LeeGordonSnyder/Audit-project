@@ -79,6 +79,24 @@ function postReceivingStatusToSheet(url, payload) {
   return postToSheet(url, { type: "receivingstatus", ...payload });
 }
 
+// Commits every staged Check Floor decision in one request. payload.decisions
+// is an array of { sku, status: "Needed"|"Not Needed", sizes: [...] } — a
+// "Needed" decision also creates one FloorReplen row per size server-side.
+function postCheckFloorUpdate(url, payload) {
+  return postToSheet(url, { type: "checkfloorupdate", ...payload });
+}
+
+// Commits every staged Replen picking decision in one request.
+// payload.decisions is an array of { id, action: "picked"|"outOfStock" }.
+function postFloorReplenUpdate(url, payload) {
+  return postToSheet(url, { type: "floorreplenupdate", ...payload });
+}
+
+// Closes out one or more 86 Board entries as restocked.
+function postFloor86Restock(url, payload) {
+  return postToSheet(url, { type: "floor86restock", ...payload });
+}
+
 function initSync() {
   const urlInput = document.getElementById("sheet-url-input");
   urlInput.value = getWebhookUrl();
@@ -211,6 +229,36 @@ async function loadSharedReceivingMaster() {
     const remoteRows = await fetchFromSheet(url, "receiving");
     if (!Array.isArray(remoteRows)) return;
     saveJSON(STORAGE.receivingMaster, remoteRows.map(sheetRowToReceivingItem));
+  } catch (e) {
+    // offline or unreachable — local data stands, next boot/refresh will retry
+  }
+}
+
+// Full replace, like ConsolMaster/ReceivingLog — the sheet is the single
+// source of truth for both the raw import and the Status/Checked By/
+// Checked Date columns the app writes onto the same rows.
+async function loadSharedFloorRestock() {
+  const url = getWebhookUrl();
+
+  try {
+    const remoteRows = await fetchFromSheet(url, "floorrestock");
+    if (!Array.isArray(remoteRows)) return;
+    saveJSON(STORAGE.floorRestock, remoteRows.map(sheetRowToFloorRestockItem));
+  } catch (e) {
+    // offline or unreachable — local data stands, next boot/refresh will retry
+  }
+}
+
+// Full replace — FloorReplen is fully app-managed (like ReceivingLog), one
+// row per size, whose own status field moves through the picking and
+// 86 Board lifecycle.
+async function loadSharedFloorReplen() {
+  const url = getWebhookUrl();
+
+  try {
+    const remoteRows = await fetchFromSheet(url, "floorreplen");
+    if (!Array.isArray(remoteRows)) return;
+    saveJSON(STORAGE.floorReplen, remoteRows.map(sheetRowToFloorReplenItem));
   } catch (e) {
     // offline or unreachable — local data stands, next boot/refresh will retry
   }
