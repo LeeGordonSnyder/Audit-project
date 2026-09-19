@@ -434,20 +434,34 @@ Setup, if you're starting fresh or need to redeploy:
      return jsonResponse({ ok: true, updated: (body.barcodes || []).length });
    }
 
-   // Finds the FloorRestock row matching a sku+size, or null. Everything
-   // Floor Replen/86 Board does lives on this one sheet, keyed by sku+size
-   // (a plain sku lookup alone isn't enough once a "Needed" decision can
-   // append extra rows sharing the same sku at a different size).
-   function findFloorRestockRowBySkuSize(sku, size) {
+   // Finds the FloorRestock row matching sku+size AND currently in the
+   // lifecycle state the caller expects (a predicate over its STATUS/86/
+   // RESTOCKED values), or null. sku+size alone is NOT a stable key: the
+   // same product can sell out, get restocked, and sell out again, leaving
+   // multiple rows sharing a sku+size at different points in the
+   // blank -> Needed -> Picked/Out of Stock -> Restocked lifecycle.
+   // Scoping every match to the row actually in the expected state (e.g.
+   // only a row still "Needed" is eligible for a pick decision) stops a
+   // stale/older row from getting updated instead of the current one.
+   function findFloorRestockRow(sku, size, statePredicate) {
      const sheet = getOrCreateSheet("FloorRestock", FLOOR_RESTOCK_HEADER);
      const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
      const skuCol = findColumnIndex(headerRow, "SKU");
      const sizeCol = findColumnIndex(headerRow, "SIZE");
+     const statusCol = findColumnIndex(headerRow, "STATUS");
+     const col86 = findColumnIndex(headerRow, "86");
+     const restockedCol = findColumnIndex(headerRow, "RESTOCKED");
      if (skuCol === -1) return null;
      const data = sheet.getDataRange().getValues();
      for (let i = 1; i < data.length; i++) {
        if (String(data[i][skuCol - 1]) !== String(sku)) continue;
        if (sizeCol !== -1 && String(data[i][sizeCol - 1]) !== String(size)) continue;
+       const state = {
+         status: statusCol !== -1 ? String(data[i][statusCol - 1] || "").trim() : "",
+         flag86: col86 !== -1 ? String(data[i][col86 - 1] || "").trim() : "",
+         restocked: restockedCol !== -1 ? String(data[i][restockedCol - 1] || "").trim() : "",
+       };
+       if (statePredicate && !statePredicate(state)) continue;
        return { sheet, headerRow, rowIndex: i + 1, row: data[i] };
      }
      return null;
@@ -461,77 +475,77 @@ Setup, if you're starting fresh or need to redeploy:
    // themselves. A "Needed" decision also appends one new FloorRestock row
    // for every size checked *besides* the row's own size — those become
    // Replen queue entries for sizes that were never actually sold (Quantity
-   // Sold/On Hand left blank so they're easy to spot as placeholders).
+   // Sold/On Hand left blank so they're easy to spot as placeholders). Only
+   // matches a row with a still-blank Status — that's what makes a fresh
+   // re-paste of the same sku+size (after an earlier sale of it already
+   // ran the whole lifecycle) land on the new row, not the old one.
    function handleCheckFloorUpdate(body) {
-     const sheet = getOrCreateSheet("FloorRestock", FLOOR_RESTOCK_HEADER);
      const decisions = body.decisions || [];
      if (decisions.length === 0) return jsonResponse({ ok: true, updated: 0 });
 
-     const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-     const skuCol = findColumnIndex(headerRow, "SKU");
-     const sizeCol = findColumnIndex(headerRow, "SIZE");
-     const genderCol = findColumnIndex(headerRow, "GENDER");
-     const categoryCol = findColumnIndex(headerRow, "CLOTHING CATEGORY");
-     const descCol = findColumnIndex(headerRow, "MODEL NAME");
-     const colorCol = findColumnIndex(headerRow, "COLOR");
-     const statusCol = findColumnIndex(headerRow, "STATUS");
-     const checkedByCol = findColumnIndex(headerRow, "CHECKED BY");
-     const checkedDateCol = findColumnIndex(headerRow, "CHECKED DATE");
-     if (skuCol === -1 || statusCol === -1 || checkedByCol === -1 || checkedDateCol === -1) {
-       return jsonResponse({ ok: false, error: "FloorRestock is missing an expected column (SKU/STATUS/CHECKED BY/CHECKED DATE)." });
-     }
-
      const timestamp = new Date();
-     const data = sheet.getDataRange().getValues();
      const newRows = [];
+     let updated = 0;
 
      decisions.forEach((d) => {
-       for (let i = 1; i < data.length; i++) {
-         if (String(data[i][skuCol - 1]) !== String(d.sku)) continue;
-         if (sizeCol !== -1 && String(data[i][sizeCol - 1]) !== String(d.size)) continue;
-         sheet.getRange(i + 1, statusCol).setValue(d.status || "");
-         sheet.getRange(i + 1, checkedByCol).setValue(body.initials || "");
-         sheet.getRange(i + 1, checkedDateCol).setValue(timestamp);
+       const match = findFloorRestockRow(d.sku, d.size, (s) => s.status === "");
+       if (!match) return;
+       const { sheet, headerRow, rowIndex, row } = match;
+       const skuCol = findColumnIndex(headerRow, "SKU");
+       const sizeCol = findColumnIndex(headerRow, "SIZE");
+       const genderCol = findColumnIndex(headerRow, "GENDER");
+       const categoryCol = findColumnIndex(headerRow, "CLOTHING CATEGORY");
+       const descCol = findColumnIndex(headerRow, "MODEL NAME");
+       const colorCol = findColumnIndex(headerRow, "COLOR");
+       const statusCol = findColumnIndex(headerRow, "STATUS");
+       const checkedByCol = findColumnIndex(headerRow, "CHECKED BY");
+       const checkedDateCol = findColumnIndex(headerRow, "CHECKED DATE");
+       if (statusCol === -1 || checkedByCol === -1 || checkedDateCol === -1) return;
 
-         if (d.status === "Needed") {
-           const ownSize = sizeCol !== -1 ? data[i][sizeCol - 1] : "";
-           const extraSizes = (d.sizes || []).filter((size) => String(size) !== String(ownSize));
-           extraSizes.forEach((size) => {
-             const newRow = new Array(headerRow.length).fill("");
-             if (genderCol !== -1) newRow[genderCol - 1] = data[i][genderCol - 1];
-             if (categoryCol !== -1) newRow[categoryCol - 1] = data[i][categoryCol - 1];
-             if (descCol !== -1) newRow[descCol - 1] = data[i][descCol - 1];
-             if (colorCol !== -1) newRow[colorCol - 1] = data[i][colorCol - 1];
-             if (sizeCol !== -1) newRow[sizeCol - 1] = size;
-             newRow[skuCol - 1] = d.sku;
-             newRow[statusCol - 1] = "Needed";
-             newRow[checkedByCol - 1] = body.initials || "";
-             newRow[checkedDateCol - 1] = timestamp;
-             newRows.push(newRow);
-           });
-         }
-         break;
+       sheet.getRange(rowIndex, statusCol).setValue(d.status || "");
+       sheet.getRange(rowIndex, checkedByCol).setValue(body.initials || "");
+       sheet.getRange(rowIndex, checkedDateCol).setValue(timestamp);
+       updated++;
+
+       if (d.status === "Needed") {
+         const ownSize = sizeCol !== -1 ? row[sizeCol - 1] : "";
+         const extraSizes = (d.sizes || []).filter((size) => String(size) !== String(ownSize));
+         extraSizes.forEach((size) => {
+           const newRow = new Array(headerRow.length).fill("");
+           if (genderCol !== -1) newRow[genderCol - 1] = row[genderCol - 1];
+           if (categoryCol !== -1) newRow[categoryCol - 1] = row[categoryCol - 1];
+           if (descCol !== -1) newRow[descCol - 1] = row[descCol - 1];
+           if (colorCol !== -1) newRow[colorCol - 1] = row[colorCol - 1];
+           if (sizeCol !== -1) newRow[sizeCol - 1] = size;
+           newRow[skuCol - 1] = d.sku;
+           newRow[statusCol - 1] = "Needed";
+           newRow[checkedByCol - 1] = body.initials || "";
+           newRow[checkedDateCol - 1] = timestamp;
+           newRows.push(newRow);
+         });
        }
      });
 
      if (newRows.length > 0) {
-       sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, headerRow.length).setValues(newRows);
+       const sheet = getOrCreateSheet("FloorRestock", FLOOR_RESTOCK_HEADER);
+       sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, FLOOR_RESTOCK_HEADER.length).setValues(newRows);
      }
 
-     return jsonResponse({ ok: true, updated: decisions.length });
+     return jsonResponse({ ok: true, updated: updated });
    }
 
    // Commits a batch of picking decisions in one request. body.decisions is
    // an array of { sku, size, action: "picked"|"outOfStock" } — sets Status
    // to "Picked" or "Out of Stock" on the matching FloorRestock row, and
    // Out of Stock also stamps that row's 86 column so it shows on the
-   // 86 Board.
+   // 86 Board. Only matches a row whose Status is still "Needed" — see
+   // findFloorRestockRow's comment for why sku+size alone isn't enough.
    function handleFloorPickUpdate(body) {
      const timestamp = new Date();
      const decisions = body.decisions || [];
      let updated = 0;
      decisions.forEach((d) => {
-       const match = findFloorRestockRowBySkuSize(d.sku, d.size);
+       const match = findFloorRestockRow(d.sku, d.size, (s) => s.status === "Needed");
        if (!match) return;
        const statusCol = findColumnIndex(match.headerRow, "STATUS");
        const col86 = findColumnIndex(match.headerRow, "86");
@@ -545,13 +559,16 @@ Setup, if you're starting fresh or need to redeploy:
 
    // Closes out one or more 86 Board entries as restocked. body.items is an
    // array of { sku, size } — stamps the matching FloorRestock row's
-   // RESTOCKED column, which is what drops it off the 86 Board.
+   // RESTOCKED column, which is what drops it off the 86 Board. Only
+   // matches a row that's actually still on the board (86 set, RESTOCKED
+   // still blank) — see findFloorRestockRow's comment for why sku+size
+   // alone isn't enough.
    function handleFloor86Restock(body) {
      const timestamp = new Date();
      const items = body.items || [];
      let updated = 0;
      items.forEach((it) => {
-       const match = findFloorRestockRowBySkuSize(it.sku, it.size);
+       const match = findFloorRestockRow(it.sku, it.size, (s) => s.flag86 !== "" && s.restocked === "");
        if (!match) return;
        const restockedCol = findColumnIndex(match.headerRow, "RESTOCKED");
        if (restockedCol === -1) return;

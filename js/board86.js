@@ -46,7 +46,9 @@ async function markBoard86Restocked(sku, size) {
     await postFloor86Restock(getWebhookUrl(), { date: todayISO(), items: [{ sku, size }] });
 
     const restock = loadJSON(STORAGE.floorRestock, []);
-    const idx = restock.findIndex((p) => p.sku === sku && p.size === size);
+    // Only match a row actually still on the board — same sku+size can
+    // recur across a sell-out/restock/sell-out cycle.
+    const idx = restock.findIndex((p) => p.sku === sku && p.size === size && isFloorRestockOnBoard86(p));
     if (idx !== -1) restock[idx].restocked = nowIso;
     saveJSON(STORAGE.floorRestock, restock);
 

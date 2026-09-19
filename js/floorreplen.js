@@ -91,7 +91,9 @@ function renderCheckFloorList() {
 
   tbody.querySelectorAll(".checkfloor-needed-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const item = restock.find((p) => p.sku === btn.dataset.sku && p.size === btn.dataset.size);
+      const item = restock.find(
+        (p) => p.sku === btn.dataset.sku && p.size === btn.dataset.size && !isFloorRestockChecked(p)
+      );
       if (item) openFloorNeededModal(item);
     });
   });
@@ -104,7 +106,11 @@ function stageCheckFloorDecision(sku, size, status, sizes) {
   const holding = loadCheckFloorHolding();
   if (holding.some((h) => h.sku === sku && h.size === size)) return;
   const restock = loadJSON(STORAGE.floorRestock, []);
-  const item = restock.find((p) => p.sku === sku && p.size === size);
+  // sku+size alone isn't a stable key — the same product can sell out, get
+  // restocked, and sell out again, leaving an older row sharing this exact
+  // sku+size. Only a still-unchecked row is eligible for a Check Floor
+  // decision.
+  const item = restock.find((p) => p.sku === sku && p.size === size && !isFloorRestockChecked(p));
   if (!item) return;
 
   holding.push({ sku, size, description: item.description, color: item.color, status, sizes });
@@ -244,10 +250,11 @@ async function commitCheckFloorUpdate() {
     // matches handleCheckFloorUpdate in the Apps Script: the checked row
     // gets Status/Checked By/Checked Date, and every extra size (besides
     // the row's own) becomes a new FloorRestock row in the Replen queue.
+    // Only match a still-unchecked row, same reasoning as stageCheckFloorDecision.
     const restock = loadJSON(STORAGE.floorRestock, []);
 
     for (const h of holding) {
-      const idx = restock.findIndex((p) => p.sku === h.sku && p.size === h.size);
+      const idx = restock.findIndex((p) => p.sku === h.sku && p.size === h.size && !isFloorRestockChecked(p));
       if (idx === -1) continue;
       const item = restock[idx];
       item.status = h.status;
@@ -362,7 +369,9 @@ function stageReplenDecision(sku, size, action) {
   const holding = loadReplenHolding();
   if (holding.some((h) => h.sku === sku && h.size === size)) return;
   const restock = loadJSON(STORAGE.floorRestock, []);
-  const item = restock.find((p) => p.sku === sku && p.size === size);
+  // Only a row still "Needed" is eligible — same sku+size reasoning as
+  // stageCheckFloorDecision.
+  const item = restock.find((p) => p.sku === sku && p.size === size && isFloorRestockNeeded(p));
   if (!item) return;
 
   holding.push({ sku, size, description: item.description, color: item.color, action });
@@ -434,7 +443,7 @@ async function commitReplenUpdate() {
 
     const restock = loadJSON(STORAGE.floorRestock, []);
     for (const h of holding) {
-      const idx = restock.findIndex((p) => p.sku === h.sku && p.size === h.size);
+      const idx = restock.findIndex((p) => p.sku === h.sku && p.size === h.size && isFloorRestockNeeded(p));
       if (idx === -1) continue;
       restock[idx].status = h.action === "picked" ? "Picked" : "Out of Stock";
       if (h.action === "outOfStock") restock[idx].outOfStock = nowIso;
