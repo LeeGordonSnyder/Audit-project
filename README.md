@@ -247,18 +247,23 @@ One spreadsheet with seven tabs:
   receivedIntoMaoBy / updatedAt`.
 - **FloorRestock** — **not created or written by the app at all**, same as
   ConsolMaster. Paste the MAO "items sold" export straight into this tab
-  yourself, then add three empty columns after it for the app to write into:
+  yourself, then add five empty columns after it for the app to write into:
   `GENDER / CLOTHING CATEGORY / MODEL NAME / COLOR / SIZE / SKU / QUANTITY
-  SOLD / ON HAND QUANTITY / STATUS / CHECKED BY / CHECKED DATE`. The app
-  only reads the first eight columns and only ever writes STATUS/CHECKED
-  BY/CHECKED DATE (via the backend, when a Check Floor decision is
-  committed).
+  SOLD / ON HAND QUANTITY / STATUS / CHECKED BY / CHECKED DATE / 86 /
+  RESTOCKED`. The app only reads the first eight columns and writes STATUS/
+  CHECKED BY/CHECKED DATE (when a Check Floor decision is committed) and
+  86/RESTOCKED (when a Replen pick is marked Out of Stock, and when it's
+  cleared from the 86 Board) — 86 and RESTOCKED are the qualifiers for
+  whether a row shows on the 86 Board page: 86 non-blank and RESTOCKED
+  blank means it's on the board.
 - **FloorReplen** — one row per size actually needed, created automatically
   by the script and fully app-managed, like ReceivingLog. Columns: `id /
   sku / description / color / size / status / checkedBy / checkedDate /
   pickedBy / pickedDate / restockedBy / restockedDate / timestamp`. `status`
   moves through `open` → `picked` or `outOfStock` → (if `outOfStock`)
-  `restocked`.
+  `restocked`. This still exists for sizes flagged "Needed" that were never
+  actually sold, so have no FloorRestock row of their own to carry an
+  86/RESTOCKED flag — the 86 Board falls back to this sheet only for those.
 
 Setup, if you're starting fresh or need to redeploy:
 
@@ -320,10 +325,10 @@ Setup, if you're starting fresh or need to redeploy:
    const RECEIVING_HEADER = ["barcode", "po", "expectedDate", "physicallyReceivedDate", "physicallyReceivedBy", "receivedIntoMaoDate", "receivedIntoMaoBy", "updatedAt"];
    const FLOOR_REPLEN_HEADER = ["id", "sku", "description", "color", "size", "status", "checkedBy", "checkedDate", "pickedBy", "pickedDate", "restockedBy", "restockedDate", "timestamp"];
    // Defensive fallback only — FloorRestock already exists with this exact
-   // header row (plus the three trailing columns staff add themselves), and
+   // header row (plus the five trailing columns staff add themselves), and
    // is hand-managed directly in Sheets like ConsolMaster; the app never
    // creates it.
-   const FLOOR_RESTOCK_HEADER = ["GENDER", "CLOTHING CATEGORY", "MODEL NAME", "COLOR", "SIZE", "SKU", "QUANTITY SOLD", "ON HAND QUANTITY", "STATUS", "CHECKED BY", "CHECKED DATE"];
+   const FLOOR_RESTOCK_HEADER = ["GENDER", "CLOTHING CATEGORY", "MODEL NAME", "COLOR", "SIZE", "SKU", "QUANTITY SOLD", "ON HAND QUANTITY", "STATUS", "CHECKED BY", "CHECKED DATE", "86", "RESTOCKED"];
 
    function handleAuditPost(entry) {
      const sheet = getOrCreateSheet("AuditLog", AUDIT_HEADER);
@@ -507,9 +512,32 @@ Setup, if you're starting fresh or need to redeploy:
      return jsonResponse({ ok: true, updated: decisions.length });
    }
 
+   // Finds the FloorRestock row matching a sku+size, or null. Used to mirror
+   // the 86/RESTOCKED flags onto FloorRestock — the sheet staff actually
+   // watch — for the common case where the "Needed" size is the same size
+   // that was sold (so a FloorRestock row for it already exists). A "Needed"
+   // size that was never sold has no row here, and only lives in FloorReplen.
+   function findFloorRestockRowBySkuSize(sku, size) {
+     const sheet = getOrCreateSheet("FloorRestock", FLOOR_RESTOCK_HEADER);
+     const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+     const skuCol = findColumnIndex(headerRow, "SKU");
+     const sizeCol = findColumnIndex(headerRow, "SIZE");
+     if (skuCol === -1) return null;
+     const data = sheet.getDataRange().getValues();
+     for (let i = 1; i < data.length; i++) {
+       if (String(data[i][skuCol - 1]) !== String(sku)) continue;
+       if (sizeCol !== -1 && String(data[i][sizeCol - 1]) !== String(size)) continue;
+       return { sheet, headerRow, rowIndex: i + 1 };
+     }
+     return null;
+   }
+
    // Commits a batch of picking decisions in one request. body.decisions is
    // an array of { id, action: "picked"|"outOfStock" } — sets status (col F)
    // plus pickedBy/pickedDate (cols I:J) on each matching FloorReplen row.
+   // Marking something outOfStock also stamps the matching FloorRestock
+   // row's 86 column (timestamp), when one exists, so the 86 Board's
+   // qualifier is visible on the sheet staff watch, not just in FloorReplen.
    function handleFloorReplenUpdate(body) {
      const sheet = getOrCreateSheet("FloorReplen", FLOOR_REPLEN_HEADER);
      const timestamp = new Date();
@@ -519,23 +547,58 @@ Setup, if you're starting fresh or need to redeploy:
        if (rowIndex === -1) return;
        sheet.getRange(rowIndex, 6).setValue(d.action || "");
        sheet.getRange(rowIndex, 9, 1, 2).setValues([[body.initials || "", timestamp]]);
+
+       if (d.action === "outOfStock") {
+         const replenRow = sheet.getRange(rowIndex, 1, 1, FLOOR_REPLEN_HEADER.length).getValues()[0];
+         const sku = replenRow[FLOOR_REPLEN_HEADER.indexOf("sku")];
+         const size = replenRow[FLOOR_REPLEN_HEADER.indexOf("size")];
+         const match = findFloorRestockRowBySkuSize(sku, size);
+         if (match) {
+           const col86 = findColumnIndex(match.headerRow, "86");
+           if (col86 !== -1) match.sheet.getRange(match.rowIndex, col86).setValue(timestamp);
+         }
+       }
      });
      return jsonResponse({ ok: true, updated: decisions.length });
    }
 
-   // Closes out one or more 86 Board entries as restocked — sets status
-   // (col F) to "restocked" plus restockedBy/restockedDate (cols K:L).
+   // Closes out one or more 86 Board entries as restocked. body.items is an
+   // array of { id, sku, size } — id is a FloorReplen row id (present when
+   // the entry came from a "Needed" size that was never sold, so only
+   // exists in FloorReplen) and/or sku+size (present whenever a matching
+   // FloorRestock row exists). Either or both may apply to the same entry;
+   // whichever match, get their RESTOCKED/restockedBy/restockedDate set.
    function handleFloor86Restock(body) {
-     const sheet = getOrCreateSheet("FloorReplen", FLOOR_REPLEN_HEADER);
      const timestamp = new Date();
-     const ids = body.ids || [];
-     ids.forEach((id) => {
-       const rowIndex = findFloorReplenRow(sheet, id);
-       if (rowIndex === -1) return;
-       sheet.getRange(rowIndex, 6).setValue("restocked");
-       sheet.getRange(rowIndex, 11, 1, 2).setValues([[body.initials || "", timestamp]]);
+     const items = body.items || [];
+     let updated = 0;
+     items.forEach((it) => {
+       let touched = false;
+
+       if (it.id) {
+         const sheet = getOrCreateSheet("FloorReplen", FLOOR_REPLEN_HEADER);
+         const rowIndex = findFloorReplenRow(sheet, it.id);
+         if (rowIndex !== -1) {
+           sheet.getRange(rowIndex, 6).setValue("restocked");
+           sheet.getRange(rowIndex, 11, 1, 2).setValues([[body.initials || "", timestamp]]);
+           touched = true;
+         }
+       }
+
+       if (it.sku) {
+         const match = findFloorRestockRowBySkuSize(it.sku, it.size);
+         if (match) {
+           const restockedCol = findColumnIndex(match.headerRow, "RESTOCKED");
+           if (restockedCol !== -1) {
+             match.sheet.getRange(match.rowIndex, restockedCol).setValue(timestamp);
+             touched = true;
+           }
+         }
+       }
+
+       if (touched) updated++;
      });
-     return jsonResponse({ ok: true, updated: ids.length });
+     return jsonResponse({ ok: true, updated: updated });
    }
 
    // Looks up a header's column by name (1-based) instead of a hardcoded

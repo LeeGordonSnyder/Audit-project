@@ -311,19 +311,23 @@ function sheetRowToReceivingItem(row) {
    match ProductMaster/ConsolMaster's convention:
 
    GENDER | CLOTHING CATEGORY | MODEL NAME | COLOR | SIZE | SKU |
-   QUANTITY SOLD | ON HAND QUANTITY | STATUS | CHECKED BY | CHECKED DATE
+   QUANTITY SOLD | ON HAND QUANTITY | STATUS | CHECKED BY | CHECKED DATE |
+   86 | RESTOCKED
 
-   STATUS/CHECKED BY/CHECKED DATE are the three columns the app itself
-   writes (via the backend) when a Check Floor decision is committed —
-   staff need to add these three empty columns once when first setting up
-   the tab. Status is the qualifier for whether a row still shows in the
-   Check Floor section — any non-blank value there means it's done.
+   STATUS/CHECKED BY/CHECKED DATE/86/RESTOCKED are the five columns the app
+   itself writes (via the backend) — staff need to add these five empty
+   columns once when first setting up the tab. Status is the qualifier for
+   whether a row still shows in the Check Floor section — any non-blank
+   value there means it's done. 86/RESTOCKED are the qualifiers for the 86
+   Board: 86 non-blank and RESTOCKED blank means the row is on the board.
 
    FloorReplen is a completely separate, fully app-managed sheet (like
    ReceivingLog) — one row per size actually needed, created when a Check
    Floor "Needed" decision is committed. Its own status field then tracks
    the picking step (open -> picked or outOfStock) and, for anything
-   marked outOfStock, the 86 Board close-out step (-> restocked).
+   marked outOfStock, the 86 Board close-out step (-> restocked). It's the
+   only record of a "Needed" size that was never actually sold, so has no
+   FloorRestock row of its own to carry an 86/RESTOCKED flag.
 */
 function sheetRowToFloorRestockItem(row) {
   return {
@@ -338,11 +342,17 @@ function sheetRowToFloorRestockItem(row) {
     status: String(row["STATUS"] ?? ""),
     checkedBy: String(row["CHECKED BY"] ?? ""),
     checkedDate: String(row["CHECKED DATE"] ?? ""),
+    outOfStock: String(row["86"] ?? ""),
+    restocked: String(row["RESTOCKED"] ?? ""),
   };
 }
 
 function isFloorRestockChecked(item) {
   return (item.status || "").toString().trim() !== "";
+}
+
+function isFloorRestockOnBoard86(item) {
+  return (item.outOfStock || "").toString().trim() !== "" && (item.restocked || "").toString().trim() === "";
 }
 
 function sheetRowToFloorReplenItem(row) {

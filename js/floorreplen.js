@@ -432,14 +432,25 @@ async function commitReplenUpdate() {
     });
 
     const replen = loadJSON(STORAGE.floorReplen, []);
+    const restock = loadJSON(STORAGE.floorRestock, []);
     for (const h of holding) {
       const idx = replen.findIndex((p) => p.id === h.id);
       if (idx === -1) continue;
       replen[idx].status = h.action;
       replen[idx].pickedBy = initials;
       replen[idx].pickedDate = nowIso;
+
+      // Mirrors the backend's cross-write onto the matching FloorRestock
+      // row (same sku+size), so the 86 Board's primary source reflects
+      // this immediately on this device too, instead of waiting on a
+      // fresh fetch.
+      if (h.action === "outOfStock") {
+        const rIdx = restock.findIndex((p) => p.sku === replen[idx].sku && p.size === replen[idx].size);
+        if (rIdx !== -1) restock[rIdx].outOfStock = nowIso;
+      }
     }
     saveJSON(STORAGE.floorReplen, replen);
+    saveJSON(STORAGE.floorRestock, restock);
     saveReplenHolding([]);
 
     renderReplenList();

@@ -92,7 +92,10 @@ function postFloorReplenUpdate(url, payload) {
   return postToSheet(url, { type: "floorreplenupdate", ...payload });
 }
 
-// Closes out one or more 86 Board entries as restocked.
+// Closes out one or more 86 Board entries as restocked. payload.items is an
+// array of { id, sku, size } — id when the entry only exists in FloorReplen,
+// sku+size when a matching FloorRestock row should get its RESTOCKED column
+// stamped (either or both may apply to the same entry).
 function postFloor86Restock(url, payload) {
   return postToSheet(url, { type: "floor86restock", ...payload });
 }
