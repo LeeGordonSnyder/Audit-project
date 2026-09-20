@@ -17,9 +17,12 @@ anything else loads. This is deliberately required on every fresh load
 hands between staff can't keep running under the previous person's
 initials. The date is never asked for or editable anywhere — every
 action (a count, a consolidation, a receiving scan) is always stamped
-with the actual current date automatically. The staff roster is the
-`STAFF_INITIALS` array at the top of `js/storage.js` — add or remove
-people there directly.
+with the actual current date automatically. The staff roster lives in
+column J of the "ProductMaster" sheet tab (see below) — edit it directly
+in Sheets, or tap **+ Add User** on the login screen itself to add a new
+person's initials without leaving the app. `STAFF_INITIALS_FALLBACK` in
+`js/storage.js` is only a last-resort list for a device that's never
+successfully fetched the roster at least once.
 
 ## The seven tabs
 
@@ -235,7 +238,12 @@ One spreadsheet with seven tabs:
 - **ProductMaster** — the shared catalog, created automatically by the
   script. Its header row has since been hand-edited to
   `SKU / UPC / DEPT / STYLE SKU / COLOR / SIZE / DESCRIPTION / UPDATED AT`
-  — the app reads those exact column names.
+  — the app reads those exact column names. Column J (10th, with a gap at
+  I) is a second, unrelated list bolted onto the same tab: the staff login
+  roster, one initials value per row starting at J2 (J1 is its own header
+  label). The app reads the whole column and appends to it (via **+ Add
+  User** on the login screen), independent of however far the product
+  data in A:H extends.
 - **ConsolMaster** — **not created or written by the app at all.** Paste the
   HQ export straight into this tab yourself, with header row `MATERIAL /
   COLOR / STYLE SKU / ECC GENERIC MATERIAL / DESTINATION / TOTAL /
@@ -283,11 +291,19 @@ Setup, if you're starting fresh or need to redeploy:
      if (body.type === "checkfloorupdate") return handleCheckFloorUpdate(body);
      if (body.type === "floorpickupdate") return handleFloorPickUpdate(body);
      if (body.type === "floor86restock") return handleFloor86Restock(body);
+     if (body.type === "staffadd") return handleStaffAdd(body);
      return handleAuditPost(body);
    }
 
    function doGet(e) {
      const sheetParam = (e.parameter.sheet || "auditlog").toLowerCase();
+
+     // The staff roster (login gate dropdown) is a plain list of strings
+     // from one column, not row objects, so it doesn't fit the two shared
+     // shapes below — handled separately. See getStaffInitialsList().
+     if (sheetParam === "staff") {
+       return jsonResponse(getStaffInitialsList());
+     }
 
      // AuditLog, ConsolLog, and ReceivingLog are fully app-managed — only
      // this app ever writes to them, always at fixed column positions (see
@@ -377,6 +393,50 @@ Setup, if you're starting fresh or need to redeploy:
      if (rowIndex === -1) sheet.appendRow(row);
      else sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
      return jsonResponse({ ok: true });
+   }
+
+   // The staff roster (login gate dropdown) lives in column J (10th) of
+   // ProductMaster — completely independent of the product columns in A:H,
+   // just a plain list of initials, one per row, starting at J2 (J1 is its
+   // own header label, auto-set by handleStaffAdd the first time someone's
+   // added). Kept on this tab instead of a new one, same as bolting extra
+   // columns onto FloorRestock elsewhere in this app.
+   function getStaffInitialsList() {
+     const sheet = getOrCreateSheet("ProductMaster", MASTER_HEADER);
+     const lastRow = sheet.getLastRow();
+     if (lastRow < 2) return [];
+     const values = sheet.getRange(2, 10, lastRow - 1, 1).getValues();
+     return values.map((r) => String(r[0] || "").trim()).filter(Boolean);
+   }
+
+   // Appends one new initials value to column J. Finds the actual last
+   // non-blank row within column J specifically (not sheet.getLastRow(),
+   // which reflects the much longer product data in A:H, and not just a
+   // count of existing entries, in case of gaps) so a new entry always
+   // lands right after the existing roster.
+   function handleStaffAdd(body) {
+     const initials = (body.initials || "").trim();
+     if (!initials) return jsonResponse({ ok: false, error: "Missing initials." });
+
+     const sheet = getOrCreateSheet("ProductMaster", MASTER_HEADER);
+     if (!sheet.getRange(1, 10).getValue()) sheet.getRange(1, 10).setValue("STAFF INITIALS");
+
+     const existing = getStaffInitialsList();
+     if (existing.some((i) => i.toUpperCase() === initials.toUpperCase())) {
+       return jsonResponse({ ok: true, added: false, reason: "already exists" });
+     }
+
+     const lastRow = sheet.getLastRow();
+     let lastUsedRow = 1; // the header row
+     if (lastRow >= 2) {
+       const colJ = sheet.getRange(2, 10, lastRow - 1, 1).getValues();
+       colJ.forEach((r, i) => {
+         if (String(r[0] || "").trim() !== "") lastUsedRow = i + 2;
+       });
+     }
+
+     sheet.getRange(lastUsedRow + 1, 10).setValue(initials);
+     return jsonResponse({ ok: true, added: true });
    }
 
    // Row index (1-based) of a ReceivingLog row by barcode, or -1. String()
@@ -822,6 +882,15 @@ Sheet and sync automatically:
   it's always safe to just try again. **The FloorRestock import itself is
   never written by the app** either — it's pasted directly into that sheet
   tab, same as ConsolMaster, and only read on boot/refresh.
+- **The 🔄 button in the header** (top right, present on every tab) re-pulls
+  every sheet-backed tab (Product Master, audit history, ConsolMaster,
+  ConsolLog, ReceivingLog, FloorRestock) in one go and re-renders whatever
+  tab is currently open — the same fetches boot already does, just
+  re-triggerable on demand instead of needing to close the app and log back
+  in to force a refresh.
+- **Adding a user** (the login screen's **+ Add User**) pushes immediately,
+  same as a new catalog product — it needs a connection, since the whole
+  point is to land in the shared roster for every device.
 
 Since the service worker's own cache-first behavior only applies to the
 app's own files (HTML/CSS/JS), the Sheet fetch is always live, never served

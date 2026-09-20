@@ -19,6 +19,7 @@
     <img src="icons/icon-192.png" alt="Oakridge Park Arc'teryx" class="topbar-logo">
     <h1>Oakridge Ops Suite</h1>
     <div id="offline-badge" class="badge" hidden>Offline</div>
+    <button id="global-refresh-btn" class="header-icon-btn" title="Refresh from sheet" aria-label="Refresh from sheet" disabled>🔄</button>
   </header>
 
   <nav class="tabs" role="tablist" aria-label="Sections">
@@ -62,6 +63,14 @@
     </div>
 
     <p id="scan-status" class="status-msg" role="status"></p>
+
+    <h2>Or Look Up a Product<span class="hint"> — when scanning isn't an option</span></h2>
+    <div class="search-row">
+      <input id="audit-lookup-input" type="text" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off"
+             placeholder="Search by SKU / UPC / description / style…" aria-label="Search product to count">
+      <button id="audit-lookup-clear-btn" class="icon-btn" title="Clear" aria-label="Clear search">✕</button>
+    </div>
+    <div id="audit-lookup-results" class="results" hidden></div>
 
     <div id="add-product-card" class="active-item-card" hidden>
       <div class="sku" id="add-product-upc"></div>
@@ -352,7 +361,7 @@
     <p class="hint">Items marked Needed above land here for picking. Check off Picked once it's on the floor, or Out of Stock if there's none in the back.</p>
     <p id="replen-count" class="hint"></p>
     <div class="table-wrap">
-      <table class="master-table floor-table">
+      <table class="master-table replen-table">
         <thead>
           <tr>
             <th>Description</th>
@@ -397,7 +406,7 @@
     <p class="hint">Items marked Out of Stock while picking Replen show here. Tap Restocked once it's back on the floor.</p>
     <p id="board86-count" class="hint"></p>
     <div class="table-wrap">
-      <table class="master-table floor-table">
+      <table class="master-table board86-table">
         <thead>
           <tr>
             <th>Description</th>
@@ -423,6 +432,19 @@
     </label>
     <div class="active-item-actions">
       <button id="login-continue-btn" class="btn primary">Continue</button>
+    </div>
+
+    <button id="login-add-user-toggle-btn" class="btn secondary small login-add-user-toggle">+ Add User</button>
+
+    <div id="login-add-user-row" hidden>
+      <label>New Initials
+        <input type="text" id="login-new-initials-input" autocomplete="off" maxlength="4" placeholder="e.g. AB">
+      </label>
+      <div class="active-item-actions">
+        <button id="login-add-user-save-btn" class="btn primary">Save</button>
+        <button id="login-add-user-cancel-btn" class="btn secondary">Cancel</button>
+      </div>
+      <p id="login-add-user-status" class="status-msg" role="status"></p>
     </div>
   </div>
 </div>

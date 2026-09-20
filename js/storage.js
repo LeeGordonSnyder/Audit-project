@@ -14,6 +14,7 @@ const STORAGE = {
   floorRestock: "audit.floorRestock.v1",
   checkFloorHolding: "audit.checkFloorHolding.v1",
   replenHolding: "audit.replenHolding.v1",
+  staffInitials: "audit.staffInitials.v1",
 };
 
 // The core sizes offered when flagging an item "Needed" on Check Floor —
@@ -27,9 +28,14 @@ const FLOOR_CORE_SIZES = ["S", "M", "L", "30", "32", "34", "2", "4", "6"];
 const DEFAULT_WEBHOOK_URL =
   "https://script.google.com/macros/s/AKfycbz_Xhbfp_Cpko5kBIsNik8dhXLNrQ5D2DKpjmqMZpVAxUPyNkgVHi-7417HQQrFJpIr/exec";
 
-// The mandatory login screen's roster — add/remove staff initials here as
-// the team changes.
-const STAFF_INITIALS = ["LS", "SC", "SG", "JV"];
+// The mandatory login screen's roster now lives in column J of the
+// ProductMaster sheet (kept there rather than a new tab, on the same
+// pattern as bolting extra columns onto an existing sheet elsewhere in
+// this app) — fetched into STORAGE.staffInitials on boot, before the login
+// gate itself renders. This hardcoded list is only a last-resort fallback
+// for a brand-new device that's never successfully fetched the roster
+// (e.g. first-ever launch with no connection).
+const STAFF_INITIALS_FALLBACK = ["LS", "SC", "SG", "JV"];
 
 function loadJSON(key, fallback) {
   try {

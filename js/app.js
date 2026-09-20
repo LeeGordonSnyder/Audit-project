@@ -54,9 +54,41 @@ function setOffline(isOffline) {
 window.addEventListener("online", () => setOffline(false));
 window.addEventListener("offline", () => setOffline(true));
 
-document.addEventListener("DOMContentLoaded", () => {
+// Re-fetches every shared sheet and re-renders whichever tab is currently
+// open — lets staff pull the latest sheet data on demand instead of having
+// to close the app and log back in just to force a refresh.
+async function refreshSharedData() {
+  const btn = document.getElementById("global-refresh-btn");
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.classList.add("spinning");
+
+  await Promise.all([
+    loadSharedProductMaster(),
+    loadSharedHistory(),
+    loadSharedConsolMaster(),
+    loadSharedConsolLog(),
+    loadSharedReceivingMaster(),
+    loadSharedFloorRestock(),
+  ]);
+
+  const activeTab = document.querySelector(".tab-btn.active")?.dataset.tab;
+  const refresh = TAB_REFRESHERS[activeTab];
+  if (refresh) refresh();
+
+  btn.disabled = false;
+  btn.classList.remove("spinning");
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
   initTabs();
   initScannerModal();
+
+  // The staff roster itself now lives in the sheet (ProductMaster column
+  // J), so it has to be fetched before the login gate can even render its
+  // dropdown — this one fetch happens ahead of the gate instead of after,
+  // unlike everything else which waits until initials are confirmed.
+  await loadSharedStaffInitials();
 
   // Nothing else starts — no data load, no tab setup — until someone
   // confirms their initials on the mandatory login gate.
@@ -77,6 +109,10 @@ document.addEventListener("DOMContentLoaded", () => {
     initFloorReplen();
     initBoard86();
     setOffline(!navigator.onLine);
+
+    const refreshBtn = document.getElementById("global-refresh-btn");
+    refreshBtn.disabled = false;
+    refreshBtn.addEventListener("click", refreshSharedData);
 
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").catch(() => {});

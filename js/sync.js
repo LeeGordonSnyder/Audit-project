@@ -54,6 +54,12 @@ function pushProductToSheet(url, item) {
   return postToSheet(url, { type: "master", ...item });
 }
 
+// Adds one new initials value to the shared staff roster (ProductMaster
+// column J).
+function postStaffAdd(url, payload) {
+  return postToSheet(url, { type: "staffadd", ...payload });
+}
+
 // Closes a Packed Box: logs every staged item as Completed under one
 // packing-slip reference number, plus a closure record, and flags each as
 // Processed on the ConsolMaster sheet — all in a single request.
@@ -191,6 +197,23 @@ async function loadSharedHistory() {
     }
   } catch (e) {
     // offline or unreachable — local data stands, next boot/refresh will retry
+  }
+}
+
+// Full replace, like ConsolMaster — the sheet (ProductMaster column J) is
+// the single source of truth for the roster. The "staff" endpoint returns
+// a plain array of strings, not row objects, so no sheetRowToXItem mapper
+// is needed.
+async function loadSharedStaffInitials() {
+  const url = getWebhookUrl();
+
+  try {
+    const remoteRows = await fetchFromSheet(url, "staff");
+    if (!Array.isArray(remoteRows) || remoteRows.length === 0) return;
+    saveJSON(STORAGE.staffInitials, remoteRows.map(String));
+  } catch (e) {
+    // offline or unreachable — whatever's cached from a previous
+    // successful fetch stands, or the hardcoded fallback if there's none
   }
 }
 

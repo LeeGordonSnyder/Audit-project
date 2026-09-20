@@ -14,8 +14,63 @@ function initAuditDashboard() {
   document.getElementById("add-product-cancel-btn").addEventListener("click", clearAddProductCard);
   document.getElementById("add-product-save-btn").addEventListener("click", saveNewProduct);
 
+  const lookupInput = document.getElementById("audit-lookup-input");
+  lookupInput.addEventListener("input", () => renderAuditLookupResults(lookupInput.value.trim()));
+  document.getElementById("audit-lookup-clear-btn").addEventListener("click", () => {
+    lookupInput.value = "";
+    lookupInput.focus();
+    renderAuditLookupResults("");
+  });
+
   initSync();
   renderAuditList();
+}
+
+// Manual fallback for when scanning isn't an option — reuses the same
+// SKU/UPC/style/description matching Tag Lookup's search uses.
+function renderAuditLookupResults(query) {
+  const resultsEl = document.getElementById("audit-lookup-results");
+
+  if (!query) {
+    resultsEl.hidden = true;
+    resultsEl.innerHTML = "";
+    return;
+  }
+  resultsEl.hidden = false;
+
+  const matches = findMasterMatches(query);
+  if (matches.length === 0) {
+    resultsEl.innerHTML = `<div class="no-results">No matches for "${escapeHtml(query)}".</div>`;
+    return;
+  }
+
+  resultsEl.innerHTML = "";
+  for (const item of matches) {
+    const card = document.createElement("div");
+    card.className = "result-card";
+    card.innerHTML = `
+      <div class="sku">${escapeHtml(item.sku)} · UPC ${escapeHtml(item.upc)}</div>
+      <h3>${escapeHtml(combinedDescription(item))}</h3>
+      <button class="btn secondary small audit-lookup-select-btn" data-sku="${escapeHtml(item.sku)}">Select to Count</button>
+    `;
+    resultsEl.appendChild(card);
+  }
+
+  resultsEl.querySelectorAll(".audit-lookup-select-btn").forEach((btn) => {
+    btn.addEventListener("click", () => selectAuditLookupItem(btn.dataset.sku));
+  });
+}
+
+function selectAuditLookupItem(sku) {
+  const master = loadJSON(STORAGE.master, []);
+  const item = master.find((p) => p.sku === sku);
+  if (!item) return;
+
+  document.getElementById("audit-lookup-input").value = "";
+  renderAuditLookupResults("");
+  clearScanStatus();
+  clearAddProductCard();
+  populateActiveItemCard(item);
 }
 
 function handleProductScan(upc) {

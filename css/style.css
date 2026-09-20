@@ -21,6 +21,14 @@
 
 * { box-sizing: border-box; }
 
+/* The browser's default [hidden] { display: none } rule is a user-agent
+   style — any author rule that sets display on the same element (e.g.
+   .btn's display: inline-block) wins over it at equal specificity,
+   regardless of source order, silently un-hiding it. Every .hidden toggle
+   in this app relies on the hidden attribute actually working, so this
+   makes it unconditional. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   padding: 0;
@@ -75,8 +83,8 @@ body {
 
 .badge {
   position: absolute;
-  top: calc(env(safe-area-inset-top) + 14px);
-  right: 16px;
+  top: calc(env(safe-area-inset-top) + 19px);
+  right: 58px;
   font-size: 0.66rem;
   background: #ffffff;
   color: var(--warn);
@@ -85,6 +93,34 @@ body {
   font-weight: 700;
   letter-spacing: 0.3px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+
+.header-icon-btn {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 12px);
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 1.05rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-icon-btn:active { background: rgba(255, 255, 255, 0.35); }
+
+.header-icon-btn:disabled { opacity: 0.5; }
+
+.header-icon-btn.spinning { animation: header-icon-spin 0.8s linear infinite; }
+
+@keyframes header-icon-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .tabs {
@@ -130,8 +166,6 @@ main {
 @media (min-width: 700px) {
   main { max-width: 960px; }
 }
-
-.tab-panel[hidden] { display: none; }
 
 /* Shared form controls */
 input[type="text"],
@@ -334,6 +368,16 @@ textarea { font-size: 0.9rem; resize: vertical; }
 .active-item-actions {
   display: flex;
   gap: 8px;
+}
+
+.login-add-user-toggle {
+  margin-top: 12px;
+}
+
+#login-add-user-row {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
 .active-item-actions .btn { flex: 1; }
@@ -659,6 +703,19 @@ code {
   vertical-align: middle;
 }
 
+/* Replen and 86 Board only have 2-3 columns of short content — unlike
+   .floor-table (Check Floor's 7-column table), they should never force a
+   phone into horizontal scrolling just to read/tap them. */
+.replen-table, .board86-table {
+  min-width: 0;
+}
+
+.replen-table th, .replen-table td,
+.board86-table th, .board86-table td {
+  white-space: normal;
+  vertical-align: top;
+}
+
 .floor-size-grid {
   display: flex;
   flex-wrap: wrap;
@@ -707,8 +764,6 @@ code {
   justify-content: center;
   padding: 20px;
 }
-
-.scanner-modal[hidden] { display: none; }
 
 .scanner-modal-inner {
   width: 100%;
