@@ -15,7 +15,15 @@ function uid() {
 }
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  // toISOString() converts to UTC first -- for any timezone behind UTC
+  // (all of North America), that rolls the date over to tomorrow for the
+  // last several hours of every local day (e.g. anytime after ~4-5pm
+  // Pacific). Build the string from the local date parts instead.
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function setStatus(elId, message, isError) {
