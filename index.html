@@ -312,6 +312,17 @@
     <h2>Check Floor</h2>
     <p class="hint">The MAO "items sold" export is pasted directly into the "FloorRestock" tab of the Google Sheet, not here — this just reflects what's there. Tap Refresh after pasting a new list into the sheet. Mark each item Needed (pick a size, or Other if any size will do) or Not Needed.</p>
     <p id="last-floor-check" class="hint"></p>
+
+    <h2>Add a Product<span class="hint"> — not on the items sold list?</span></h2>
+    <p class="hint">Look it up in the catalog to add it here for a Needed / Not Needed decision, same as anything pasted from MAO.</p>
+    <div class="search-row">
+      <input id="floor-lookup-input" type="text" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off"
+             placeholder="Search by SKU / UPC / description / style…" aria-label="Search catalog to add to Check Floor">
+      <button id="floor-lookup-clear-btn" class="icon-btn" title="Clear" aria-label="Clear search">✕</button>
+    </div>
+    <div id="floor-lookup-results" class="results" hidden></div>
+    <p id="floor-lookup-status" class="status-msg" role="status"></p>
+
     <input id="checkfloor-filter" type="text" autocomplete="off" placeholder="Filter by description, colour, or SKU…" class="filter-input">
     <p id="checkfloor-count" class="hint"></p>
     <div class="table-wrap">

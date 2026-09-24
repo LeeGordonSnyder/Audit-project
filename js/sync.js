@@ -106,6 +106,13 @@ function postFloor86Restock(url, payload) {
   return postToSheet(url, { type: "floor86restock", ...payload });
 }
 
+// Appends one new blank-Status FloorRestock row from a ProductMaster item
+// that isn't on the MAO "items sold" list — lands in Check Floor exactly
+// like a pasted row, for a normal Needed/Not Needed decision.
+function postFloorRestockAdd(url, payload) {
+  return postToSheet(url, { type: "floorrestockadd", ...payload });
+}
+
 function initSync() {
   const urlInput = document.getElementById("sheet-url-input");
   urlInput.value = getWebhookUrl();

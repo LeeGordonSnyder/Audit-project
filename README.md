@@ -190,7 +190,11 @@ Clothing Category, Model Name, Color, Size, SKU, Quantity Sold, On Hand
 Quantity) and pastes it directly into the **"FloorRestock"** tab of the
 Google Sheet, same pattern as ConsolMaster — the app never writes the
 import itself, only reads it. Each row shows a **Needed** / **Not Needed**
-button:
+button. Above the list, **Add a Product** searches the catalog (SKU, UPC,
+description, style — same matching Tag Lookup and the Audit Dashboard's
+lookup use) for anything that wasn't on the "items sold" export — tapping
+a result appends it as a new blank row here, for the same Needed/Not
+Needed decision as anything pasted from MAO.
 
 - **Not Needed** — stages it straight into the holding section below.
 - **Needed** — opens a picker of the core sizes (S, M, L, 30, 32, 34, 2, 4,
@@ -255,7 +259,11 @@ One spreadsheet with seven tabs:
   script and fully app-managed (unlike ConsolMaster, nothing here needs
   hand-editing). Columns: `barcode / po / expectedDate /
   physicallyReceivedDate / physicallyReceivedBy / receivedIntoMaoDate /
-  receivedIntoMaoBy / updatedAt`.
+  receivedIntoMaoBy / updatedAt`. The barcode is written with a leading
+  apostrophe (Sheets' force-literal-text escape) so a long digit string
+  never renders in scientific notation — it'd be unscannable straight off
+  the sheet otherwise. The apostrophe itself never shows up or gets stored;
+  reading the cell back gives the plain digits.
 - **FloorRestock** — **not created or written by the app at all**, same as
   ConsolMaster, and the *only* sheet behind Floor Replen/86 Board — there is
   no separate app-managed tab for any of it. Paste the MAO "items sold"
@@ -291,6 +299,7 @@ Setup, if you're starting fresh or need to redeploy:
      if (body.type === "checkfloorupdate") return handleCheckFloorUpdate(body);
      if (body.type === "floorpickupdate") return handleFloorPickUpdate(body);
      if (body.type === "floor86restock") return handleFloor86Restock(body);
+     if (body.type === "floorrestockadd") return handleFloorRestockAdd(body);
      if (body.type === "staffadd") return handleStaffAdd(body);
      return handleAuditPost(body);
    }
@@ -468,8 +477,16 @@ Setup, if you're starting fresh or need to redeploy:
      ensurePlainTextColumn(sheet, 2); // po
      const rowIndex = findReceivingRow(sheet, item.barcode);
      const now = new Date().toISOString();
+     // The Plain Text column format above isn't always enough on its own —
+     // appendRow()/setValues() can still auto-detect a long digit string as
+     // a NUMBER and render it in scientific notation, which makes it
+     // unscannable directly off the sheet. A leading apostrophe is Sheets'
+     // own escape for "force literal text" -- it's stripped from the
+     // stored/displayed value (getValue() reads back the plain digits,
+     // no apostrophe), so nothing downstream needs to change.
+     const barcodeText = "'" + item.barcode;
      if (rowIndex === -1) {
-       sheet.appendRow([item.barcode, item.po || "", item.expectedDate || "", "", "", "", "", now]);
+       sheet.appendRow([barcodeText, item.po || "", item.expectedDate || "", "", "", "", "", now]);
      } else {
        sheet.getRange(rowIndex, 2, 1, 2).setValues([[item.po || "", item.expectedDate || ""]]);
        sheet.getRange(rowIndex, 8).setValue(now);
@@ -592,6 +609,37 @@ Setup, if you're starting fresh or need to redeploy:
      }
 
      return jsonResponse({ ok: true, updated: updated });
+   }
+
+   // Appends one new FloorRestock row for a product that wasn't on the MAO
+   // "items sold" export -- staff found it via the catalog lookup on Check
+   // Floor. Quantity Sold/On Hand and Status are all left blank, so it
+   // lands in the normal Check Floor list for a Needed/Not Needed decision,
+   // exactly like a pasted row. Columns are found by name via
+   // findColumnIndex, same as handleCheckFloorUpdate's extra-size append,
+   // since FloorRestock is hand-managed and its column order isn't
+   // guaranteed to match FLOOR_RESTOCK_HEADER.
+   function handleFloorRestockAdd(body) {
+     const sheet = getOrCreateSheet("FloorRestock", FLOOR_RESTOCK_HEADER);
+     const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+     const skuCol = findColumnIndex(headerRow, "SKU");
+     const genderCol = findColumnIndex(headerRow, "GENDER");
+     const descCol = findColumnIndex(headerRow, "MODEL NAME");
+     const colorCol = findColumnIndex(headerRow, "COLOR");
+     const sizeCol = findColumnIndex(headerRow, "SIZE");
+     if (skuCol === -1) {
+       return jsonResponse({ ok: false, error: "FloorRestock is missing a SKU column." });
+     }
+
+     const newRow = new Array(headerRow.length).fill("");
+     if (genderCol !== -1) newRow[genderCol - 1] = body.gender || "";
+     if (descCol !== -1) newRow[descCol - 1] = body.description || "";
+     if (colorCol !== -1) newRow[colorCol - 1] = body.color || "";
+     if (sizeCol !== -1) newRow[sizeCol - 1] = body.size || "";
+     newRow[skuCol - 1] = body.sku || "";
+
+     sheet.appendRow(newRow);
+     return jsonResponse({ ok: true });
    }
 
    // Commits a batch of picking decisions in one request. body.decisions is
@@ -881,7 +929,10 @@ Sheet and sync automatically:
   consolidation actions — if the request fails, nothing staged is lost, so
   it's always safe to just try again. **The FloorRestock import itself is
   never written by the app** either — it's pasted directly into that sheet
-  tab, same as ConsolMaster, and only read on boot/refresh.
+  tab, same as ConsolMaster, and only read on boot/refresh. **Add a
+  Product** (Check Floor's catalog lookup) is the one exception — it does
+  push a new row, immediately, same reliability as adding a new catalog
+  product from the Audit Dashboard.
 - **The 🔄 button in the header** (top right, present on every tab) re-pulls
   every sheet-backed tab (Product Master, audit history, ConsolMaster,
   ConsolLog, ReceivingLog, FloorRestock) in one go and re-renders whatever

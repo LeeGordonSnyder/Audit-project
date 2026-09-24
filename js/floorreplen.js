@@ -5,6 +5,14 @@ let floorNeededItem = null; // FloorRestock item currently being sized in the "N
 function initFloorReplen() {
   document.getElementById("checkfloor-filter").addEventListener("input", renderCheckFloorList);
 
+  const lookupInput = document.getElementById("floor-lookup-input");
+  lookupInput.addEventListener("input", () => renderFloorLookupResults(lookupInput.value.trim()));
+  document.getElementById("floor-lookup-clear-btn").addEventListener("click", () => {
+    lookupInput.value = "";
+    lookupInput.focus();
+    renderFloorLookupResults("");
+  });
+
   document.getElementById("floor-needed-save-btn").addEventListener("click", saveFloorNeededModal);
   document.getElementById("floor-needed-cancel-btn").addEventListener("click", closeFloorNeededModal);
 
@@ -16,6 +24,98 @@ function initFloorReplen() {
   renderReplenList();
   renderReplenHolding();
   renderLastFloorCheck();
+}
+
+/* ---------- Add a Product: catalog lookup for anything not on the
+   MAO "items sold" export ---------- */
+
+function renderFloorLookupResults(query) {
+  const resultsEl = document.getElementById("floor-lookup-results");
+
+  if (!query) {
+    resultsEl.hidden = true;
+    resultsEl.innerHTML = "";
+    return;
+  }
+  resultsEl.hidden = false;
+
+  const matches = findMasterMatches(query);
+  if (matches.length === 0) {
+    resultsEl.innerHTML = `<div class="no-results">No matches for "${escapeHtml(query)}".</div>`;
+    return;
+  }
+
+  resultsEl.innerHTML = "";
+  for (const item of matches) {
+    const card = document.createElement("div");
+    card.className = "result-card";
+    card.innerHTML = `
+      <div class="sku">${escapeHtml(item.sku)} · UPC ${escapeHtml(item.upc)}</div>
+      <h3>${escapeHtml(combinedDescription(item))}</h3>
+      <button class="btn secondary small floor-lookup-add-btn" data-sku="${escapeHtml(item.sku)}">Add to Check Floor</button>
+    `;
+    resultsEl.appendChild(card);
+  }
+
+  resultsEl.querySelectorAll(".floor-lookup-add-btn").forEach((btn) => {
+    btn.addEventListener("click", () => addProductToCheckFloor(btn.dataset.sku));
+  });
+}
+
+async function addProductToCheckFloor(sku) {
+  const master = loadJSON(STORAGE.master, []);
+  const item = master.find((p) => p.sku === sku);
+  if (!item) return;
+
+  // Only block on a row still awaiting a Check Floor decision for this
+  // exact sku+size — a previously resolved row (Not Needed, Picked,
+  // restocked, etc.) is fine to add fresh, same as a genuine re-sale.
+  const restock = loadJSON(STORAGE.floorRestock, []);
+  const alreadyPending = restock.some((p) => p.sku === item.sku && p.size === item.size && !isFloorRestockChecked(p));
+  if (alreadyPending) {
+    setStatus("floor-lookup-status", "Already on the Check Floor list below.", true);
+    return;
+  }
+
+  if (!navigator.onLine) {
+    setStatus("floor-lookup-status", "Offline — nothing was added. Try again once you have a connection.", true);
+    return;
+  }
+
+  setStatus("floor-lookup-status", "Adding…", false);
+
+  try {
+    await postFloorRestockAdd(getWebhookUrl(), {
+      sku: item.sku,
+      size: item.size,
+      description: item.description,
+      color: item.color,
+    });
+
+    restock.push({
+      gender: "",
+      category: "",
+      description: item.description,
+      color: item.color,
+      size: item.size,
+      sku: item.sku,
+      qtySold: 0,
+      onHand: 0,
+      status: "",
+      checkedBy: "",
+      checkedDate: "",
+      outOfStock: "",
+      restocked: "",
+    });
+    saveJSON(STORAGE.floorRestock, restock);
+
+    document.getElementById("floor-lookup-input").value = "";
+    renderFloorLookupResults("");
+    renderCheckFloorList();
+    setStatus("floor-lookup-status", `Added ${combinedDescription(item)} to Check Floor.`, false);
+  } catch (e) {
+    setStatus("floor-lookup-status", "Couldn't reach the sheet — check your connection and try again.", true);
+  }
 }
 
 /* ========== Check Floor ========== */
