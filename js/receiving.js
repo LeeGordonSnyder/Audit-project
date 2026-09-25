@@ -106,7 +106,7 @@ function addBoxToHolding(barcode) {
 // expected shipment list at all stops the scan and hands off to the
 // "add manually" modal instead of just reporting an error — that's the
 // one case where staff actually need to do something about it.
-function handleReceivingScan(text) {
+async function handleReceivingScan(text) {
   const barcode = text.trim();
   const result = addBoxToHolding(barcode);
 
@@ -122,7 +122,10 @@ function handleReceivingScan(text) {
   }
 
   if (result.reason === "not-expected") {
-    closeScanner();
+    // Awaited so the camera has actually finished stopping before the
+    // modal opens (and before anything can start a new scan session) —
+    // see closeScanner()'s own comment for why that matters.
+    await closeScanner();
     openReceivingAddBoxModal(barcode);
     return;
   }
