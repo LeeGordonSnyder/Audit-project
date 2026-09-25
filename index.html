@@ -16,6 +16,8 @@
 
 <div class="app-header">
   <header class="topbar">
+    <!-- Bump this by 1 on every shipped change, same as sw.js's CACHE_NAME. -->
+    <span class="header-version">v18</span>
     <img src="icons/icon-192.png" alt="Oakridge Park Arc'teryx" class="topbar-logo">
     <h1>Oakridge Ops Suite</h1>
     <div id="offline-badge" class="badge" hidden>Offline</div>
@@ -519,6 +521,25 @@
       <button id="floor-needed-save-btn" class="btn primary">Save</button>
       <button id="floor-needed-cancel-btn" class="btn secondary">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- Receiving: scanned box not in the expected shipment list -->
+<div id="receiving-add-box-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Box Not in Expected Shipments</h2>
+    <p class="hint">This barcode wasn't in the pasted MAO list. Add the PO # and it'll go straight into holding.</p>
+    <label>Barcode
+      <input type="text" id="receiving-add-box-barcode" readonly>
+    </label>
+    <label>PO #
+      <input type="text" id="receiving-add-box-po" autocomplete="off" placeholder="Enter PO #">
+    </label>
+    <div class="active-item-actions">
+      <button id="receiving-add-box-save-btn" class="btn primary">Add &amp; Hold</button>
+      <button id="receiving-add-box-cancel-btn" class="btn secondary">Cancel</button>
+    </div>
+    <p id="receiving-add-box-status" class="status-msg" role="status"></p>
   </div>
 </div>
 

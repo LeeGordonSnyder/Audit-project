@@ -60,6 +60,9 @@ function initReceiving() {
 
   document.getElementById("export-receiving-csv-btn").addEventListener("click", exportReceivingCsv);
 
+  document.getElementById("receiving-add-box-save-btn").addEventListener("click", saveReceivingAddBoxModal);
+  document.getElementById("receiving-add-box-cancel-btn").addEventListener("click", closeReceivingAddBoxModal);
+
   renderReceivingList();
   renderReceivingHolding();
 }
@@ -84,12 +87,12 @@ function addBoxToHolding(barcode) {
   const master = loadJSON(STORAGE.receivingMaster, []);
   const item = master.find((p) => p.barcode === barcode);
 
-  if (!item) return { ok: false, message: `${barcode} — not in the expected shipment list.` };
-  if (item.receivedIntoMaoDate) return { ok: false, message: `${barcode} — already received into MAO.` };
+  if (!item) return { ok: false, reason: "not-expected", message: `${barcode} — not in the expected shipment list.` };
+  if (item.receivedIntoMaoDate) return { ok: false, reason: "already-mao", message: `${barcode} — already received into MAO.` };
 
   const holding = loadReceivingHolding();
   if (holding.some((b) => b.barcode === barcode)) {
-    return { ok: false, message: `${barcode} — already in the holding list.` };
+    return { ok: false, reason: "already-held", message: `${barcode} — already in the holding list.` };
   }
 
   holding.push({ barcode: item.barcode, po: item.po });
@@ -99,9 +102,13 @@ function addBoxToHolding(barcode) {
 
 // Called on every decode while the continuous scanner is open — feedback
 // goes into the scanner modal itself (scanner-modal-feedback) since the
-// modal covers the whole page while scanning.
+// modal covers the whole page while scanning. A barcode that isn't in the
+// expected shipment list at all stops the scan and hands off to the
+// "add manually" modal instead of just reporting an error — that's the
+// one case where staff actually need to do something about it.
 function handleReceivingScan(text) {
-  const result = addBoxToHolding(text.trim());
+  const barcode = text.trim();
+  const result = addBoxToHolding(barcode);
 
   if (result.ok) {
     renderReceivingList();
@@ -111,8 +118,64 @@ function handleReceivingScan(text) {
       `${result.message} ${result.heldCount} box${result.heldCount === 1 ? "" : "es"} held.`,
       false
     );
-  } else {
-    setStatus("scanner-modal-feedback", result.message, true);
+    return;
+  }
+
+  if (result.reason === "not-expected") {
+    closeScanner();
+    openReceivingAddBoxModal(barcode);
+    return;
+  }
+
+  setStatus("scanner-modal-feedback", result.message, true);
+}
+
+/* ---------- "Box not in expected shipments" manual add ---------- */
+
+function openReceivingAddBoxModal(barcode) {
+  document.getElementById("receiving-add-box-barcode").value = barcode;
+  document.getElementById("receiving-add-box-po").value = "";
+  setStatus("receiving-add-box-status", "", false);
+  document.getElementById("receiving-add-box-modal").hidden = false;
+  document.getElementById("receiving-add-box-po").focus();
+}
+
+function closeReceivingAddBoxModal() {
+  document.getElementById("receiving-add-box-modal").hidden = true;
+}
+
+// Adds locally first (so the box lands in holding right away, no
+// connection required to keep working), then tries to share it — same
+// resilience pattern as adding a new catalog product from the Audit
+// Dashboard. It reuses the same "receivingimport" endpoint the paste
+// import uses, just with one item instead of a batch.
+async function saveReceivingAddBoxModal() {
+  const barcode = document.getElementById("receiving-add-box-barcode").value;
+  const po = document.getElementById("receiving-add-box-po").value.trim();
+
+  if (!po) {
+    setStatus("receiving-add-box-status", "Enter the PO # first.", true);
+    return;
+  }
+
+  const item = { barcode, po, expectedDate: "" };
+  upsertReceivingMaster([item]);
+  addBoxToHolding(barcode);
+
+  renderReceivingList();
+  renderReceivingHolding();
+  closeReceivingAddBoxModal();
+  setStatus("receiving-status-msg", `Added ${barcode} (PO ${po}) and put it in holding — sharing with the sheet…`, false);
+
+  try {
+    await pushReceivingItemToSheet(getWebhookUrl(), item);
+    setStatus("receiving-status-msg", `Added ${barcode} (PO ${po}) to holding and shared it with the sheet.`, false);
+  } catch (e) {
+    setStatus(
+      "receiving-status-msg",
+      `Added ${barcode} (PO ${po}) to holding locally, but couldn't share it yet — check your connection. It'll stay local until the next successful import/scan.`,
+      true
+    );
   }
 }
 

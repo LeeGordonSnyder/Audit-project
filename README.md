@@ -159,8 +159,16 @@ Tap **📷 Scan Boxes** to start scanning — unlike the other scan buttons in
 this app, **this camera stays open across multiple scans** instead of
 closing after one, since you're usually working through a stack of boxes.
 Each recognized barcode drops that box into the **Scanned — Holding**
-section at the bottom (with live feedback right in the camera view), and
-you close the camera yourself when done (**Done Scanning**).
+section (with live feedback right in the camera view), and you close the
+camera yourself when done (**Done Scanning**).
+
+A barcode that isn't in the expected shipment list at all — never pasted
+from MAO — stops the scan and opens a small **Box Not in Expected
+Shipments** prompt instead of just showing an error: the barcode is
+already filled in, so you only need to type the **PO #**. Saving adds it
+to ReceivingLog (with no expected date, since MAO never gave one) and
+drops it straight into holding, same as any other scan — tap **Scan
+Boxes** again to keep going.
 
 No camera handy — working from a computer instead of a phone? Check the
 box(es) next to the relevant rows in the Expected Boxes table and tap
@@ -916,7 +924,10 @@ Sheet and sync automatically:
   manual/batched, not automatic per scan.
 - **New/added catalog products** try to push to the Sheet immediately; if
   that fails (offline), they stay local-only until the next import or scan
-  that has a connection.
+  that has a connection. **A box added manually** via the Receiving Log's
+  "Box Not in Expected Shipments" prompt follows the same pattern — it
+  lands in holding locally right away regardless of connection, and just
+  tries to share to the sheet in the background.
 - **Consolidation actions** (closing a Packed Box, marking an item out) push
   immediately and atomically — there's nothing to manually sync. If the
   request fails, nothing changes (the box stays staged, the item stays

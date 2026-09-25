@@ -95,6 +95,16 @@ body {
   box-shadow: 0 1px 4px rgba(0,0,0,0.15);
 }
 
+.header-version {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 18px);
+  left: 14px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
 .header-icon-btn {
   position: absolute;
   top: calc(env(safe-area-inset-top) + 12px);
