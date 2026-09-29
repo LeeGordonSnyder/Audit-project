@@ -9,7 +9,7 @@ const TAB_REFRESHERS = {
   master: () => renderMasterTable(),
   consol: () => {
     renderConsolList();
-    renderConsolBox();
+    renderConsolHolding();
     renderConsolLog();
   },
   receiving: () => {

@@ -17,7 +17,7 @@
 <div class="app-header">
   <header class="topbar">
     <!-- Bump this by 1 on every shipped change, same as sw.js's CACHE_NAME. -->
-    <span class="header-version">v28</span>
+    <span class="header-version">v29</span>
     <img src="icons/icon-192.png" alt="Oakridge Park Arc'teryx" class="topbar-logo">
     <h1>Oakridge Ops Suite</h1>
     <div id="offline-badge" class="badge" hidden>Offline</div>
@@ -207,30 +207,34 @@
     </div>
 
     <div class="audit-list-header">
-      <h2>Packed Box</h2>
+      <h2>Consolidation — Holding</h2>
       <div class="audit-list-actions">
-        <span id="consol-box-count" class="hint"></span>
+        <span id="consol-holding-count" class="hint"></span>
       </div>
     </div>
-    <p class="hint">Items marked Completed above land here. Once the box is packed, scan the packing slip to log and upload everything in it as a group — the box then clears, ready for the next one.</p>
-
-    <p id="consol-box-empty" class="hint">Nothing staged yet — mark an item Completed above to add it here.</p>
-    <div id="consol-box-table-wrap" class="table-wrap" hidden>
-      <table class="master-table consol-box-table">
+    <p id="consol-holding-empty" class="hint">Nothing staged yet — mark an item Actioned or Needs Adjustment above.</p>
+    <div id="consol-holding-table-wrap" class="table-wrap" hidden>
+      <table class="master-table consol-holding-table">
         <thead>
           <tr>
             <th>Description</th>
-            <th>Colour</th>
-            <th>Total</th>
+            <th>Status</th>
+            <th>Sizes</th>
             <th></th>
           </tr>
         </thead>
-        <tbody id="consol-box-table-body"></tbody>
+        <tbody id="consol-holding-table-body"></tbody>
       </table>
     </div>
 
+    <div class="active-item-actions">
+      <button id="consol-update-btn" class="btn primary" disabled>Update</button>
+    </div>
+
+    <h2>Close a Box</h2>
+    <p class="hint">Just registers who closed the box and when — the reference number alone is enough to look its contents up in MAO, so nothing about what's inside it needs to be entered here.</p>
     <div class="scan-buttons-row">
-      <button id="scan-packout-btn" class="btn primary" disabled>📷 Scan Packing Slip — Close Box</button>
+      <button id="scan-close-box-btn" class="btn primary">📷 Scan Packing Slip — Close Box</button>
     </div>
     <p id="consol-packout-status" class="status-msg" role="status"></p>
 

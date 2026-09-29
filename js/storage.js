@@ -7,7 +7,7 @@ const STORAGE = {
   webhookUrl: "audit.webhookUrl.v1",
   consolMaster: "audit.consolMaster.v1",
   consolLog: "audit.consolLog.v1",
-  consolBox: "audit.consolBox.v1",
+  consolHolding: "audit.consolHolding.v1",
   receivingMaster: "audit.receivingMaster.v1",
   receivingHolding: "audit.receivingHolding.v1",
   floorRestock: "audit.floorRestock.v1",

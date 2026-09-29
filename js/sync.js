@@ -63,20 +63,23 @@ function postStaffAdd(url, payload) {
   return postToSheet(url, { type: "staffadd", ...payload });
 }
 
-// Closes a Packed Box: logs every staged item as Completed under one
-// packing-slip reference number, plus a closure record, and flags each as
-// Processed on the ConsolMaster sheet — all in a single request.
+// Registers who closed a box, and when — deliberately just the reference
+// number, initials, and date, nothing about what's inside it (that's
+// looked up in MAO by the reference number instead). Independent of the
+// Consolidation Holding/Update flow below.
 function postConsolBoxCloseToSheet(url, payload) {
   return postToSheet(url, { type: "consolboxclose", ...payload });
 }
 
-// Logs a "Needs Adjustment" consolidation mark-out for one or more sizes of
-// the same style in one request: records each in the consolidation log,
-// pushes each chosen UPC/units into the AuditLog's Mark Out section, and
-// flags the item Processed on the ConsolMaster sheet once. payload.items
-// is an array of { upc, size, units, productDescription }.
-function postConsolMarkoutToSheet(url, payload) {
-  return postToSheet(url, { type: "consolmarkoutbatch", ...payload });
+// Commits every staged Consolidation decision in one request.
+// payload.decisions is an array of { eccMaterial, description, color,
+// status: "Actioned"|"Needs Adjustment", items? } — items (an array of
+// { upc, size, units, productDescription }) is only present for a Needs
+// Adjustment decision. Logs each in the consolidation log, pushes every
+// Needs Adjustment size into the AuditLog's Mark Out section, and flags
+// every item Processed on the ConsolMaster sheet.
+function postConsolUpdate(url, payload) {
+  return postToSheet(url, { type: "consolupdate", ...payload });
 }
 
 // Marks one ConsolLog "Needs Adjustment" entry Resolved. The row itself

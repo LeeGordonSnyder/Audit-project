@@ -119,34 +119,36 @@ Needs Adjustment flow below to find its sizes.
 
 Every item shows a **Status** dropdown:
 
-- **Completed** — moves it into the **Packed Box** section below (it's a
-  physical item that's actually going in the box being packed right now).
+- **Actioned** — the item was physically found and handled. Stages it
+  straight into **Consolidation — Holding** below, same as everything
+  else here — nothing hits the sheet until Update.
 - **Needs Adjustment** — something showed in MAO during consolidation that
   couldn't be found physically. Opens a picker of every size/colour Product
   Master has on file for that item's Style SKU — pick a size/colour, enter
   units, and tap **+ Add Size**; repeat for every size that's actually
   short (it's common for more than one size of a style to need marking
-  out) before tapping **Save**, which pushes every added size in one go,
-  straight to the **AuditLog's shared Mark Out section** by UPC, the same
-  queue a discrepant physical count feeds. (Marking product *in* isn't
-  needed here — anything actually on hand gets consolidated through the normal process
-  anyway.)
+  out) before tapping **Save**, which stages the whole set as one entry in
+  Holding (Marking product *in* isn't needed here — anything actually on
+  hand gets consolidated through the normal process anyway).
 
-The **Packed Box** is where Completed items collect while you're physically
-packing them — a lightweight, per-device staging area. Made a mistake? Tap
-**Remove** to send an item back to the list above. Once the box is actually
-packed, tap **📷 Scan Packing Slip — Close Box** and scan its barcode/QR
-(its reference number) — that logs every item currently in the box as
-Completed under that reference number, plus one closure record, all in a
-single request. The box then clears itself, ready for the next one. If the
-request fails (no connection), the box's contents are untouched — just scan
-again once you're back online.
+Both decisions land in a **holding** list first — nothing hits the sheet
+until you tap **Update**, which commits every staged decision in one
+request: it logs each in the Consolidation Log (one row per Actioned item,
+one row per size for a Needs Adjustment item), pushes every Needs
+Adjustment size straight to the **AuditLog's shared Mark Out section** by
+UPC (the same queue a discrepant physical count feeds), and flags every
+item **Processed** back on the ConsolMaster sheet. **Processed is the
+qualifier for whether a line still shows on the website** — once set, the
+item drops off the Items to Consolidate list (checked again on refresh,
+and updated locally the instant Update succeeds).
 
-Both actions — closing a box and marking an item out — also flag that row
-**Processed** back on the ConsolMaster sheet. **Processed is the qualifier
-for whether a line still shows on the website** — once set, the item drops
-off the Items to Consolidate list (checked again on refresh, and updated
-locally the instant the action succeeds).
+**Close a Box** is completely separate from all of the above, and
+deliberately knows nothing about what's inside the box: scan its
+barcode/QR (its reference number) and that's logged immediately — just the
+reference number, your initials, and the timestamp. Looking up what was
+actually in the box happens in MAO by that reference number, not here, so
+there's nothing to stage or review first; this button is always available,
+independent of whatever's currently staged in Holding.
 
 The **Consolidation Log** below lists every status change and box closure —
 there's nothing to manually sync here, every action pushes to the sheet
@@ -371,7 +373,7 @@ Setup, if you're starting fresh or need to redeploy:
      const body = JSON.parse(e.postData.contents);
      if (body.type === "master") return handleMasterPost(body);
      if (body.type === "consolboxclose") return handleConsolBoxClose(body);
-     if (body.type === "consolmarkoutbatch") return handleConsolMarkoutBatch(body);
+     if (body.type === "consolupdate") return handleConsolUpdate(body);
      if (body.type === "receivingimport") return handleReceivingImportPost(body);
      if (body.type === "receivingimportbatch") return handleReceivingImportBatch(body);
      if (body.type === "receivingstatus") return handleReceivingStatusPost(body);
@@ -1072,13 +1074,6 @@ Setup, if you're starting fresh or need to redeploy:
      });
    }
 
-   // Single-material convenience wrapper, for the one call site (a mark-out
-   // batch is always for one style/ECC material at a time) that doesn't have
-   // a list to begin with.
-   function markConsolProcessed(eccMaterial) {
-     markConsolProcessedBatch([eccMaterial]);
-   }
-
    function consolLogRow(fields) {
      return CONSOL_LOG_HEADER.map((key) => (key in fields ? fields[key] : ""));
    }
@@ -1091,82 +1086,95 @@ Setup, if you're starting fresh or need to redeploy:
      sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, CONSOL_LOG_HEADER.length).setValues(rows);
    }
 
-   // Closes a Packed Box: logs every item as Completed under one packing slip
-   // reference number, flags each Processed on ConsolMaster, and adds one
-   // closure record -- all from a single request, all in one batched write.
+   // Registers who closed a box, and when -- deliberately just the reference
+   // number, initials, and date, nothing about what's inside it. The
+   // reference number alone is enough to look the box's contents up in MAO,
+   // so this never touches ConsolMaster and is completely independent of
+   // handleConsolUpdate below.
    function handleConsolBoxClose(body) {
      const date = body.date ? new Date(body.date + "T00:00:00") : new Date();
-     const timestamp = new Date();
-     const items = body.items || [];
-
-     const logRows = items.map((item) =>
-       consolLogRow({
-         id: Utilities.getUuid(),
-         entryType: "status",
-         date: date,
-         timestamp: timestamp,
-         initials: body.initials || "",
-         eccMaterial: item.eccMaterial || "",
-         description: item.description || "",
-         color: item.color || "",
-         status: "Completed",
-         referenceNumber: body.referenceNumber || "",
-       })
-     );
-     logRows.push(
+     appendConsolLogRows([
        consolLogRow({
          id: Utilities.getUuid(),
          entryType: "packout",
          date: date,
-         timestamp: timestamp,
-         initials: body.initials || "",
-         unitsOut: items.length,
-         referenceNumber: body.referenceNumber || "",
-       })
-     );
-     appendConsolLogRows(logRows);
-
-     markConsolProcessedBatch(items.map((item) => item.eccMaterial));
-
-     return jsonResponse({ ok: true, processed: items.length });
-   }
-
-   // "Needs Adjustment" for one or more sizes of the same style, submitted
-   // together in one request (body.items = [{ upc, size, units,
-   // productDescription }, ...]): logs each in the consolidation log, pushes
-   // each chosen UPC/units into the AuditLog's existing shared Mark Out
-   // section (same queue regular audit shrink uses -- this assumes Mark Out
-   // starts at column U (21), 6 columns wide: Date, UPC, Description, Units
-   // to Remove, Lead Initials, Date Complete), and flags the ConsolMaster row
-   // Processed once at the end.
-   function handleConsolMarkoutBatch(body) {
-     const date = body.date ? new Date(body.date + "T00:00:00") : new Date();
-     const items = body.items || [];
-     const auditSheet = getOrCreateSheet("AuditLog", AUDIT_HEADER);
-
-     const logRows = items.map((item) =>
-       consolLogRow({
-         id: Utilities.getUuid(),
-         entryType: "status",
-         date: date,
          timestamp: new Date(),
          initials: body.initials || "",
-         eccMaterial: body.eccMaterial || "",
-         description: body.description || "",
-         color: body.color || "",
-         status: "Needs Adjustment",
-         size: item.size || "",
-         unitsOut: item.units || 0,
-       })
-     );
+         referenceNumber: body.referenceNumber || "",
+       }),
+     ]);
+     return jsonResponse({ ok: true });
+   }
+
+   // Commits every staged Consolidation decision in one request.
+   // body.decisions is an array of { eccMaterial, description, color,
+   // status: "Actioned"|"Needs Adjustment", items? } -- items (only present
+   // for a Needs Adjustment decision) is an array of { upc, size, units,
+   // productDescription }. Logs one ConsolLog row per Actioned decision and
+   // one per Needs Adjustment size, pushes every Needs Adjustment size into
+   // the AuditLog's existing shared Mark Out section (same queue regular
+   // audit shrink uses -- this assumes Mark Out starts at column U (21), 6
+   // columns wide: Date, UPC, Description, Units to Remove, Lead Initials,
+   // Date Complete), and flags every item Processed on ConsolMaster -- all
+   // batched into a handful of calls regardless of how many decisions are in
+   // the request.
+   function handleConsolUpdate(body) {
+     const decisions = body.decisions || [];
+     if (decisions.length === 0) return jsonResponse({ ok: true, updated: 0 });
+
+     const date = body.date ? new Date(body.date + "T00:00:00") : new Date();
+     const timestamp = new Date();
+
+     const logRows = [];
+     const markOutRows = [];
+
+     decisions.forEach((d) => {
+       if (d.status === "Needs Adjustment") {
+         (d.items || []).forEach((item) => {
+           logRows.push(
+             consolLogRow({
+               id: Utilities.getUuid(),
+               entryType: "status",
+               date: date,
+               timestamp: timestamp,
+               initials: body.initials || "",
+               eccMaterial: d.eccMaterial || "",
+               description: d.description || "",
+               color: d.color || "",
+               status: "Needs Adjustment",
+               size: item.size || "",
+               unitsOut: item.units || 0,
+             })
+           );
+           markOutRows.push([date, item.upc || "", item.productDescription || "", item.units || 0, "", ""]);
+         });
+       } else {
+         logRows.push(
+           consolLogRow({
+             id: Utilities.getUuid(),
+             entryType: "status",
+             date: date,
+             timestamp: timestamp,
+             initials: body.initials || "",
+             eccMaterial: d.eccMaterial || "",
+             description: d.description || "",
+             color: d.color || "",
+             status: "Actioned",
+           })
+         );
+       }
+     });
+
      appendConsolLogRows(logRows);
 
-     const markOutRows = items.map((item) => [date, item.upc || "", item.productDescription || "", item.units || 0, "", ""]);
-     appendRowsToSection(auditSheet, 21, 6, markOutRows);
+     if (markOutRows.length > 0) {
+       const auditSheet = getOrCreateSheet("AuditLog", AUDIT_HEADER);
+       appendRowsToSection(auditSheet, 21, 6, markOutRows);
+     }
 
-     markConsolProcessed(body.eccMaterial);
+     markConsolProcessedBatch(decisions.map((d) => d.eccMaterial));
 
-     return jsonResponse({ ok: true, items: items.length });
+     return jsonResponse({ ok: true, updated: decisions.length });
    }
 
    // Marks one ConsolLog "Needs Adjustment" entry Resolved. The row itself
@@ -1322,10 +1330,12 @@ consolidation log are all backed by the Sheet and sync automatically:
   "Box Not in Expected Shipments" prompt follows the same pattern — it
   lands in holding locally right away regardless of connection, and just
   tries to share to the sheet in the background.
-- **Consolidation actions** (closing a Packed Box, marking an item out) push
-  immediately and atomically — there's nothing to manually sync. If the
-  request fails, nothing changes (the box stays staged, the item stays
-  actionable) so it's always safe to just try again.
+- **Consolidation decisions** (Actioned, Needs Adjustment) stage into
+  Holding like Check Floor/Replen — nothing hits the sheet until Update,
+  which pushes the whole batch atomically; if it fails, everything stays
+  staged so it's always safe to just try again. **Closing a box** is
+  separate and pushes immediately on scan, same reasoning — if it fails,
+  nothing was logged, so just scan again.
 - **The consolidation list itself is never written by the app** — it's
   pasted directly into the ConsolMaster sheet, and the app only ever reads
   it (on boot/refresh, or on demand via **🔄 Refresh from Sheet**).
@@ -1403,8 +1413,8 @@ Also: `ensurePlainTextColumn` used to reformat all the way to
 repeated pastes/deletes) on every single receiving write — now bounded to
 the actual used range plus a little headroom. `getSpreadsheet()` is
 memoized per execution so handlers that touch more than one sheet (e.g.
-closing a Packed Box, which touches ConsolLog and ConsolMaster) don't
-re-fetch the spreadsheet object for each one.
+committing a Consolidation Update, which touches ConsolLog, AuditLog, and
+ConsolMaster) don't re-fetch the spreadsheet object for each one.
 
 `doGet` also caches its JSON response for 10 seconds
 (`DOGET_CACHE_SECONDS`) so two staff refreshing around the same time don't

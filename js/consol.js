@@ -18,90 +18,87 @@ function initConsol() {
 
   document.getElementById("consol-filter").addEventListener("input", renderConsolList);
 
-  document.getElementById("scan-packout-btn").addEventListener("click", () => {
-    openScanner("Scanning packing slip…", handlePackoutScan);
+  document.getElementById("scan-close-box-btn").addEventListener("click", () => {
+    openScanner("Scanning packing slip…", handleBoxCloseScan);
   });
 
   document.getElementById("consol-adjust-add-row-btn").addEventListener("click", addConsolAdjustRow);
   document.getElementById("consol-adjust-save-btn").addEventListener("click", saveConsolAdjustModal);
   document.getElementById("consol-adjust-cancel-btn").addEventListener("click", closeConsolAdjustModal);
 
+  document.getElementById("consol-update-btn").addEventListener("click", commitConsolUpdate);
+
   document.getElementById("export-consol-csv-btn").addEventListener("click", exportConsolCsv);
 
   renderConsolList();
-  renderConsolBox();
+  renderConsolHolding();
   renderConsolLog();
 }
 
-/* ---------- Packed Box (local staging before a packing-slip scan) ---------- */
+/* ---------- Holding (staged Actioned/Needs Adjustment decisions) ----------
+   Same pattern as Check Floor/Replen: nothing hits the sheet until Update
+   commits everything staged in one request. Closing a box is a completely
+   separate action now (see handleBoxCloseScan below) — it doesn't touch
+   this holding area or ConsolMaster at all. */
 
-function loadConsolBox() {
-  return loadJSON(STORAGE.consolBox, []);
+function loadConsolHolding() {
+  return loadJSON(STORAGE.consolHolding, []);
 }
 
-function saveConsolBox(box) {
-  saveJSON(STORAGE.consolBox, box);
+function saveConsolHolding(holding) {
+  saveJSON(STORAGE.consolHolding, holding);
 }
 
-function isBoxed(eccMaterial) {
-  return loadConsolBox().some((b) => b.eccMaterial === eccMaterial);
+function isConsolHeld(eccMaterial) {
+  return loadConsolHolding().some((h) => h.eccMaterial === eccMaterial);
 }
 
-function addItemToBox(item) {
-  const box = loadConsolBox();
-  if (box.some((b) => b.eccMaterial === item.eccMaterial)) return;
-  box.push({
-    eccMaterial: item.eccMaterial,
-    description: item.description,
-    color: item.color,
-    destination: item.destination,
-    total: item.total,
-  });
-  saveConsolBox(box);
+function stageConsolDecision(decision) {
+  const holding = loadConsolHolding();
+  if (holding.some((h) => h.eccMaterial === decision.eccMaterial)) return;
+  holding.push(decision);
+  saveConsolHolding(holding);
+  renderConsolHolding();
 }
 
-function removeItemFromBox(eccMaterial) {
-  saveConsolBox(loadConsolBox().filter((b) => b.eccMaterial !== eccMaterial));
+function removeConsolHolding(eccMaterial) {
+  saveConsolHolding(loadConsolHolding().filter((h) => h.eccMaterial !== eccMaterial));
   renderConsolList();
-  renderConsolBox();
+  renderConsolHolding();
 }
 
-function renderConsolBox() {
-  const tbody = document.getElementById("consol-box-table-body");
-  const wrap = document.getElementById("consol-box-table-wrap");
-  const emptyMsg = document.getElementById("consol-box-empty");
-  const scanBtn = document.getElementById("scan-packout-btn");
-  const box = loadConsolBox();
+function renderConsolHolding() {
+  const tbody = document.getElementById("consol-holding-table-body");
+  const wrap = document.getElementById("consol-holding-table-wrap");
+  const emptyMsg = document.getElementById("consol-holding-empty");
+  const holding = loadConsolHolding();
 
-  document.getElementById("consol-box-count").textContent = box.length
-    ? `${box.length} item${box.length === 1 ? "" : "s"} staged`
-    : "";
+  document.getElementById("consol-holding-count").textContent = holding.length ? `${holding.length} staged` : "";
+  document.getElementById("consol-update-btn").disabled = holding.length === 0;
 
-  if (box.length === 0) {
+  if (holding.length === 0) {
     emptyMsg.hidden = false;
     wrap.hidden = true;
-    scanBtn.disabled = true;
     return;
   }
-
   emptyMsg.hidden = true;
   wrap.hidden = false;
-  scanBtn.disabled = false;
 
   tbody.innerHTML = "";
-  for (const item of box) {
+  for (const h of holding) {
+    const sizesText = h.status === "Needs Adjustment" ? h.items.map((i) => `${i.size} ×${i.units}`).join(", ") : "—";
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${escapeHtml(item.description)}</td>
-      <td>${escapeHtml(item.color)}</td>
-      <td class="num">${item.total}</td>
-      <td><button class="btn secondary small consol-box-remove-btn" data-ecc="${escapeHtml(item.eccMaterial)}">Remove</button></td>
+      <td>${escapeHtml(h.description)} — ${escapeHtml(h.color)}</td>
+      <td>${escapeHtml(h.status)}</td>
+      <td>${escapeHtml(sizesText)}</td>
+      <td><button class="btn secondary small consol-holding-remove-btn" data-ecc="${escapeHtml(h.eccMaterial)}">Remove</button></td>
     `;
     tbody.appendChild(tr);
   }
 
-  tbody.querySelectorAll(".consol-box-remove-btn").forEach((btn) => {
-    btn.addEventListener("click", () => removeItemFromBox(btn.dataset.ecc));
+  tbody.querySelectorAll(".consol-holding-remove-btn").forEach((btn) => {
+    btn.addEventListener("click", () => removeConsolHolding(btn.dataset.ecc));
   });
 }
 
@@ -113,12 +110,12 @@ function renderConsolList() {
   const filterVal = normalize(document.getElementById("consol-filter").value);
 
   // ConsolMaster's own PROCESSED column is the source of truth for "done" —
-  // set server-side when a box closes or an item is marked Needs Adjustment.
-  // Anything currently staged in the Packed Box is also hidden here (it's
-  // showing there instead) until it's actually processed.
+  // set server-side once a staged decision actually commits via Update.
+  // Anything currently staged in Holding is also hidden here (it's showing
+  // there instead) until it's actually processed.
   const processedCount = master.filter(isConsolProcessed).length;
 
-  const remaining = master.filter((item) => !isConsolProcessed(item) && !isBoxed(item.eccMaterial));
+  const remaining = master.filter((item) => !isConsolProcessed(item) && !isConsolHeld(item.eccMaterial));
 
   const filtered = remaining.filter(
     (item) =>
@@ -129,10 +126,10 @@ function renderConsolList() {
       normalize(item.destination).includes(filterVal)
   );
 
-  const boxedCount = master.length - remaining.length - processedCount;
+  const heldCount = master.length - remaining.length - processedCount;
   document.getElementById("consol-count").textContent =
     `${filtered.length} of ${remaining.length} remaining` +
-    (boxedCount > 0 ? ` · ${boxedCount} in packed box` : "") +
+    (heldCount > 0 ? ` · ${heldCount} in holding` : "") +
     (processedCount > 0 ? ` · ${processedCount} processed` : "");
 
   tbody.innerHTML = "";
@@ -164,7 +161,7 @@ function renderConsolList() {
       item.description
     )}">
           <option value="">Not actioned</option>
-          <option value="Completed">Completed</option>
+          <option value="Actioned">Actioned</option>
           <option value="Needs Adjustment">Needs Adjustment</option>
         </select>
       </td>
@@ -188,15 +185,13 @@ function handleConsolStatusChange(sel) {
 
   if (status === "Needs Adjustment") {
     openConsolAdjustModal(item);
-    return; // logging + push happens once the modal is saved
+    return; // staging happens once the modal is saved
   }
 
-  // Completed — stage it in the Packed Box instead of processing it right
-  // away; it's actually logged and flagged Processed once the box is
-  // scanned and closed out.
-  addItemToBox(item);
+  // Actioned — stage it into Holding, same as everything else; nothing
+  // hits the sheet until Update.
+  stageConsolDecision({ eccMaterial: item.eccMaterial, description: item.description, color: item.color, status: "Actioned" });
   renderConsolList();
-  renderConsolBox();
 }
 
 /* ---------- Needs Adjustment: cross-reference Product Master by style ---------- */
@@ -300,139 +295,145 @@ function renderConsolAdjustRows() {
   });
 }
 
-async function saveConsolAdjustModal() {
+function saveConsolAdjustModal() {
   if (!consolAdjustItem || consolAdjustRows.length === 0) return;
 
+  stageConsolDecision({
+    eccMaterial: consolAdjustItem.eccMaterial,
+    description: consolAdjustItem.description,
+    color: consolAdjustItem.color,
+    status: "Needs Adjustment",
+    items: consolAdjustRows.map((r) => ({ upc: r.upc, size: r.size, units: r.units, productDescription: r.productDescription })),
+  });
+
+  consolAdjustItem = null;
+  consolAdjustVariants = [];
+  consolAdjustRows = [];
+  document.getElementById("consol-adjust-modal").hidden = true;
+
+  renderConsolList();
+}
+
+/* ---------- Update: commit every staged Holding decision in one request ---------- */
+
+async function commitConsolUpdate() {
+  const holding = loadConsolHolding();
+  if (holding.length === 0) return;
+
   if (!navigator.onLine) {
-    alert("Offline — can't mark out right now. Try again once you have a connection.");
+    setStatus("consol-list-status", "Offline — nothing was updated. Try again once you have a connection.", true);
     return;
   }
 
-  const item = consolAdjustItem;
-  const rows = consolAdjustRows;
   const session = loadJSON(STORAGE.session, {});
-  const date = todayISO();
   const initials = (session.initials || "").trim();
+  const date = todayISO();
+  const nowIso = new Date().toISOString();
 
-  setStatus("consol-list-status", `Marking out ${rows.length} size${rows.length === 1 ? "" : "s"}…`, false);
+  setStatus("consol-list-status", `Updating ${holding.length} item${holding.length === 1 ? "" : "s"}…`, false);
 
   try {
-    await postConsolMarkoutToSheet(getWebhookUrl(), {
-      date,
+    await postConsolUpdate(getWebhookUrl(), {
       initials,
-      eccMaterial: item.eccMaterial,
-      description: item.description,
-      color: item.color,
-      items: rows.map((r) => ({ upc: r.upc, size: r.size, units: r.units, productDescription: r.productDescription })),
+      date,
+      decisions: holding.map((h) => ({
+        eccMaterial: h.eccMaterial,
+        description: h.description,
+        color: h.color,
+        status: h.status,
+        items: h.status === "Needs Adjustment" ? h.items : undefined,
+      })),
     });
 
-    // Mark it Processed locally so it drops off the list immediately —
-    // the server just did the same to the sheet.
+    // Mirror the same effects locally instead of waiting on a fresh GET:
+    // flag every held item Processed and record its ConsolLog entry (or
+    // entries — one per size for Needs Adjustment).
     const master = loadJSON(STORAGE.consolMaster, []);
-    const idx = master.findIndex((p) => p.eccMaterial === item.eccMaterial);
-    if (idx !== -1) {
-      master[idx].processed = "Processed";
-      saveJSON(STORAGE.consolMaster, master);
-    }
-
     const log = loadJSON(STORAGE.consolLog, []);
-    const timestamp = new Date().toISOString();
-    for (const r of rows) {
-      log.unshift({
-        id: uid(),
-        entryType: "status",
-        timestamp,
-        date,
-        initials,
-        eccMaterial: item.eccMaterial,
-        description: item.description,
-        color: item.color,
-        status: "Needs Adjustment",
-        size: r.size,
-        unitsOut: r.units,
-        referenceNumber: "",
-        synced: true,
-      });
-    }
-    saveJSON(STORAGE.consolLog, log);
 
-    consolAdjustItem = null;
-    consolAdjustVariants = [];
-    consolAdjustRows = [];
-    document.getElementById("consol-adjust-modal").hidden = true;
+    for (const h of holding) {
+      const idx = master.findIndex((p) => p.eccMaterial === h.eccMaterial);
+      if (idx !== -1) master[idx].processed = "Processed";
+
+      if (h.status === "Actioned") {
+        log.unshift({
+          id: uid(),
+          entryType: "status",
+          timestamp: nowIso,
+          date,
+          initials,
+          eccMaterial: h.eccMaterial,
+          description: h.description,
+          color: h.color,
+          status: "Actioned",
+          size: "",
+          unitsOut: 0,
+          referenceNumber: "",
+          synced: true,
+        });
+      } else {
+        for (const it of h.items) {
+          log.unshift({
+            id: uid(),
+            entryType: "status",
+            timestamp: nowIso,
+            date,
+            initials,
+            eccMaterial: h.eccMaterial,
+            description: h.description,
+            color: h.color,
+            status: "Needs Adjustment",
+            size: it.size,
+            unitsOut: it.units,
+            referenceNumber: "",
+            synced: true,
+          });
+        }
+      }
+    }
+
+    saveJSON(STORAGE.consolMaster, master);
+    saveJSON(STORAGE.consolLog, log);
+    saveConsolHolding([]);
 
     renderConsolList();
+    renderConsolHolding();
     renderConsolLog();
+    setStatus("consol-list-status", `Updated ${holding.length} item${holding.length === 1 ? "" : "s"}.`, false);
+  } catch (e) {
     setStatus(
       "consol-list-status",
-      `Marked out ${rows.length} size${rows.length === 1 ? "" : "s"} for ${item.description} — pushed to the Mark Out queue.`,
-      false
+      "Couldn't reach the sheet — check your connection and try again. Items stay staged.",
+      true
     );
-  } catch (e) {
-    setStatus("consol-list-status", "Couldn't reach the sheet — check your connection and try again.", true);
   }
 }
 
-/* ---------- Packing slip scan: close the box as a group ---------- */
+/* ---------- Packing slip scan: register who closed a box, and when ----------
+   Deliberately doesn't know or care what's in the box — the reference
+   number alone is enough to look its contents up in MAO, so this is
+   completely independent of the Holding/Update flow above. */
 
-async function handlePackoutScan(text) {
-  const box = loadConsolBox();
-  if (box.length === 0) {
-    setStatus("consol-packout-status", "Nothing staged in the box yet — mark items Completed above first.", true);
-    return;
-  }
-
+async function handleBoxCloseScan(text) {
   if (!navigator.onLine) {
-    setStatus("consol-packout-status", "Offline — nothing was logged. Items stay in the box, try scanning again once you're connected.", true);
+    setStatus("consol-packout-status", "Offline — nothing was logged. Scan again once you're connected.", true);
     return;
   }
 
-  setStatus("consol-packout-status", `Logging ${box.length} item${box.length === 1 ? "" : "s"} for box ${text}…`, false);
+  setStatus("consol-packout-status", `Logging box ${text} closed…`, false);
 
   const session = loadJSON(STORAGE.session, {});
   const date = todayISO();
   const initials = (session.initials || "").trim();
 
   try {
-    await postConsolBoxCloseToSheet(getWebhookUrl(), {
-      referenceNumber: text,
-      date,
-      initials,
-      items: box.map((item) => ({ eccMaterial: item.eccMaterial, description: item.description, color: item.color })),
-    });
-
-    // Success — mirror the same effects locally: flag every boxed item
-    // Processed, record the log entries, and clear the box.
-    const master = loadJSON(STORAGE.consolMaster, []);
-    for (const boxItem of box) {
-      const idx = master.findIndex((p) => p.eccMaterial === boxItem.eccMaterial);
-      if (idx !== -1) master[idx].processed = "Processed";
-    }
-    saveJSON(STORAGE.consolMaster, master);
+    await postConsolBoxCloseToSheet(getWebhookUrl(), { referenceNumber: text, date, initials });
 
     const log = loadJSON(STORAGE.consolLog, []);
-    const timestamp = new Date().toISOString();
-    for (const boxItem of box) {
-      log.unshift({
-        id: uid(),
-        entryType: "status",
-        timestamp,
-        date,
-        initials,
-        eccMaterial: boxItem.eccMaterial,
-        description: boxItem.description,
-        color: boxItem.color,
-        status: "Completed",
-        size: "",
-        unitsOut: 0,
-        referenceNumber: text,
-        synced: true,
-      });
-    }
     log.unshift({
       id: uid(),
       entryType: "packout",
-      timestamp,
+      timestamp: new Date().toISOString(),
       date,
       initials,
       eccMaterial: "",
@@ -440,23 +441,18 @@ async function handlePackoutScan(text) {
       color: "",
       status: "",
       size: "",
-      unitsOut: box.length,
+      unitsOut: 0,
       referenceNumber: text,
       synced: true,
     });
     saveJSON(STORAGE.consolLog, log);
 
-    saveConsolBox([]);
-
     renderConsolLog();
-    renderConsolList();
-    renderConsolBox();
-
-    setStatus("consol-packout-status", `Box ${text} closed — ${box.length} item${box.length === 1 ? "" : "s"} logged and uploaded.`, false);
+    setStatus("consol-packout-status", `Box ${text} closed and logged.`, false);
   } catch (e) {
     setStatus(
       "consol-packout-status",
-      `Box ${text}: couldn't reach the sheet — check your connection. Items stay staged, scan again to retry.`,
+      `Box ${text}: couldn't reach the sheet — check your connection and scan again.`,
       true
     );
   }
@@ -489,11 +485,11 @@ function renderConsolLog() {
           <span class="result-pill match">${escapeHtml(e.referenceNumber)}</span>
         </div>
         <div class="meta">
-          ${e.unitsOut} item${e.unitsOut === 1 ? "" : "s"} · ${escapeHtml(e.initials || "—")} · ${escapeHtml(e.date)}
+          ${escapeHtml(e.initials || "—")} · ${escapeHtml(e.date)}
         </div>
       `;
     } else {
-      const pillClass = e.status === "Completed" ? "match" : "under";
+      const pillClass = e.status === "Actioned" ? "match" : "under";
       const needsAdjustment = e.status === "Needs Adjustment";
       div.innerHTML = `
         <div class="audit-entry-top">
