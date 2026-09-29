@@ -362,6 +362,15 @@ function isFloorRestockOnBoard86(item) {
   return (item.outOfStock || "").toString().trim() !== "" && (item.restocked || "").toString().trim() === "";
 }
 
+// GENDER "U" (Unisex) on the MAO export marks an accessory that's stored
+// and restocked straight from the floor, never from the back — it never
+// belongs in Check Floor/Replen/86 Board, so rows like this are dropped
+// entirely when FloorRestock is pulled from the sheet (see
+// loadSharedFloorRestock), not just hidden in one view.
+function isFloorRestockAccessoryGender(gender) {
+  return (gender || "").toString().trim().toUpperCase() === "U";
+}
+
 function getTagLocation(style) {
   const map = loadJSON(STORAGE.tagMap, {});
   return map[style] || "";

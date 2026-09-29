@@ -205,8 +205,14 @@ Two sections built around a shared "items sold" export.
 Clothing Category, Model Name, Color, Size, SKU, Quantity Sold, On Hand
 Quantity) and pastes it directly into the **"FloorRestock"** tab of the
 Google Sheet, same pattern as ConsolMaster — the app never writes the
-import itself, only reads it. Each row shows a **Needed** / **Not Needed**
-button. Above the list, **Add a Product** searches the catalog (SKU, UPC,
+import itself, only reads it. Any row with Gender **"U"** (Unisex) is
+dropped entirely on read — those are accessories stocked and restocked
+straight from the floor, never from the back, so they never belong in
+Check Floor, Replen, or the 86 Board; they simply never enter the app's
+local data (see `isFloorRestockAccessoryGender` in `js/storage.js`), the
+same as if they'd never been pasted at all. Each remaining row shows a
+**Needed** / **Not Needed** button. Above the list, **Add a Product**
+searches the catalog (SKU, UPC,
 description, style — same matching Tag Lookup and the Audit Dashboard's
 lookup use) for anything that wasn't on the "items sold" export — tapping
 a result appends it as a new blank row here, for the same Needed/Not
@@ -331,6 +337,10 @@ One spreadsheet with eight tabs:
   checks sizes beyond the row's own size appends one new row per extra
   size (Quantity Sold/On Hand left blank, Status "Needed") — those rows
   are the Replen queue entries for sizes that were never actually sold.
+  A row with GENDER "U" is filtered out entirely on the app's side when
+  it's read (accessories stocked straight from the floor, not the back) —
+  the sheet itself is untouched, so it's still there if the export is ever
+  re-read some other way.
 - **Feedback** — every note submitted from the header's **Leave Feedback!**
   button, created automatically by the script if it doesn't already exist.
   Columns: `id / date / initials / feedback / timestamp`. Fully app-managed

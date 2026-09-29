@@ -295,7 +295,10 @@ async function loadSharedFloorRestock() {
   try {
     const remoteRows = await fetchFromSheet(url, "floorrestock");
     if (!Array.isArray(remoteRows)) return;
-    saveJSON(STORAGE.floorRestock, remoteRows.map(sheetRowToFloorRestockItem));
+    const items = remoteRows
+      .map(sheetRowToFloorRestockItem)
+      .filter((item) => !isFloorRestockAccessoryGender(item.gender));
+    saveJSON(STORAGE.floorRestock, items);
   } catch (e) {
     // offline or unreachable — local data stands, next boot/refresh will retry
   }
