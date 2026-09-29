@@ -19,6 +19,7 @@ const SYNC_RETRIES = 3;
 const SYNC_RETRY_DELAY_MS = 700;
 
 async function postToSheet(url, payload, attempt = 1) {
+  let data;
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -26,11 +27,23 @@ async function postToSheet(url, payload, attempt = 1) {
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
+    // Apps Script Web Apps return HTTP 200 even when the underlying
+    // function throws -- the body comes back as an HTML error page instead
+    // of the JSON every handler actually returns, so status alone can't
+    // tell success from failure. Without this, that kind of server-side
+    // error looked exactly like success everywhere in this app: the modal
+    // would close, no error would show, and nothing was ever written.
+    data = JSON.parse(await res.text());
   } catch (e) {
     if (attempt >= SYNC_RETRIES) throw e;
     await sleep(SYNC_RETRY_DELAY_MS * attempt);
     return postToSheet(url, payload, attempt + 1);
   }
+  // A handled, well-formed failure (a missing column, a bad id) isn't a
+  // transient blip retrying would fix -- surface it immediately instead of
+  // silently reporting success.
+  if (data.ok === false) throw new Error(data.error || "Request failed");
+  return data;
 }
 
 async function fetchFromSheet(url, sheet, attempt = 1) {
