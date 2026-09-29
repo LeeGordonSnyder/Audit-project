@@ -212,6 +212,27 @@ lookup use) for anything that wasn't on the "items sold" export — tapping
 a result appends it as a new blank row here, for the same Needed/Not
 Needed decision as anything pasted from MAO.
 
+Right below that, **"Not in the catalog either?"** is for the person
+actually checking the floor — they'll often spot something missing that's
+neither on the sold list nor findable by search (sold the day before,
+mis-scanned, whatever). Type a description, tap **Pick a Size…**, and
+check every size that's actually needed (or type one under **Other**) —
+same multi-select as the Needed picker below, because that's exactly what
+this is standing in for. There's no real SKU for a hand-typed item, so the
+app generates one behind the scenes (`MANUAL-...`) purely to key it
+through the same sku+size matching every other Floor Replen action uses —
+gender, category, and color are left blank, same as a catalog "Add a
+Product," since nothing in the matching or lifecycle logic (Check Floor →
+Replen → 86 Board) ever keys off those fields, only sku+size. Tapping
+**Add** does two things: one immediate request (`floorrestockadd`, the
+same one "Add a Product" uses) creates the row with the first size you
+picked as its own size, then the Needed decision itself — including any
+extra sizes beyond that first one — is staged into **Check Floor —
+Holding** below, exactly like ticking Needed on any real row. It only
+actually reaches the sheet when you tap **Update**, batched together with
+whatever else is staged at that point — indistinguishable, once synced,
+from a row that had been on the items sold list all along.
+
 - **Not Needed** — stages it straight into the holding section below.
 - **Needed** — opens a picker of the core sizes (S, M, L, 30, 32, 34, 2, 4,
   6) or **Other** (any size is fine, just keep the minimum-three-on-the-floor
@@ -228,23 +249,6 @@ size checked beyond the row's own (Quantity Sold/On Hand left blank on
 those — they were never actually sold, they're purely a Replen placeholder).
 The moment Update succeeds, the **Last Floor Check** stamp updates to the
 current date/time and your initials — that's the only thing that moves it.
-
-**Add a product manually**, right above the Replen list, is for anything
-that's neither on the MAO export nor in the catalog — type a description,
-tap **Pick a Size…**, choose one of the core sizes or type your own under
-**Other**, and it's appended straight to Replen with Status "Needed,"
-skipping the Check Floor decision entirely (typing it in by hand *is* that
-decision). There's no real SKU for a hand-typed item, so the app generates
-one behind the scenes (`MANUAL-...`) purely to key it through the same
-sku+size matching every other Floor Replen action uses — gender, category,
-and color are left blank, the same as a catalog "Add a Product," since
-nothing in the matching or lifecycle logic (Check Floor → Replen → 86
-Board) ever keys off those fields, only sku+size. It's a single request
-(`replenmanualadd`), and the server treats that generated SKU as an
-idempotency key — a request retried after it already succeeded (the app
-retries anything it thinks failed) just no-ops instead of adding a
-duplicate row. Picked / Out of Stock / Restocked all work on it exactly
-like any other row.
 
 **Replen** is the picking list — every FloorRestock row with Status
 "Needed" shows here until it's dealt with. Check off **Picked** once it's
@@ -898,6 +902,13 @@ Setup, if you're starting fresh or need to redeploy:
      return jsonResponse({ ok: true });
    }
 
+   // No longer called by the app -- manual Floor Replen entries moved into
+   // the Check Floor / holding flow (floorrestockadd + checkfloorupdate)
+   // instead, so they commit together with everything else staged there.
+   // Left in place (routed but unreachable from the current app) rather
+   // than pulled out, purely to avoid a redeploy with zero functional
+   // effect -- safe to delete next time you're already editing this file.
+   //
    // Adds one manually-typed product straight to Replen (Status "Needed") in
    // a single call. Idempotent by body.sku: the client generates a fresh
    // synthetic SKU per submission, so it can only already exist here if this

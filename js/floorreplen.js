@@ -1,7 +1,7 @@
 "use strict";
 
 let floorNeededItem = null; // FloorRestock item currently being sized in the "Needed" modal
-let replenManualDescription = ""; // description staged for the manual-entry size modal
+let checkFloorManualDescription = ""; // description staged for the manual-entry size modal
 
 function initFloorReplen() {
   document.getElementById("checkfloor-filter").addEventListener("input", renderCheckFloorList);
@@ -20,9 +20,9 @@ function initFloorReplen() {
   document.getElementById("checkfloor-update-btn").addEventListener("click", commitCheckFloorUpdate);
   document.getElementById("replen-update-btn").addEventListener("click", commitReplenUpdate);
 
-  document.getElementById("replen-manual-add-btn").addEventListener("click", openReplenManualSizeModal);
-  document.getElementById("replen-manual-size-save-btn").addEventListener("click", saveReplenManualEntry);
-  document.getElementById("replen-manual-size-cancel-btn").addEventListener("click", closeReplenManualSizeModal);
+  document.getElementById("checkfloor-manual-add-btn").addEventListener("click", openCheckFloorManualSizeModal);
+  document.getElementById("checkfloor-manual-size-save-btn").addEventListener("click", saveCheckFloorManualEntry);
+  document.getElementById("checkfloor-manual-size-cancel-btn").addEventListener("click", closeCheckFloorManualSizeModal);
 
   renderCheckFloorList();
   renderCheckFloorHolding();
@@ -569,26 +569,33 @@ async function commitReplenUpdate() {
 }
 
 /* ---------- Manual entry: not on the MAO export or in the catalog at all ----------
-   Skips Check Floor entirely — typing it in by hand *is* the Needed decision.
-   There's no real SKU for a hand-typed product, so a synthetic one is
-   generated to key it through the same FloorRestock sku+size matching every
-   other Floor Replen action relies on. Gender/Category/Color are left blank,
-   same as a catalog "Add a Product" — nothing in the matching or lifecycle
-   logic (Check Floor -> Replen -> 86 Board) ever keys off those, only
-   sku+size, so they aren't needed for the site to pick the entry up. */
+   For the person checking the floor, not the person picking in the back —
+   they notice something's missing while working the Check Floor list, so
+   this lives right next to "Add a Product" and behaves exactly like it:
+   pick size(s) up front, then it's staged into Check Floor — Holding as a
+   "Needed" decision, same as ticking Needed on any pasted row, and only
+   actually syncs when the shared Update button commits the whole batch —
+   indistinguishable from a row that had been on the items sold list all
+   along. There's no real SKU for a hand-typed product, so a synthetic one
+   is generated to key it through the same FloorRestock sku+size matching
+   every other Floor Replen action relies on. Gender/Category/Color are
+   left blank, same as a catalog "Add a Product" — nothing in the matching
+   or lifecycle logic (Check Floor -> Replen -> 86 Board) ever keys off
+   those, only sku+size, so they aren't needed for the site to pick the
+   entry up. */
 
-function openReplenManualSizeModal() {
-  const descInput = document.getElementById("replen-manual-desc");
+function openCheckFloorManualSizeModal() {
+  const descInput = document.getElementById("checkfloor-manual-desc");
   const description = descInput.value.trim();
   if (!description) {
-    setStatus("replen-manual-status", "Type a description first.", true);
+    setStatus("checkfloor-manual-status", "Type a description first.", true);
     return;
   }
-  replenManualDescription = description;
-  document.getElementById("replen-manual-size-label").textContent = description;
+  checkFloorManualDescription = description;
+  document.getElementById("checkfloor-manual-size-label").textContent = description;
 
-  const wrap = document.getElementById("replen-manual-sizes");
-  const otherInput = document.getElementById("replen-manual-other-size");
+  const wrap = document.getElementById("checkfloor-manual-sizes");
+  const otherInput = document.getElementById("checkfloor-manual-other-size");
   otherInput.value = "";
   otherInput.hidden = true;
 
@@ -596,64 +603,58 @@ function openReplenManualSizeModal() {
     FLOOR_CORE_SIZES.map(
       (size) => `
       <label class="floor-size-checkbox">
-        <input type="radio" name="replen-manual-size-radio" class="replen-manual-size-radio" value="${escapeHtml(size)}">
+        <input type="checkbox" class="checkfloor-manual-size-cb" value="${escapeHtml(size)}">
         ${escapeHtml(size)}
       </label>`
     ).join("") +
     `<label class="floor-size-checkbox">
-      <input type="radio" name="replen-manual-size-radio" id="replen-manual-other-radio">
+      <input type="checkbox" id="checkfloor-manual-other-cb">
       Other
     </label>`;
 
-  wrap.querySelectorAll('input[name="replen-manual-size-radio"]').forEach((radio) => {
-    radio.addEventListener("change", () => {
-      otherInput.hidden = radio.id !== "replen-manual-other-radio";
-      if (!otherInput.hidden) otherInput.focus();
-    });
+  document.getElementById("checkfloor-manual-other-cb").addEventListener("change", (e) => {
+    otherInput.hidden = !e.target.checked;
+    if (e.target.checked) otherInput.focus();
   });
 
-  document.getElementById("replen-manual-size-modal").hidden = false;
+  document.getElementById("checkfloor-manual-size-modal").hidden = false;
 }
 
-function closeReplenManualSizeModal() {
-  document.getElementById("replen-manual-size-modal").hidden = true;
+function closeCheckFloorManualSizeModal() {
+  document.getElementById("checkfloor-manual-size-modal").hidden = true;
 }
 
-async function saveReplenManualEntry() {
-  const wrap = document.getElementById("replen-manual-sizes");
-  const checked = wrap.querySelector(".replen-manual-size-radio:checked");
-  const otherRadio = document.getElementById("replen-manual-other-radio");
-  const size = checked ? checked.value : otherRadio.checked ? document.getElementById("replen-manual-other-size").value.trim() : "";
+async function saveCheckFloorManualEntry() {
+  const wrap = document.getElementById("checkfloor-manual-sizes");
+  const sizes = Array.from(wrap.querySelectorAll(".checkfloor-manual-size-cb:checked")).map((cb) => cb.value);
+  const otherChecked = document.getElementById("checkfloor-manual-other-cb").checked;
+  const otherSize = document.getElementById("checkfloor-manual-other-size").value.trim();
+  if (otherChecked && otherSize) sizes.push(otherSize);
 
-  if (!size) {
-    alert("Pick a size, or enter one under Other.");
+  if (sizes.length === 0) {
+    alert("Pick at least one size, or enter one under Other.");
     return;
   }
 
   if (!navigator.onLine) {
-    setStatus("replen-manual-status", "Offline — nothing was added. Try again once you have a connection.", true);
+    setStatus("checkfloor-manual-status", "Offline — nothing was added. Try again once you have a connection.", true);
     return;
   }
 
-  const description = replenManualDescription;
+  const description = checkFloorManualDescription;
   const sku = "MANUAL-" + uid();
-  const session = loadJSON(STORAGE.session, {});
-  const initials = (session.initials || "").trim();
-  const nowIso = new Date().toISOString();
+  const ownSize = sizes[0]; // the row's "own" size — any others become extra Replen rows, same as ticking Needed on a real MAO row
 
-  closeReplenManualSizeModal();
-  setStatus("replen-manual-status", "Adding…", false);
+  closeCheckFloorManualSizeModal();
+  setStatus("checkfloor-manual-status", "Adding…", false);
 
   try {
-    // A single call, not two chained ones — postToSheet retries any
-    // request it thinks failed (Apps Script's doPost can be slow enough to
-    // look like a dropped request even after it already succeeded), and
-    // two separate appending/matching calls doubled that risk: a retried
-    // "add" could land a second blank row, or a retried "update" could
-    // match a different one than the first attempt did. handleReplenManualAdd
-    // on the server is idempotent by sku (a fresh one per submission), so
-    // even a retried request just no-ops instead of duplicating anything.
-    await postReplenManualAdd(getWebhookUrl(), { sku, size, description, initials });
+    // Same call the catalog "Add a Product" flow makes — creates one
+    // blank-status row server-side with the first picked size baked in as
+    // its own size. Staging the Needed decision locally (instead of
+    // syncing it immediately) is what lets it commit together with every
+    // other staged Check Floor decision on the next tap of Update.
+    await postFloorRestockAdd(getWebhookUrl(), { sku, size: ownSize, description, color: "" });
 
     const restock = loadJSON(STORAGE.floorRestock, []);
     restock.push({
@@ -661,24 +662,25 @@ async function saveReplenManualEntry() {
       category: "",
       description,
       color: "",
-      size,
+      size: ownSize,
       sku,
       qtySold: 0,
       onHand: 0,
-      status: "Needed",
-      checkedBy: initials,
-      checkedDate: nowIso,
+      status: "",
+      checkedBy: "",
+      checkedDate: "",
       outOfStock: "",
       restocked: "",
     });
     saveJSON(STORAGE.floorRestock, restock);
 
-    document.getElementById("replen-manual-desc").value = "";
-    renderReplenList();
-    setStatus("replen-manual-status", `Added ${description} — size ${size} to Replen.`, false);
+    stageCheckFloorDecision(sku, ownSize, "Needed", sizes);
+
+    document.getElementById("checkfloor-manual-desc").value = "";
+    setStatus("checkfloor-manual-status", `Added ${description} — staged as Needed.`, false);
   } catch (e) {
     setStatus(
-      "replen-manual-status",
+      "checkfloor-manual-status",
       "Couldn't reach the sheet — check your connection and try again.",
       true
     );

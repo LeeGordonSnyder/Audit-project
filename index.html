@@ -17,7 +17,7 @@
 <div class="app-header">
   <header class="topbar">
     <!-- Bump this by 1 on every shipped change, same as sw.js's CACHE_NAME. -->
-    <span class="header-version">v24</span>
+    <span class="header-version">v25</span>
     <img src="icons/icon-192.png" alt="Oakridge Park Arc'teryx" class="topbar-logo">
     <h1>Oakridge Ops Suite</h1>
     <div id="offline-badge" class="badge" hidden>Offline</div>
@@ -328,6 +328,13 @@
     <div id="floor-lookup-results" class="results" hidden></div>
     <p id="floor-lookup-status" class="status-msg" role="status"></p>
 
+    <p class="hint">Not in the catalog either? Type a description and pick a size to add it the same way.</p>
+    <div class="search-row">
+      <input id="checkfloor-manual-desc" type="text" autocomplete="off" placeholder="Product description…" aria-label="Manual product description">
+      <button id="checkfloor-manual-add-btn" class="btn secondary small">Pick a Size…</button>
+    </div>
+    <p id="checkfloor-manual-status" class="status-msg" role="status"></p>
+
     <input id="checkfloor-filter" type="text" autocomplete="off" placeholder="Filter by description, colour, or SKU…" class="filter-input">
     <p id="checkfloor-count" class="hint"></p>
     <div class="table-wrap">
@@ -375,18 +382,6 @@
 
     <h2>Replen</h2>
     <p class="hint">Items marked Needed above land here for picking. Check off Picked once it's on the floor, or Out of Stock if there's none in the back.</p>
-
-    <div id="replen-manual-card" class="active-item-card">
-      <h3>Not on the sold list or in the catalog?</h3>
-      <p class="hint">Type a description, pick a size, and it goes straight into the picking list below — no SKU needed.</p>
-      <label>Description
-        <input type="text" id="replen-manual-desc" autocomplete="off" placeholder="e.g. Atom SL Hoody Men's — Black">
-      </label>
-      <div class="active-item-actions">
-        <button id="replen-manual-add-btn" class="btn secondary small">Pick a Size…</button>
-      </div>
-      <p id="replen-manual-status" class="status-msg" role="status"></p>
-    </div>
 
     <p id="replen-count" class="hint"></p>
     <div class="table-wrap">
@@ -540,16 +535,17 @@
   </div>
 </div>
 
-<!-- Floor Replen manual entry — size picker -->
-<div id="replen-manual-size-modal" class="scanner-modal" hidden>
+<!-- Check Floor manual entry — size picker -->
+<div id="checkfloor-manual-size-modal" class="scanner-modal" hidden>
   <div class="scanner-modal-inner">
-    <h2>Pick a Size</h2>
-    <p id="replen-manual-size-label" class="hint"></p>
-    <div id="replen-manual-sizes" class="floor-size-grid"></div>
-    <input type="text" id="replen-manual-other-size" placeholder="Size" autocomplete="off" hidden>
+    <h2>Pick Size(s) Needed</h2>
+    <p id="checkfloor-manual-size-label" class="hint"></p>
+    <p class="hint">Select every size that's actually needed, or Other to type in a size not listed.</p>
+    <div id="checkfloor-manual-sizes" class="floor-size-grid"></div>
+    <input type="text" id="checkfloor-manual-other-size" placeholder="Size" autocomplete="off" hidden>
     <div class="active-item-actions">
-      <button id="replen-manual-size-save-btn" class="btn primary">Add to Replen</button>
-      <button id="replen-manual-size-cancel-btn" class="btn secondary">Cancel</button>
+      <button id="checkfloor-manual-size-save-btn" class="btn primary">Add</button>
+      <button id="checkfloor-manual-size-cancel-btn" class="btn secondary">Cancel</button>
     </div>
   </div>
 </div>
