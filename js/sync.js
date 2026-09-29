@@ -50,6 +50,13 @@ function pushProductToSheet(url, item) {
   return postToSheet(url, { type: "master", ...item });
 }
 
+// Assigns one hard-tag location to every ProductMaster row sharing a
+// style (column I) — a hard tag applies to the whole style, not one SKU,
+// so the server writes the same value across every matching row.
+function postTagAssign(url, payload) {
+  return postToSheet(url, { type: "tagassign", ...payload });
+}
+
 // Adds one new initials value to the shared staff roster (ProductMaster
 // column J).
 function postStaffAdd(url, payload) {

@@ -33,7 +33,11 @@ that style code, e.g. style `X000009560` → "Thigh pocket" for every
 Atom SL Hoody variant). Tap **Set / Edit Tag Location** on any result to
 assign or change it from a fixed list (Hood, Below Wash Tag, Through Wash
 Tag, Tag Side Pocket, Left Leg In-seam, Chest Pocket, No Hard Tag) — the
-last one is for a style that genuinely doesn't get one. A running list of
+last one is for a style that genuinely doesn't get one. Assignments live
+on the ProductMaster sheet (column I, "HARD TAG LOCATION") — writing the
+same location to every row that shares the style, since a hard tag is a
+per-style attribute but the sheet is one row per SKU — so every device
+sees the same assignment, not just the one that set it. A running list of
 every assigned style/location pair is shown below the search box.
 
 ### 2. Audit Dashboard
@@ -295,12 +299,16 @@ One spreadsheet with eight tabs:
 - **ProductMaster** — the shared catalog, created automatically by the
   script. Its header row has since been hand-edited to
   `SKU / UPC / DEPT / STYLE SKU / COLOR / SIZE / DESCRIPTION / UPDATED AT`
-  — the app reads those exact column names. Column J (10th, with a gap at
-  I) is a second, unrelated list bolted onto the same tab: the staff login
-  roster, one initials value per row starting at J2 (J1 is its own header
-  label). The app reads the whole column and appends to it (via **+ Add
-  User** on the login screen), independent of however far the product
-  data in A:H extends.
+  — the app reads those exact column names. Column I, `HARD TAG LOCATION`,
+  is bolted onto the same tab (hand-added, same as column J below): a hard
+  tag applies to a whole **style**, but this sheet is one row per SKU, so
+  assigning one from Tag Lookup writes the same value into every row
+  sharing that Style SKU, not just one cell. Column J (10th) is a third,
+  unrelated list on the same tab again: the staff login roster, one
+  initials value per row starting at J2 (J1 is its own header label). The
+  app reads the whole column and appends to it (via **+ Add User** on the
+  login screen), independent of however far the product data in A:H or
+  the tag column extends.
 - **ConsolMaster** — **not created or written by the app at all.** Paste the
   HQ export straight into this tab yourself, with header row `MATERIAL /
   COLOR / STYLE SKU / ECC GENERIC MATERIAL / DESTINATION / TOTAL /
@@ -376,6 +384,7 @@ Setup, if you're starting fresh or need to redeploy:
      if (body.type === "feedback") return handleFeedbackPost(body);
      if (body.type === "auditbatch") return handleAuditBatchPost(body);
      if (body.type === "consollogresolve") return handleConsolLogResolve(body);
+     if (body.type === "tagassign") return handleTagAssign(body);
      return handleAuditPost(body);
    }
 
@@ -556,6 +565,39 @@ Setup, if you're starting fresh or need to redeploy:
      if (rowIndex === -1) sheet.appendRow(row);
      else sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
      return jsonResponse({ ok: true });
+   }
+
+   // Assigns one hard-tag location to every ProductMaster row sharing a
+   // style -- a hard tag is a per-style attribute (one location applies to
+   // every color/size variant), but ProductMaster is one row per SKU, so
+   // every matching row needs the same value written. Reads the STYLE SKU
+   // column once, writes only the matched cells (column I, hand-added by
+   // staff, found by name like every other bolted-on column in this app).
+   function handleTagAssign(body) {
+     const style = String(body.style || "").trim();
+     if (!style) return jsonResponse({ ok: false, error: "Missing style." });
+
+     const sheet = getOrCreateSheet("ProductMaster", MASTER_HEADER);
+     const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+     const styleCol = findColumnIndex(headerRow, "STYLE SKU");
+     const tagCol = findColumnIndex(headerRow, "HARD TAG LOCATION");
+     if (styleCol === -1 || tagCol === -1) {
+       return jsonResponse({ ok: false, error: "ProductMaster is missing a STYLE SKU or HARD TAG LOCATION column." });
+     }
+
+     const lastRow = sheet.getLastRow();
+     if (lastRow < 2) return jsonResponse({ ok: true, updated: 0 });
+
+     const styleValues = sheet.getRange(2, styleCol, lastRow - 1, 1).getValues();
+     let updated = 0;
+     styleValues.forEach((r, i) => {
+       if (String(r[0]) === style) {
+         sheet.getRange(i + 2, tagCol).setValue(body.location || "");
+         updated++;
+       }
+     });
+
+     return jsonResponse({ ok: true, updated: updated });
    }
 
    // The staff roster (login gate dropdown) lives in column J (10th) of
@@ -913,13 +955,6 @@ Setup, if you're starting fresh or need to redeploy:
      return jsonResponse({ ok: true });
    }
 
-   // No longer called by the app -- manual Floor Replen entries moved into
-   // the Check Floor / holding flow (floorrestockadd + checkfloorupdate)
-   // instead, so they commit together with everything else staged there.
-   // Left in place (routed but unreachable from the current app) rather
-   // than pulled out, purely to avoid a redeploy with zero functional
-   // effect -- safe to delete next time you're already editing this file.
-   //
    // Adds one manually-typed product straight to Replen (Status "Needed") in
    // a single call. Idempotent by body.sku: the client generates a fresh
    // synthetic SKU per submission, so it can only already exist here if this
@@ -1269,10 +1304,10 @@ re-add it — iOS caches the name/icon from whatever was live at install time.
 
 ## Data & offline behavior
 
-Tag assignments and the session (date/initials) are purely local
-(`localStorage`) — there's no need to share those. Product Master, the audit
-log, the consolidation list, and the consolidation log are all backed by the
-Sheet and sync automatically:
+The session (date/initials) is purely local (`localStorage`) — there's no
+need to share that. Product Master (including hard tag assignments, which
+live on it as column I), the audit log, the consolidation list, and the
+consolidation log are all backed by the Sheet and sync automatically:
 
 - **On boot/refresh**, the app pulls the latest catalog and audit history
   from the Sheet (needs a signal for that first fetch).

@@ -103,6 +103,7 @@ function openTagAssignModal(style) {
   document.getElementById("tag-assign-style-label").textContent =
     `Style ${style} — applies to every size and color of this style.`;
   document.getElementById("tag-assign-select").value = getTagLocation(style);
+  setStatus("tag-assign-status", "", false);
   document.getElementById("tag-assign-modal").hidden = false;
 }
 
@@ -111,18 +112,37 @@ function closeTagAssignModal() {
   document.getElementById("tag-assign-modal").hidden = true;
 }
 
-function saveTagAssignModal() {
+async function saveTagAssignModal() {
   if (!tagAssignStyle) return;
-  setTagLocation(tagAssignStyle, document.getElementById("tag-assign-select").value);
-  closeTagAssignModal();
-  renderTagResults(document.getElementById("tag-search-input").value.trim());
-  renderTagAssignmentsList();
+  const location = document.getElementById("tag-assign-select").value;
+
+  if (!navigator.onLine) {
+    setStatus("tag-assign-status", "Offline — nothing was saved. Try again once you have a connection.", true);
+    return;
+  }
+
+  setStatus("tag-assign-status", "Saving…", false);
+
+  try {
+    await postTagAssign(getWebhookUrl(), { style: tagAssignStyle, location });
+    setLocalTagLocation(tagAssignStyle, location);
+
+    closeTagAssignModal();
+    renderTagResults(document.getElementById("tag-search-input").value.trim());
+    renderTagAssignmentsList();
+  } catch (e) {
+    setStatus("tag-assign-status", "Couldn't reach the sheet — check your connection and try again.", true);
+  }
 }
 
 function renderTagAssignmentsList() {
   const listEl = document.getElementById("tag-assignments-list");
-  const map = loadJSON(STORAGE.tagMap, {});
-  const styles = Object.keys(map).filter((s) => map[s]);
+  const master = loadJSON(STORAGE.master, []);
+  const map = {};
+  master.forEach((item) => {
+    if (item.style && item.hardTagLocation) map[item.style] = item.hardTagLocation;
+  });
+  const styles = Object.keys(map);
 
   listEl.innerHTML = "";
   if (styles.length === 0) {

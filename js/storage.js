@@ -2,7 +2,6 @@
 
 const STORAGE = {
   master: "audit.productMaster.v1",
-  tagMap: "audit.styleTagMap.v1",
   auditLog: "audit.auditEntries.v1",
   session: "audit.session.v1",
   webhookUrl: "audit.webhookUrl.v1",
@@ -168,6 +167,10 @@ function sheetRowToMasterItem(row) {
     color: String(row["COLOR"] ?? row.color ?? ""),
     size: String(row["SIZE"] ?? row.size ?? ""),
     description: String(row["DESCRIPTION"] ?? row.description ?? ""),
+    // Column I, bolted on the same way STAFF INITIALS bolts onto column J —
+    // a hard tag is a per-style attribute, so every color/size variant's
+    // row carries the same value; see setLocalTagLocation/handleTagAssign.
+    hardTagLocation: String(row["HARD TAG LOCATION"] ?? row.hardTagLocation ?? ""),
   };
 }
 
@@ -371,13 +374,26 @@ function isFloorRestockAccessoryGender(gender) {
   return (gender || "").toString().trim().toUpperCase() === "U";
 }
 
+// Hard tag locations live on the ProductMaster sheet now (column I, one
+// per style — see sheetRowToMasterItem), not in local-only storage, so
+// every device sees the same assignment. Any row sharing the style works
+// as the lookup since assigning one always writes it to all of them.
 function getTagLocation(style) {
-  const map = loadJSON(STORAGE.tagMap, {});
-  return map[style] || "";
+  const master = loadJSON(STORAGE.master, []);
+  const item = master.find((p) => p.style === style && p.hardTagLocation);
+  return item ? item.hardTagLocation : "";
 }
 
-function setTagLocation(style, location) {
-  const map = loadJSON(STORAGE.tagMap, {});
-  map[style] = location;
-  saveJSON(STORAGE.tagMap, map);
+// Mirrors a successful postTagAssign() locally across every ProductMaster
+// row sharing this style, same as the server just did.
+function setLocalTagLocation(style, location) {
+  const master = loadJSON(STORAGE.master, []);
+  let changed = false;
+  master.forEach((item) => {
+    if (item.style === style) {
+      item.hardTagLocation = location;
+      changed = true;
+    }
+  });
+  if (changed) saveJSON(STORAGE.master, master);
 }
