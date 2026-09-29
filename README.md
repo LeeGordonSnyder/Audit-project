@@ -231,8 +231,12 @@ one behind the scenes (`MANUAL-...`) purely to key it through the same
 sku+size matching every other Floor Replen action uses — gender, category,
 and color are left blank, the same as a catalog "Add a Product," since
 nothing in the matching or lifecycle logic (Check Floor → Replen → 86
-Board) ever keys off those fields, only sku+size. Picked / Out of Stock /
-Restocked all work on it exactly like any other row.
+Board) ever keys off those fields, only sku+size. It's a single request
+(`replenmanualadd`), and the server treats that generated SKU as an
+idempotency key — a request retried after it already succeeded (the app
+retries anything it thinks failed) just no-ops instead of adding a
+duplicate row. Picked / Out of Stock / Restocked all work on it exactly
+like any other row.
 
 **Replen** is the picking list — every FloorRestock row with Status
 "Needed" shows here until it's dealt with. Check off **Picked** once it's
@@ -340,6 +344,7 @@ Setup, if you're starting fresh or need to redeploy:
      if (body.type === "floorpickupdate") return handleFloorPickUpdate(body);
      if (body.type === "floor86restock") return handleFloor86Restock(body);
      if (body.type === "floorrestockadd") return handleFloorRestockAdd(body);
+     if (body.type === "replenmanualadd") return handleReplenManualAdd(body);
      if (body.type === "staffadd") return handleStaffAdd(body);
      if (body.type === "feedback") return handleFeedbackPost(body);
      return handleAuditPost(body);
@@ -693,6 +698,44 @@ Setup, if you're starting fresh or need to redeploy:
 
      sheet.appendRow(newRow);
      return jsonResponse({ ok: true });
+   }
+
+   // Adds one manually-typed product straight to Replen (Status "Needed")
+   // in a single call, instead of chaining handleFloorRestockAdd +
+   // handleCheckFloorUpdate — that two-call version could leave a
+   // duplicate row behind if postToSheet's client-side retry fired after
+   // the first call had already succeeded (Apps Script's doPost can be
+   // slow enough to look dropped even when it isn't). Idempotent by
+   // body.sku: the client generates a fresh synthetic SKU per submission
+   // (see findFloorRestockRow, defined below), so a retried request that
+   // already landed just no-ops instead of appending again.
+   function handleReplenManualAdd(body) {
+     const sheet = getOrCreateSheet("FloorRestock", FLOOR_RESTOCK_HEADER);
+     const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+     const skuCol = findColumnIndex(headerRow, "SKU");
+     const sizeCol = findColumnIndex(headerRow, "SIZE");
+     const descCol = findColumnIndex(headerRow, "MODEL NAME");
+     const statusCol = findColumnIndex(headerRow, "STATUS");
+     const checkedByCol = findColumnIndex(headerRow, "CHECKED BY");
+     const checkedDateCol = findColumnIndex(headerRow, "CHECKED DATE");
+     if (skuCol === -1 || statusCol === -1) {
+       return jsonResponse({ ok: false, error: "FloorRestock is missing a SKU or Status column." });
+     }
+
+     if (findFloorRestockRow(body.sku, body.size, null)) {
+       return jsonResponse({ ok: true, added: false, reason: "already exists" });
+     }
+
+     const newRow = new Array(headerRow.length).fill("");
+     if (descCol !== -1) newRow[descCol - 1] = body.description || "";
+     if (sizeCol !== -1) newRow[sizeCol - 1] = body.size || "";
+     newRow[skuCol - 1] = body.sku || "";
+     newRow[statusCol - 1] = "Needed";
+     if (checkedByCol !== -1) newRow[checkedByCol - 1] = body.initials || "";
+     if (checkedDateCol !== -1) newRow[checkedDateCol - 1] = new Date();
+
+     sheet.appendRow(newRow);
+     return jsonResponse({ ok: true, added: true });
    }
 
    // Commits a batch of picking decisions in one request. body.decisions is

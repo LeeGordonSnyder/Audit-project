@@ -639,23 +639,21 @@ async function saveReplenManualEntry() {
   const sku = "MANUAL-" + uid();
   const session = loadJSON(STORAGE.session, {});
   const initials = (session.initials || "").trim();
-  const date = todayISO();
   const nowIso = new Date().toISOString();
 
   closeReplenManualSizeModal();
   setStatus("replen-manual-status", "Adding…", false);
 
   try {
-    // Same two calls "Add a Product" and a Check Floor "Needed" decision
-    // each make on their own, chained: first appends a blank-status row,
-    // then immediately marks that exact sku+size Needed so it lands
-    // straight in Replen instead of waiting in Check Floor.
-    await postFloorRestockAdd(getWebhookUrl(), { sku, size, description, color: "" });
-    await postCheckFloorUpdate(getWebhookUrl(), {
-      initials,
-      date,
-      decisions: [{ sku, size, status: "Needed", sizes: [size] }],
-    });
+    // A single call, not two chained ones — postToSheet retries any
+    // request it thinks failed (Apps Script's doPost can be slow enough to
+    // look like a dropped request even after it already succeeded), and
+    // two separate appending/matching calls doubled that risk: a retried
+    // "add" could land a second blank row, or a retried "update" could
+    // match a different one than the first attempt did. handleReplenManualAdd
+    // on the server is idempotent by sku (a fresh one per submission), so
+    // even a retried request just no-ops instead of duplicating anything.
+    await postReplenManualAdd(getWebhookUrl(), { sku, size, description, initials });
 
     const restock = loadJSON(STORAGE.floorRestock, []);
     restock.push({

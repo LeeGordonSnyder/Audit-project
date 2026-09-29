@@ -113,6 +113,15 @@ function postFloorRestockAdd(url, payload) {
   return postToSheet(url, { type: "floorrestockadd", ...payload });
 }
 
+// Adds one manually-typed product straight to Replen (Status "Needed") in
+// a single request — idempotent by payload.sku server-side, so a request
+// retried after it already succeeded (postToSheet's own retry-on-failure,
+// which can misfire on a slow Apps Script response) safely no-ops instead
+// of appending a duplicate row.
+function postReplenManualAdd(url, payload) {
+  return postToSheet(url, { type: "replenmanualadd", ...payload });
+}
+
 // Appends one row to the Feedback sheet: the free-text note plus who wrote
 // it and when. One-way — the app never reads this back.
 function postFeedback(url, payload) {
