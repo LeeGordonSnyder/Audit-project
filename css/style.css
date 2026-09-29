@@ -457,6 +457,14 @@ textarea { font-size: 0.9rem; resize: vertical; }
   cursor: pointer;
 }
 
+/* Without this, a disabled button (Save before + Add Size, Update before
+   anything's staged, etc.) looks completely identical to an enabled one —
+   nothing here says it isn't the button that's broken. */
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .btn.primary { background: var(--accent); color: #ffffff; width: 100%; }
 .btn.primary:active { background: var(--accent-dark); }
 
