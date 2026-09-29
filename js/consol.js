@@ -10,8 +10,9 @@ let consolAdjustRows = [];
 function initConsol() {
   document.getElementById("consol-refresh-btn").addEventListener("click", async () => {
     setStatus("consol-list-status", "Refreshing from the sheet…", false);
-    await loadSharedConsolMaster();
+    await Promise.all([loadSharedConsolMaster(), loadSharedConsolLog()]);
     renderConsolList();
+    renderConsolLog();
     setStatus("consol-list-status", "Refreshed from the sheet.", false);
   });
 
@@ -465,7 +466,11 @@ async function handlePackoutScan(text) {
 
 function renderConsolLog() {
   const listEl = document.getElementById("consol-log-list");
-  const log = loadJSON(STORAGE.consolLog, []);
+  const fullLog = loadJSON(STORAGE.consolLog, []);
+  // Resolved entries stay in the sheet/local storage permanently (and in
+  // Export CSV) — same as Check Floor/Replen, once actioned they just drop
+  // off the everyday view instead of cluttering it forever.
+  const log = fullLog.filter((e) => e.status !== "Resolved");
   listEl.innerHTML = "";
 
   if (log.length === 0) {
@@ -489,6 +494,7 @@ function renderConsolLog() {
       `;
     } else {
       const pillClass = e.status === "Completed" ? "match" : "under";
+      const needsAdjustment = e.status === "Needs Adjustment";
       div.innerHTML = `
         <div class="audit-entry-top">
           <span>${escapeHtml(e.eccMaterial)}</span>
@@ -496,13 +502,49 @@ function renderConsolLog() {
         </div>
         <div class="meta">${escapeHtml(e.description)} — ${escapeHtml(e.color)}</div>
         <div class="meta">
-          ${e.status === "Needs Adjustment" ? `Size ${escapeHtml(e.size)} · ${e.unitsOut} out · ` : ""}${escapeHtml(
+          ${needsAdjustment ? `Size ${escapeHtml(e.size)} · ${e.unitsOut} out · ` : ""}${escapeHtml(
         e.initials || "—"
       )} · ${escapeHtml(e.date)}
         </div>
+        ${
+          needsAdjustment
+            ? `<button class="btn secondary small consol-log-resolve-btn" data-id="${escapeHtml(e.id)}">Resolve</button>`
+            : ""
+        }
       `;
     }
     listEl.appendChild(div);
+  }
+
+  listEl.querySelectorAll(".consol-log-resolve-btn").forEach((btn) => {
+    btn.addEventListener("click", () => resolveConsolLogEntry(btn.dataset.id));
+  });
+}
+
+// Flips one "Needs Adjustment" entry to Resolved server-side and mirrors
+// it locally — the underlying row stays in ConsolLog forever (it's a
+// permanent history, like AuditLog), this just stops the app from
+// treating it as something still needing attention.
+async function resolveConsolLogEntry(id) {
+  if (!navigator.onLine) {
+    setStatus("consol-log-status", "Offline — nothing was updated. Try again once you have a connection.", true);
+    return;
+  }
+
+  setStatus("consol-log-status", "Resolving…", false);
+
+  try {
+    await postConsolLogResolve(getWebhookUrl(), { id });
+
+    const log = loadJSON(STORAGE.consolLog, []);
+    const entry = log.find((e) => e.id === id);
+    if (entry) entry.status = "Resolved";
+    saveJSON(STORAGE.consolLog, log);
+
+    renderConsolLog();
+    setStatus("consol-log-status", "Resolved.", false);
+  } catch (e) {
+    setStatus("consol-log-status", "Couldn't reach the sheet — check your connection and try again.", true);
   }
 }
 

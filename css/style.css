@@ -480,6 +480,10 @@ textarea { font-size: 0.9rem; resize: vertical; }
   width: auto;
 }
 
+.consol-log-resolve-btn {
+  margin-top: 8px;
+}
+
 .status-msg {
   font-size: 0.82rem;
   color: var(--ok);

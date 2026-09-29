@@ -145,7 +145,15 @@ locally the instant the action succeeds).
 
 The **Consolidation Log** below lists every status change and box closure —
 there's nothing to manually sync here, every action pushes to the sheet
-immediately when it happens.
+immediately when it happens. Every **Needs Adjustment** entry has its own
+**Resolve** button — tapping it flips that entry's status on the ConsolLog
+sheet and drops it off this list (same "qualifier" idea as Processed on
+ConsolMaster above), without deleting the row itself. The row stays in the
+sheet permanently either way — ConsolLog is a full history, same as the
+Audit Dashboard's log — Resolve just stops the app from treating it as
+something still needing attention. **🔄 Refresh from Sheet** pulls both
+ConsolMaster and ConsolLog, so a Resolve done on another device shows up
+here too.
 
 ### 5. Receiving Log
 For incoming shipments. Paste the MAO shipment export — ETA, Package,
@@ -288,7 +296,10 @@ One spreadsheet with eight tabs:
   PROCESSED`. The app only reads it, and only ever writes the PROCESSED
   column (via the backend, when a box closes or an item is marked out).
 - **ConsolLog** — every consolidation status change and box closure,
-  created automatically by the script.
+  created automatically by the script. Rows are never deleted by the app —
+  a "Needs Adjustment" row's STATUS column can flip to "Resolved" (via the
+  Consolidation Log's Resolve button), but the row itself is permanent,
+  same as AuditLog.
 - **ReceivingLog** — one row per expected box, created automatically by the
   script and fully app-managed (unlike ConsolMaster, nothing here needs
   hand-editing). Columns: `barcode / po / expectedDate /
@@ -349,6 +360,7 @@ Setup, if you're starting fresh or need to redeploy:
      if (body.type === "staffadd") return handleStaffAdd(body);
      if (body.type === "feedback") return handleFeedbackPost(body);
      if (body.type === "auditbatch") return handleAuditBatchPost(body);
+     if (body.type === "consollogresolve") return handleConsolLogResolve(body);
      return handleAuditPost(body);
    }
 
@@ -1098,6 +1110,34 @@ Setup, if you're starting fresh or need to redeploy:
      markConsolProcessed(body.eccMaterial);
 
      return jsonResponse({ ok: true, items: items.length });
+   }
+
+   // Marks one ConsolLog "Needs Adjustment" entry Resolved. The row itself
+   // stays (ConsolLog is a permanent history, like AuditLog) -- this only
+   // flips its STATUS so the app can stop treating it as something still
+   // needing attention. Scoped to the id column via TextFinder, same
+   // approach as findReceivingRowIndex, since a single lookup by a unique id
+   // never needs the whole row body read into memory. Only actually flips a
+   // row that's still "Needs Adjustment" -- already-Resolved or a
+   // mismatched entryType (e.g. a "packout" row's id, sent by mistake) is a
+   // safe no-op rather than corrupting an unrelated row.
+   function handleConsolLogResolve(body) {
+     const sheet = getOrCreateSheet("ConsolLog", CONSOL_LOG_HEADER);
+     const lastRow = sheet.getLastRow();
+     if (lastRow < 2) return jsonResponse({ ok: false, error: "ConsolLog is empty." });
+
+     const match = sheet.getRange(2, 1, lastRow - 1, 1).createTextFinder(String(body.id)).matchEntireCell(true).findNext();
+     if (!match) return jsonResponse({ ok: false, error: "Entry not found." });
+
+     const rowIndex = match.getRow();
+     const statusCol = CONSOL_LOG_HEADER.indexOf("status") + 1;
+     const currentStatus = sheet.getRange(rowIndex, statusCol).getValue();
+     if (currentStatus !== "Needs Adjustment") {
+       return jsonResponse({ ok: true, resolved: false, reason: "not in Needs Adjustment state" });
+     }
+
+     sheet.getRange(rowIndex, statusCol).setValue("Resolved");
+     return jsonResponse({ ok: true, resolved: true });
    }
 
    // Appends within one section of a sheet that has several independent

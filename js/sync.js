@@ -72,6 +72,14 @@ function postConsolMarkoutToSheet(url, payload) {
   return postToSheet(url, { type: "consolmarkoutbatch", ...payload });
 }
 
+// Marks one ConsolLog "Needs Adjustment" entry Resolved. The row itself
+// stays in the sheet (ConsolLog is a permanent history, like AuditLog) —
+// this just flips its status so the app can stop showing it as something
+// still needing attention.
+function postConsolLogResolve(url, payload) {
+  return postToSheet(url, { type: "consollogresolve", ...payload });
+}
+
 function pushReceivingItemToSheet(url, item) {
   return postToSheet(url, { type: "receivingimport", ...item });
 }
@@ -310,12 +318,25 @@ async function loadSharedConsolLog() {
     if (!Array.isArray(remoteRows) || remoteRows.length === 0) return;
 
     const log = loadJSON(STORAGE.consolLog, []);
-    const knownIds = new Set(log.map((e) => e.id));
-    let added = 0;
+    const byId = new Map(log.map((e) => [e.id, e]));
+    let changed = false;
 
     for (const row of remoteRows) {
-      if (!row.id || knownIds.has(row.id)) continue;
-      log.push({
+      if (!row.id) continue;
+      const existing = byId.get(row.id);
+      if (existing) {
+        // Status is the only field a row can change after it's first
+        // written (a "Needs Adjustment" entry Resolved from any device,
+        // including this one on an earlier boot) — pick that up here
+        // instead of only ever adding brand-new rows, or a resolve done
+        // elsewhere would never show up on this device.
+        if (row.status && existing.status !== row.status) {
+          existing.status = row.status;
+          changed = true;
+        }
+        continue;
+      }
+      const entry = {
         id: row.id,
         entryType: row.entryType || "status",
         timestamp: row.timestamp,
@@ -329,12 +350,13 @@ async function loadSharedConsolLog() {
         unitsOut: Number(row.unitsOut) || 0,
         referenceNumber: row.referenceNumber,
         synced: true,
-      });
-      knownIds.add(row.id);
-      added++;
+      };
+      log.push(entry);
+      byId.set(row.id, entry);
+      changed = true;
     }
 
-    if (added > 0) {
+    if (changed) {
       log.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       saveJSON(STORAGE.consolLog, log);
     }
