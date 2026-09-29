@@ -1,6 +1,6 @@
 "use strict";
 
-const TAG_LOCATIONS = ["Hood", "Below Wash Tag", "Through Wash Tag", "Tag Side Pocket", "Left Leg In-seam", "Chest Pocket"];
+const TAG_LOCATIONS = ["Hood", "Below Wash Tag", "Through Wash Tag", "Tag Side Pocket", "Left Leg In-seam", "Chest Pocket", "No Hard Tag"];
 
 let tagAssignStyle = null;
 

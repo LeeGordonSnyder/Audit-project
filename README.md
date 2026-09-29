@@ -32,7 +32,8 @@ Scan or search a product to see the security-tag placement assigned to its
 that style code, e.g. style `X000009560` → "Thigh pocket" for every
 Atom SL Hoody variant). Tap **Set / Edit Tag Location** on any result to
 assign or change it from a fixed list (Hood, Below Wash Tag, Through Wash
-Tag, Tag Side Pocket, Left Leg In-seam, Chest Pocket). A running list of
+Tag, Tag Side Pocket, Left Leg In-seam, Chest Pocket, No Hard Tag) — the
+last one is for a style that genuinely doesn't get one. A running list of
 every assigned style/location pair is shown below the search box.
 
 ### 2. Audit Dashboard
