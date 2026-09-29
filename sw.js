@@ -1,4 +1,4 @@
-const CACHE_NAME = "audit-tool-v33";
+const CACHE_NAME = "audit-tool-v34";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -16,6 +16,7 @@ const CORE_ASSETS = [
   "./js/floorreplen.js",
   "./js/board86.js",
   "./js/sync.js",
+  "./js/feedback.js",
   "./js/app.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png",

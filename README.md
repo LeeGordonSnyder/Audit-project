@@ -221,6 +221,19 @@ those — they were never actually sold, they're purely a Replen placeholder).
 The moment Update succeeds, the **Last Floor Check** stamp updates to the
 current date/time and your initials — that's the only thing that moves it.
 
+**Add a product manually**, right above the Replen list, is for anything
+that's neither on the MAO export nor in the catalog — type a description,
+tap **Pick a Size…**, choose one of the core sizes or type your own under
+**Other**, and it's appended straight to Replen with Status "Needed,"
+skipping the Check Floor decision entirely (typing it in by hand *is* that
+decision). There's no real SKU for a hand-typed item, so the app generates
+one behind the scenes (`MANUAL-...`) purely to key it through the same
+sku+size matching every other Floor Replen action uses — gender, category,
+and color are left blank, the same as a catalog "Add a Product," since
+nothing in the matching or lifecycle logic (Check Floor → Replen → 86
+Board) ever keys off those fields, only sku+size. Picked / Out of Stock /
+Restocked all work on it exactly like any other row.
+
 **Replen** is the picking list — every FloorRestock row with Status
 "Needed" shows here until it's dealt with. Check off **Picked** once it's
 actually placed on the floor, or **Out of Stock** if there's none in the
@@ -236,9 +249,18 @@ date/time it was marked. Tap **Restocked** once it's actually back on the
 floor — that stamps the row's RESTOCKED column immediately and removes it
 from the board.
 
+## Feedback
+
+**💬 Leave Feedback!** sits in the header, above the tabs, so it's reachable
+from anywhere in the app regardless of which tab is open. Tap it, type
+whatever's on your mind, and tap **Submit** — it's appended as one row to
+the **Feedback** sheet tab with your initials (from sign-in) and today's
+date attached automatically. It's one-way: the app never reads Feedback
+back, it's meant to be reviewed directly in the sheet.
+
 ## The Google Sheet backend
 
-One spreadsheet with seven tabs:
+One spreadsheet with eight tabs:
 
 - **AuditLog** — every count logged from every device, created automatically
   by the script. Plus, layered on top by hand in the sheet itself: Mark
@@ -290,6 +312,16 @@ One spreadsheet with seven tabs:
   checks sizes beyond the row's own size appends one new row per extra
   size (Quantity Sold/On Hand left blank, Status "Needed") — those rows
   are the Replen queue entries for sizes that were never actually sold.
+- **Feedback** — every note submitted from the header's **Leave Feedback!**
+  button, created automatically by the script if it doesn't already exist.
+  Columns: `id / date / initials / feedback / timestamp`. Fully app-managed
+  and write-only from the app's side — nothing here needs hand-editing, and
+  the app never reads it back. If you already created a tab named
+  "Feedback" yourself, leave it completely empty (no header row) so the
+  script writes this exact header the first time someone submits — a
+  pre-existing header row in a different order won't be read from, but new
+  rows will still be appended positionally underneath it, out of alignment
+  with whatever's already there.
 
 Setup, if you're starting fresh or need to redeploy:
 
@@ -309,6 +341,7 @@ Setup, if you're starting fresh or need to redeploy:
      if (body.type === "floor86restock") return handleFloor86Restock(body);
      if (body.type === "floorrestockadd") return handleFloorRestockAdd(body);
      if (body.type === "staffadd") return handleStaffAdd(body);
+     if (body.type === "feedback") return handleFeedbackPost(body);
      return handleAuditPost(body);
    }
 
@@ -357,6 +390,7 @@ Setup, if you're starting fresh or need to redeploy:
    const CONSOL_MASTER_HEADER = ["MATERIAL", "COLOR", "STYLE SKU", "ECC GENERIC MATERIAL", "DESTINATION", "TOTAL", "PROCESSED"];
    const CONSOL_LOG_HEADER = ["id", "entryType", "date", "initials", "eccMaterial", "description", "color", "status", "size", "unitsOut", "referenceNumber", "timestamp"];
    const RECEIVING_HEADER = ["barcode", "po", "expectedDate", "physicallyReceivedDate", "physicallyReceivedBy", "receivedIntoMaoDate", "receivedIntoMaoBy", "updatedAt"];
+   const FEEDBACK_HEADER = ["id", "date", "initials", "feedback", "timestamp"];
    // Defensive fallback only — FloorRestock already exists with this exact
    // header row (plus the five trailing columns staff add themselves), and
    // is hand-managed directly in Sheets like ConsolMaster; the app never
@@ -454,6 +488,17 @@ Setup, if you're starting fresh or need to redeploy:
 
      sheet.getRange(lastUsedRow + 1, 10).setValue(initials);
      return jsonResponse({ ok: true, added: true });
+   }
+
+   // Appends one row to the Feedback sheet — fully app-managed, positional,
+   // same pattern as AuditLog/ConsolLog. Write-only: nothing ever reads
+   // this back through doGet.
+   function handleFeedbackPost(body) {
+     const sheet = getOrCreateSheet("Feedback", FEEDBACK_HEADER);
+     const date = body.date ? new Date(body.date + "T00:00:00") : new Date();
+     const timestamp = body.timestamp ? new Date(body.timestamp) : new Date();
+     sheet.appendRow([body.id || "", date, body.initials || "", body.feedback || "", timestamp]);
+     return jsonResponse({ ok: true });
    }
 
    // Row index (1-based) of a ReceivingLog row by barcode, or -1. String()

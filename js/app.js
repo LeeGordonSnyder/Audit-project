@@ -108,6 +108,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initReceiving();
     initFloorReplen();
     initBoard86();
+    initFeedback();
     setOffline(!navigator.onLine);
 
     const refreshBtn = document.getElementById("global-refresh-btn");

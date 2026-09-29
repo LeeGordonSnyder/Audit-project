@@ -113,6 +113,12 @@ function postFloorRestockAdd(url, payload) {
   return postToSheet(url, { type: "floorrestockadd", ...payload });
 }
 
+// Appends one row to the Feedback sheet: the free-text note plus who wrote
+// it and when. One-way — the app never reads this back.
+function postFeedback(url, payload) {
+  return postToSheet(url, { type: "feedback", ...payload });
+}
+
 function initSync() {
   const urlInput = document.getElementById("sheet-url-input");
   urlInput.value = getWebhookUrl();

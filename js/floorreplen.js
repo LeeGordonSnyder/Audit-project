@@ -1,6 +1,7 @@
 "use strict";
 
 let floorNeededItem = null; // FloorRestock item currently being sized in the "Needed" modal
+let replenManualDescription = ""; // description staged for the manual-entry size modal
 
 function initFloorReplen() {
   document.getElementById("checkfloor-filter").addEventListener("input", renderCheckFloorList);
@@ -18,6 +19,10 @@ function initFloorReplen() {
 
   document.getElementById("checkfloor-update-btn").addEventListener("click", commitCheckFloorUpdate);
   document.getElementById("replen-update-btn").addEventListener("click", commitReplenUpdate);
+
+  document.getElementById("replen-manual-add-btn").addEventListener("click", openReplenManualSizeModal);
+  document.getElementById("replen-manual-size-save-btn").addEventListener("click", saveReplenManualEntry);
+  document.getElementById("replen-manual-size-cancel-btn").addEventListener("click", closeReplenManualSizeModal);
 
   renderCheckFloorList();
   renderCheckFloorHolding();
@@ -558,6 +563,125 @@ async function commitReplenUpdate() {
     setStatus(
       "replen-status-msg",
       "Couldn't reach the sheet — check your connection and try again. Items stay staged.",
+      true
+    );
+  }
+}
+
+/* ---------- Manual entry: not on the MAO export or in the catalog at all ----------
+   Skips Check Floor entirely — typing it in by hand *is* the Needed decision.
+   There's no real SKU for a hand-typed product, so a synthetic one is
+   generated to key it through the same FloorRestock sku+size matching every
+   other Floor Replen action relies on. Gender/Category/Color are left blank,
+   same as a catalog "Add a Product" — nothing in the matching or lifecycle
+   logic (Check Floor -> Replen -> 86 Board) ever keys off those, only
+   sku+size, so they aren't needed for the site to pick the entry up. */
+
+function openReplenManualSizeModal() {
+  const descInput = document.getElementById("replen-manual-desc");
+  const description = descInput.value.trim();
+  if (!description) {
+    setStatus("replen-manual-status", "Type a description first.", true);
+    return;
+  }
+  replenManualDescription = description;
+  document.getElementById("replen-manual-size-label").textContent = description;
+
+  const wrap = document.getElementById("replen-manual-sizes");
+  const otherInput = document.getElementById("replen-manual-other-size");
+  otherInput.value = "";
+  otherInput.hidden = true;
+
+  wrap.innerHTML =
+    FLOOR_CORE_SIZES.map(
+      (size) => `
+      <label class="floor-size-checkbox">
+        <input type="radio" name="replen-manual-size-radio" class="replen-manual-size-radio" value="${escapeHtml(size)}">
+        ${escapeHtml(size)}
+      </label>`
+    ).join("") +
+    `<label class="floor-size-checkbox">
+      <input type="radio" name="replen-manual-size-radio" id="replen-manual-other-radio">
+      Other
+    </label>`;
+
+  wrap.querySelectorAll('input[name="replen-manual-size-radio"]').forEach((radio) => {
+    radio.addEventListener("change", () => {
+      otherInput.hidden = radio.id !== "replen-manual-other-radio";
+      if (!otherInput.hidden) otherInput.focus();
+    });
+  });
+
+  document.getElementById("replen-manual-size-modal").hidden = false;
+}
+
+function closeReplenManualSizeModal() {
+  document.getElementById("replen-manual-size-modal").hidden = true;
+}
+
+async function saveReplenManualEntry() {
+  const wrap = document.getElementById("replen-manual-sizes");
+  const checked = wrap.querySelector(".replen-manual-size-radio:checked");
+  const otherRadio = document.getElementById("replen-manual-other-radio");
+  const size = checked ? checked.value : otherRadio.checked ? document.getElementById("replen-manual-other-size").value.trim() : "";
+
+  if (!size) {
+    alert("Pick a size, or enter one under Other.");
+    return;
+  }
+
+  if (!navigator.onLine) {
+    setStatus("replen-manual-status", "Offline — nothing was added. Try again once you have a connection.", true);
+    return;
+  }
+
+  const description = replenManualDescription;
+  const sku = "MANUAL-" + uid();
+  const session = loadJSON(STORAGE.session, {});
+  const initials = (session.initials || "").trim();
+  const date = todayISO();
+  const nowIso = new Date().toISOString();
+
+  closeReplenManualSizeModal();
+  setStatus("replen-manual-status", "Adding…", false);
+
+  try {
+    // Same two calls "Add a Product" and a Check Floor "Needed" decision
+    // each make on their own, chained: first appends a blank-status row,
+    // then immediately marks that exact sku+size Needed so it lands
+    // straight in Replen instead of waiting in Check Floor.
+    await postFloorRestockAdd(getWebhookUrl(), { sku, size, description, color: "" });
+    await postCheckFloorUpdate(getWebhookUrl(), {
+      initials,
+      date,
+      decisions: [{ sku, size, status: "Needed", sizes: [size] }],
+    });
+
+    const restock = loadJSON(STORAGE.floorRestock, []);
+    restock.push({
+      gender: "",
+      category: "",
+      description,
+      color: "",
+      size,
+      sku,
+      qtySold: 0,
+      onHand: 0,
+      status: "Needed",
+      checkedBy: initials,
+      checkedDate: nowIso,
+      outOfStock: "",
+      restocked: "",
+    });
+    saveJSON(STORAGE.floorRestock, restock);
+
+    document.getElementById("replen-manual-desc").value = "";
+    renderReplenList();
+    setStatus("replen-manual-status", `Added ${description} — size ${size} to Replen.`, false);
+  } catch (e) {
+    setStatus(
+      "replen-manual-status",
+      "Couldn't reach the sheet — check your connection and try again.",
       true
     );
   }

@@ -17,12 +17,14 @@
 <div class="app-header">
   <header class="topbar">
     <!-- Bump this by 1 on every shipped change, same as sw.js's CACHE_NAME. -->
-    <span class="header-version">v20</span>
+    <span class="header-version">v21</span>
     <img src="icons/icon-192.png" alt="Oakridge Park Arc'teryx" class="topbar-logo">
     <h1>Oakridge Ops Suite</h1>
     <div id="offline-badge" class="badge" hidden>Offline</div>
     <button id="global-refresh-btn" class="header-icon-btn" title="Refresh from sheet" aria-label="Refresh from sheet" disabled>🔄</button>
   </header>
+
+  <button id="feedback-btn" class="feedback-bar-btn">💬 Leave Feedback!</button>
 
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab-btn active" data-tab="taglookup" role="tab" aria-selected="true">Tag Lookup</button>
@@ -372,6 +374,19 @@
 
     <h2>Replen</h2>
     <p class="hint">Items marked Needed above land here for picking. Check off Picked once it's on the floor, or Out of Stock if there's none in the back.</p>
+
+    <div id="replen-manual-card" class="active-item-card">
+      <h3>Not on the sold list or in the catalog?</h3>
+      <p class="hint">Type a description, pick a size, and it goes straight into the picking list below — no SKU needed.</p>
+      <label>Description
+        <input type="text" id="replen-manual-desc" autocomplete="off" placeholder="e.g. Atom SL Hoody Men's — Black">
+      </label>
+      <div class="active-item-actions">
+        <button id="replen-manual-add-btn" class="btn secondary small">Pick a Size…</button>
+      </div>
+      <p id="replen-manual-status" class="status-msg" role="status"></p>
+    </div>
+
     <p id="replen-count" class="hint"></p>
     <div class="table-wrap">
       <table class="master-table replen-table">
@@ -524,6 +539,36 @@
   </div>
 </div>
 
+<!-- Floor Replen manual entry — size picker -->
+<div id="replen-manual-size-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Pick a Size</h2>
+    <p id="replen-manual-size-label" class="hint"></p>
+    <div id="replen-manual-sizes" class="floor-size-grid"></div>
+    <input type="text" id="replen-manual-other-size" placeholder="Size" autocomplete="off" hidden>
+    <div class="active-item-actions">
+      <button id="replen-manual-size-save-btn" class="btn primary">Add to Replen</button>
+      <button id="replen-manual-size-cancel-btn" class="btn secondary">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Leave Feedback -->
+<div id="feedback-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Leave Feedback</h2>
+    <p class="hint">Goes straight to the Feedback sheet, with your initials and today's date attached.</p>
+    <label>Feedback
+      <textarea id="feedback-text" rows="5" placeholder="What's working, what's not, what you'd change…"></textarea>
+    </label>
+    <div class="active-item-actions">
+      <button id="feedback-submit-btn" class="btn primary">Submit</button>
+      <button id="feedback-cancel-btn" class="btn secondary">Cancel</button>
+    </div>
+    <p id="feedback-status" class="status-msg" role="status"></p>
+  </div>
+</div>
+
 <!-- Receiving: scanned box not in the expected shipment list -->
 <div id="receiving-add-box-modal" class="scanner-modal" hidden>
   <div class="scanner-modal-inner">
@@ -556,6 +601,7 @@
 <script src="js/floorreplen.js"></script>
 <script src="js/board86.js"></script>
 <script src="js/sync.js"></script>
+<script src="js/feedback.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
