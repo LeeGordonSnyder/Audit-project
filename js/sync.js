@@ -46,10 +46,6 @@ async function fetchFromSheet(url, sheet, attempt = 1) {
   }
 }
 
-function postEntryToSheet(url, entry) {
-  return postToSheet(url, { type: "audit", ...entry });
-}
-
 function pushProductToSheet(url, item) {
   return postToSheet(url, { type: "master", ...item });
 }
@@ -128,6 +124,20 @@ function postFeedback(url, payload) {
   return postToSheet(url, { type: "feedback", ...payload });
 }
 
+// Saves every unsynced audit entry in one request instead of one request
+// per entry — a busy day's worth of counts used to mean one sequential
+// round trip each, which is most of what made "Save to Sheet" feel slow.
+function postAuditBatch(url, entries) {
+  return postToSheet(url, { type: "auditbatch", entries });
+}
+
+// Shares a whole pasted MAO shipment list in one request instead of one
+// sequential request per box — see pushReceivingItemToSheet for the
+// single-item version still used by the "box not expected" scanner flow.
+function pushReceivingItemsBatch(url, items) {
+  return postToSheet(url, { type: "receivingimportbatch", items });
+}
+
 function initSync() {
   const urlInput = document.getElementById("sheet-url-input");
   urlInput.value = getWebhookUrl();
@@ -157,27 +167,22 @@ async function syncUnsyncedEntries() {
 
   setStatus("sync-status", `Saving ${unsynced.length} entr${unsynced.length === 1 ? "y" : "ies"}…`, false);
 
-  // Each postEntryToSheet() already retries transient failures internally,
-  // so a failure surviving that is worth logging and moving on from rather
-  // than aborting the whole batch over one bad entry.
-  let successCount = 0;
-  for (const entry of unsynced) {
-    try {
-      await postEntryToSheet(url, entry);
-      entry.synced = true;
-      successCount++;
-    } catch (e) {
-      // leave this one unsynced for next attempt, keep going with the rest
-    }
-  }
-
-  saveJSON(STORAGE.auditLog, entries);
-  renderAuditList();
-
-  if (successCount === unsynced.length) {
-    setStatus("sync-status", `Saved ${successCount} entr${successCount === 1 ? "y" : "ies"} to the shared log.`, false);
-  } else {
-    setStatus("sync-status", `Saved ${successCount} of ${unsynced.length} — check your connection and try Save again.`, true);
+  // One request for the whole batch — postAuditBatch() already retries
+  // transient failures internally (same as every other sheet call), so
+  // what's left after that is a real failure (offline, sheet unreachable)
+  // rather than a one-off blip. That means this is all-or-nothing instead
+  // of the old per-entry partial-success accounting: either every entry
+  // here is now synced, or none of them are and everything stays queued
+  // for the next tap of Save — nothing already in local storage is ever
+  // lost either way.
+  try {
+    await postAuditBatch(url, unsynced);
+    unsynced.forEach((entry) => (entry.synced = true));
+    saveJSON(STORAGE.auditLog, entries);
+    renderAuditList();
+    setStatus("sync-status", `Saved ${unsynced.length} entr${unsynced.length === 1 ? "y" : "ies"} to the shared log.`, false);
+  } catch (e) {
+    setStatus("sync-status", "Couldn't reach the sheet — check your connection and try Save again.", true);
   }
 }
 

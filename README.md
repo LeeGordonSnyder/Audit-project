@@ -339,6 +339,7 @@ Setup, if you're starting fresh or need to redeploy:
      if (body.type === "consolboxclose") return handleConsolBoxClose(body);
      if (body.type === "consolmarkoutbatch") return handleConsolMarkoutBatch(body);
      if (body.type === "receivingimport") return handleReceivingImportPost(body);
+     if (body.type === "receivingimportbatch") return handleReceivingImportBatch(body);
      if (body.type === "receivingstatus") return handleReceivingStatusPost(body);
      if (body.type === "checkfloorupdate") return handleCheckFloorUpdate(body);
      if (body.type === "floorpickupdate") return handleFloorPickUpdate(body);
@@ -347,23 +348,52 @@ Setup, if you're starting fresh or need to redeploy:
      if (body.type === "replenmanualadd") return handleReplenManualAdd(body);
      if (body.type === "staffadd") return handleStaffAdd(body);
      if (body.type === "feedback") return handleFeedbackPost(body);
+     if (body.type === "auditbatch") return handleAuditBatchPost(body);
      return handleAuditPost(body);
    }
+
+   // Short cache absorbs near-simultaneous refreshes from multiple devices
+   // (two staff both tapping Refresh around the same time) without re-reading
+   // the sheet twice. 10 seconds is short enough that any change is visible
+   // everywhere well inside the time it'd take someone to notice and refresh
+   // again -- if that staleness window is ever unwanted, delete the cache
+   // lookup/put below and just `return jsonResponse(computeDoGetResult(sheetParam));`.
+   const DOGET_CACHE_SECONDS = 10;
 
    function doGet(e) {
      const sheetParam = (e.parameter.sheet || "auditlog").toLowerCase();
 
-     // The staff roster (login gate dropdown) is a plain list of strings
-     // from one column, not row objects, so it doesn't fit the two shared
-     // shapes below — handled separately. See getStaffInitialsList().
-     if (sheetParam === "staff") {
-       return jsonResponse(getStaffInitialsList());
+     const cache = CacheService.getScriptCache();
+     const cacheKey = "doGet:" + sheetParam;
+     const cached = cache.get(cacheKey);
+     if (cached) {
+       return ContentService.createTextOutput(cached).setMimeType(ContentService.MimeType.JSON);
      }
 
-     // AuditLog, ConsolLog, and ReceivingLog are fully app-managed — only
+     const result = computeDoGetResult(sheetParam);
+     const json = JSON.stringify(result);
+     try {
+       cache.put(cacheKey, json, DOGET_CACHE_SECONDS);
+     } catch (err) {
+       // A single sheet's JSON can exceed CacheService's ~100KB per-key limit
+       // on a big FloorRestock/ProductMaster export -- caching is a pure
+       // speed bonus, so just skip it rather than fail the request.
+     }
+     return jsonResponse(result);
+   }
+
+   function computeDoGetResult(sheetParam) {
+     // The staff roster (login gate dropdown) is a plain list of strings from
+     // one column, not row objects, so it doesn't fit the two shared shapes
+     // below -- handled separately. See getStaffInitialsList().
+     if (sheetParam === "staff") {
+       return getStaffInitialsList();
+     }
+
+     // AuditLog, ConsolLog, and ReceivingLog are fully app-managed -- only
      // this app ever writes to them, always at fixed column positions (see
      // the *_HEADER arrays below). Read them back by POSITION, not by
-     // matching the header row's text — renaming a header for readability
+     // matching the header row's text -- renaming a header for readability
      // (e.g. "date" -> "DATE", or two columns both renamed "RECEIVER") can
      // never silently break a read again.
      const positionalSheets = {
@@ -373,10 +403,10 @@ Setup, if you're starting fresh or need to redeploy:
      };
      if (positionalSheets[sheetParam]) {
        const [name, keys] = positionalSheets[sheetParam];
-       return jsonResponse(sheetToObjectsByPosition(getOrCreateSheet(name, keys), keys));
+       return sheetToObjectsByPosition(getOrCreateSheet(name, keys), keys);
      }
 
-     // ProductMaster and ConsolMaster are hand-edited directly in Sheets —
+     // ProductMaster and ConsolMaster are hand-edited directly in Sheets --
      // their header text IS the contract, matched by name (see
      // sheetRowToMasterItem / sheetRowToConsolItem on the app side).
      const sheetsByParam = {
@@ -385,27 +415,46 @@ Setup, if you're starting fresh or need to redeploy:
        floorrestock: ["FloorRestock", FLOOR_RESTOCK_HEADER],
      };
      const [name, header] = sheetsByParam[sheetParam] || sheetsByParam.master;
-     return jsonResponse(sheetToObjects(getOrCreateSheet(name, header)));
+     return sheetToObjects(getOrCreateSheet(name, header));
    }
 
    const AUDIT_HEADER = ["id", "date", "initials", "sku", "upc", "style", "description", "expected", "counted", "variance", "result", "timestamp"];
    const MASTER_HEADER = ["sku", "upc", "dept", "style", "color", "size", "description", "updatedAt"];
-   // Defensive fallback only — ConsolMaster already exists with this exact
+   // Defensive fallback only -- ConsolMaster already exists with this exact
    // header row, hand-edited directly in Sheets; the app never creates it.
    const CONSOL_MASTER_HEADER = ["MATERIAL", "COLOR", "STYLE SKU", "ECC GENERIC MATERIAL", "DESTINATION", "TOTAL", "PROCESSED"];
    const CONSOL_LOG_HEADER = ["id", "entryType", "date", "initials", "eccMaterial", "description", "color", "status", "size", "unitsOut", "referenceNumber", "timestamp"];
    const RECEIVING_HEADER = ["barcode", "po", "expectedDate", "physicallyReceivedDate", "physicallyReceivedBy", "receivedIntoMaoDate", "receivedIntoMaoBy", "updatedAt"];
    const FEEDBACK_HEADER = ["id", "date", "initials", "feedback", "timestamp"];
-   // Defensive fallback only — FloorRestock already exists with this exact
+   // Defensive fallback only -- FloorRestock already exists with this exact
    // header row (plus the five trailing columns staff add themselves), and
    // is hand-managed directly in Sheets like ConsolMaster; the app never
    // creates it.
    const FLOOR_RESTOCK_HEADER = ["GENDER", "CLOTHING CATEGORY", "MODEL NAME", "COLOR", "SIZE", "SKU", "QUANTITY SOLD", "ON HAND QUANTITY", "STATUS", "CHECKED BY", "CHECKED DATE", "86", "RESTOCKED"];
 
+   // Memoized per execution -- SpreadsheetApp.getActiveSpreadsheet() is
+   // itself an API call, and several handlers touch more than one sheet in a
+   // single request, so fetching it once and reusing it removes those
+   // redundant lookups. (Nothing to invalidate: a fresh execution gets a
+   // fresh module scope, so this can never leak stale state across requests.)
+   let _spreadsheet = null;
+   function getSpreadsheet() {
+     if (!_spreadsheet) _spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+     return _spreadsheet;
+   }
+
+   function getOrCreateSheet(name, header) {
+     const ss = getSpreadsheet();
+     let sheet = ss.getSheetByName(name);
+     if (!sheet) sheet = ss.insertSheet(name);
+     if (sheet.getLastRow() === 0) sheet.appendRow(header);
+     return sheet;
+   }
+
    function handleAuditPost(entry) {
      const sheet = getOrCreateSheet("AuditLog", AUDIT_HEADER);
      // Parse as local midnight (not UTC) so the date doesn't shift a day when displayed,
-     // and write real Date objects — plain strings don't reliably become real Sheets
+     // and write real Date objects -- plain strings don't reliably become real Sheets
      // dates, which breaks date-based formulas like the Overdue section's MAXIFS.
      const auditDate = entry.date ? new Date(entry.date + "T00:00:00") : "";
      const timestamp = entry.timestamp ? new Date(entry.timestamp) : "";
@@ -414,20 +463,12 @@ Setup, if you're starting fresh or need to redeploy:
        if (key === "timestamp") return timestamp;
        return entry[key];
      });
-     // Plain appendRow() is fine here — columns A:L are the main log and
-     // nothing else shares that row space, unlike the Mark In/Out sections
-     // further right. What actually matters in this function is the
-     // variance block below: if you're pasting this over an existing
-     // handleAuditPost, make sure that block survives — it's easy to lose
-     // by copying just the "write the log row" half of this function,
-     // which silently stops discrepant counts from ever reaching Mark
-     // In/Mark Out.
      sheet.appendRow(row);
 
-     // A nonzero variance means the physical count didn't match expected —
-     // push it into the shared Mark In (over) or Mark Out (under) queue so
-     // a supervisor can action it. Column 14 (N) = Mark In, column 21 (U)
-     // = Mark Out, both 6 columns wide — adjust if your sections start
+     // A nonzero variance means the physical count didn't match expected --
+     // push it into the shared Mark In (over) or Mark Out (under) queue so a
+     // supervisor can action it. Column 14 (N) = Mark In, column 21 (U) =
+     // Mark Out, both 6 columns wide -- adjust if your sections start
      // elsewhere.
      const variance = Number(entry.variance);
      if (variance !== 0) {
@@ -436,6 +477,45 @@ Setup, if you're starting fresh or need to redeploy:
      }
 
      return jsonResponse({ ok: true });
+   }
+
+   // Batched version of handleAuditPost for "Save to Sheet": the client used
+   // to POST one entry at a time in a sequential loop, each its own full
+   // round trip -- a busy day's worth of unsynced counts could mean dozens of
+   // requests, one at a time. One request for the whole batch turns that into
+   // a single append (plus, at most, two more for any Mark In/Out rows).
+   function handleAuditBatchPost(body) {
+     const entries = body.entries || [];
+     if (entries.length === 0) return jsonResponse({ ok: true, saved: 0 });
+
+     const sheet = getOrCreateSheet("AuditLog", AUDIT_HEADER);
+     const rows = [];
+     const markInRows = [];
+     const markOutRows = [];
+
+     entries.forEach((entry) => {
+       const auditDate = entry.date ? new Date(entry.date + "T00:00:00") : "";
+       const timestamp = entry.timestamp ? new Date(entry.timestamp) : "";
+       rows.push(
+         AUDIT_HEADER.map((key) => {
+           if (key === "date") return auditDate;
+           if (key === "timestamp") return timestamp;
+           return entry[key];
+         })
+       );
+
+       const variance = Number(entry.variance);
+       if (variance !== 0) {
+         const adjRow = [auditDate, entry.upc, entry.description, Math.abs(variance), "", ""];
+         (variance > 0 ? markInRows : markOutRows).push(adjRow);
+       }
+     });
+
+     sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, AUDIT_HEADER.length).setValues(rows);
+     appendRowsToSection(sheet, 14, 6, markInRows);
+     appendRowsToSection(sheet, 21, 6, markOutRows);
+
+     return jsonResponse({ ok: true, saved: entries.length });
    }
 
    function handleMasterPost(item) {
@@ -452,7 +532,7 @@ Setup, if you're starting fresh or need to redeploy:
    }
 
    // The staff roster (login gate dropdown) lives in column J (10th) of
-   // ProductMaster — completely independent of the product columns in A:H,
+   // ProductMaster -- completely independent of the product columns in A:H,
    // just a plain list of initials, one per row, starting at J2 (J1 is its
    // own header label, auto-set by handleStaffAdd the first time someone's
    // added). Kept on this tab instead of a new one, same as bolting extra
@@ -468,8 +548,8 @@ Setup, if you're starting fresh or need to redeploy:
    // Appends one new initials value to column J. Finds the actual last
    // non-blank row within column J specifically (not sheet.getLastRow(),
    // which reflects the much longer product data in A:H, and not just a
-   // count of existing entries, in case of gaps) so a new entry always
-   // lands right after the existing roster.
+   // count of existing entries, in case of gaps) so a new entry always lands
+   // right after the existing roster.
    function handleStaffAdd(body) {
      const initials = (body.initials || "").trim();
      if (!initials) return jsonResponse({ ok: false, error: "Missing initials." });
@@ -495,9 +575,9 @@ Setup, if you're starting fresh or need to redeploy:
      return jsonResponse({ ok: true, added: true });
    }
 
-   // Appends one row to the Feedback sheet — fully app-managed, positional,
-   // same pattern as AuditLog/ConsolLog. Write-only: nothing ever reads
-   // this back through doGet.
+   // Appends one row to the Feedback sheet -- fully app-managed, positional,
+   // same pattern as AuditLog/ConsolLog. Write-only: nothing ever reads this
+   // back through doGet.
    function handleFeedbackPost(body) {
      const sheet = getOrCreateSheet("Feedback", FEEDBACK_HEADER);
      const date = body.date ? new Date(body.date + "T00:00:00") : new Date();
@@ -506,42 +586,41 @@ Setup, if you're starting fresh or need to redeploy:
      return jsonResponse({ ok: true });
    }
 
-   // Row index (1-based) of a ReceivingLog row by barcode, or -1. String()
-   // both sides — a long digit-only barcode is exactly the kind of value
-   // Sheets auto-types as a number rather than text.
-   function findReceivingRow(sheet, barcode) {
-     const data = sheet.getDataRange().getValues();
-     for (let i = 1; i < data.length; i++) {
-       if (String(data[i][0]) === String(barcode)) return i + 1;
-     }
-     return -1;
+   // Row index (1-based) of a ReceivingLog row by barcode, or -1. Scoped to
+   // just the barcode column via TextFinder instead of reading every column
+   // of every row into memory -- this is only used by the single-item import
+   // path; the batch paths below read the barcode column once for the whole
+   // batch instead of calling this per item.
+   function findReceivingRowIndex(sheet, barcode) {
+     const lastRow = sheet.getLastRow();
+     if (lastRow < 2) return -1;
+     const match = sheet.getRange(2, 1, lastRow - 1, 1).createTextFinder(String(barcode)).matchEntireCell(true).findNext();
+     return match ? match.getRow() : -1;
    }
 
-   // Upserts one expected box by barcode — only ever touches the
-   // expected-shipment facts (po/expectedDate), never the received-status
-   // columns, so re-importing a box can't accidentally wipe real status.
-   // A 16-digit barcode is exactly the kind of value Sheets auto-detects
-   // as a NUMBER on write (even though the app sends it as a string) and
-   // then displays in scientific notation once it's long enough — "@" is
-   // Sheets' Plain Text format code, which stops that auto-detection for
-   // this column entirely. Cheap to call every time; harmless if already set.
+   // Cheap to call every time; harmless if already set. Bounded to the
+   // sheet's actual used rows plus a little headroom, instead of
+   // getMaxRows() -- on a sheet whose grid has been extended far past its
+   // real data (common after repeated pastes/deletes), reformatting all the
+   // way to getMaxRows() on every single call could itself take longer than
+   // the write it's protecting.
    function ensurePlainTextColumn(sheet, col) {
-     sheet.getRange(1, col, sheet.getMaxRows(), 1).setNumberFormat("@");
+     const rows = Math.max(sheet.getLastRow() + 20, 100);
+     sheet.getRange(1, col, rows, 1).setNumberFormat("@");
    }
 
    function handleReceivingImportPost(item) {
      const sheet = getOrCreateSheet("ReceivingLog", RECEIVING_HEADER);
      ensurePlainTextColumn(sheet, 1); // barcode
      ensurePlainTextColumn(sheet, 2); // po
-     const rowIndex = findReceivingRow(sheet, item.barcode);
+     const rowIndex = findReceivingRowIndex(sheet, item.barcode);
      const now = new Date().toISOString();
-     // The Plain Text column format above isn't always enough on its own —
-     // appendRow()/setValues() can still auto-detect a long digit string as
-     // a NUMBER and render it in scientific notation, which makes it
-     // unscannable directly off the sheet. A leading apostrophe is Sheets'
-     // own escape for "force literal text" -- it's stripped from the
-     // stored/displayed value (getValue() reads back the plain digits,
-     // no apostrophe), so nothing downstream needs to change.
+     // A leading apostrophe is Sheets' own escape for "force literal text" --
+     // it's stripped from the stored/displayed value (getValue() reads back
+     // the plain digits, no apostrophe), so nothing downstream needs to
+     // change. Without it, a long digit string can still get auto-detected
+     // as a NUMBER and rendered in scientific notation, unscannable directly
+     // off the sheet.
      const barcodeText = "'" + item.barcode;
      if (rowIndex === -1) {
        sheet.appendRow([barcodeText, item.po || "", item.expectedDate || "", "", "", "", "", now]);
@@ -552,278 +631,407 @@ Setup, if you're starting fresh or need to redeploy:
      return jsonResponse({ ok: true });
    }
 
+   // Same as handleReceivingImportPost, but for a whole pasted shipment list
+   // in one request instead of one request per box. The paste-import flow
+   // used to fire one sequential doPost per box (a big shipment could easily
+   // be 50-100+), each doing its own full-column scan -- that's what made a
+   // big import feel slow. This reads the barcode column once, matches/
+   // updates everything in memory (including de-duping a barcode that
+   // appears twice in the same paste, so the second occurrence updates the
+   // first instead of creating a second row), and writes in at most two
+   // batched calls total.
+   function handleReceivingImportBatch(body) {
+     const items = body.items || [];
+     if (items.length === 0) return jsonResponse({ ok: true, added: 0, updated: 0 });
+
+     const sheet = getOrCreateSheet("ReceivingLog", RECEIVING_HEADER);
+     ensurePlainTextColumn(sheet, 1);
+     ensurePlainTextColumn(sheet, 2);
+
+     const lastRow = sheet.getLastRow();
+     const existing = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, RECEIVING_HEADER.length).getValues() : [];
+     const rowByBarcode = new Map(); // barcode -> index into `existing`
+     existing.forEach((row, i) => rowByBarcode.set(String(row[0]), i));
+
+     const dirty = new Set();
+     const newRows = [];
+     const newRowByBarcode = new Map(); // barcode -> index into `newRows`, for dupes within this same paste
+
+     const now = new Date().toISOString();
+     let added = 0;
+     let updated = 0;
+
+     items.forEach((item) => {
+       const barcode = String(item.barcode);
+
+       if (rowByBarcode.has(barcode)) {
+         const i = rowByBarcode.get(barcode);
+         existing[i][1] = item.po || "";
+         existing[i][2] = item.expectedDate || "";
+         existing[i][7] = now;
+         dirty.add(i);
+         updated++;
+         return;
+       }
+
+       if (newRowByBarcode.has(barcode)) {
+         const i = newRowByBarcode.get(barcode);
+         newRows[i][1] = item.po || "";
+         newRows[i][2] = item.expectedDate || "";
+         newRows[i][7] = now;
+         return;
+       }
+
+       newRows.push(["'" + barcode, item.po || "", item.expectedDate || "", "", "", "", "", now]);
+       newRowByBarcode.set(barcode, newRows.length - 1);
+       added++;
+     });
+
+     dirty.forEach((i) => {
+       sheet.getRange(i + 2, 1, 1, RECEIVING_HEADER.length).setValues([existing[i]]);
+     });
+     if (newRows.length > 0) {
+       sheet.getRange(lastRow + 1, 1, newRows.length, RECEIVING_HEADER.length).setValues(newRows);
+     }
+
+     return jsonResponse({ ok: true, added: added, updated: updated });
+   }
+
    // Marks a batch of scanned boxes "physical" (physicallyReceived*, cols
-   // D:E) or "mao" (receivedIntoMao*, cols F:G) in one request — the app
+   // D:E) or "mao" (receivedIntoMao*, cols F:G) in one request -- the app
    // sends every barcode from its holding list together instead of one
-   // request per box.
+   // request per box. Reads the barcode column once for the whole batch
+   // instead of re-scanning it per barcode.
    function handleReceivingStatusPost(body) {
      const sheet = getOrCreateSheet("ReceivingLog", RECEIVING_HEADER);
      const date = body.date ? new Date(body.date + "T00:00:00") : new Date();
      const initials = body.initials || "";
      const dateCol = body.status === "mao" ? 6 : 4;
+
+     const lastRow = sheet.getLastRow();
+     if (lastRow < 2) return jsonResponse({ ok: true, updated: 0 });
+     const barcodeColumn = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+     const rowByBarcode = new Map();
+     barcodeColumn.forEach((r, i) => rowByBarcode.set(String(r[0]), i + 2));
+
+     let updated = 0;
      (body.barcodes || []).forEach((barcode) => {
-       const rowIndex = findReceivingRow(sheet, barcode);
-       if (rowIndex === -1) return;
+       const rowIndex = rowByBarcode.get(String(barcode));
+       if (!rowIndex) return;
        sheet.getRange(rowIndex, dateCol, 1, 2).setValues([[date, initials]]);
+       updated++;
      });
-     return jsonResponse({ ok: true, updated: (body.barcodes || []).length });
+     return jsonResponse({ ok: true, updated: updated });
    }
 
-   // Finds the FloorRestock row matching sku+size AND currently in the
-   // lifecycle state the caller expects (a predicate over its STATUS/86/
-   // RESTOCKED values), or null. sku+size alone is NOT a stable key: the
-   // same product can sell out, get restocked, and sell out again, leaving
-   // multiple rows sharing a sku+size at different points in the
-   // blank -> Needed -> Picked/Out of Stock -> Restocked lifecycle.
-   // Scoping every match to the row actually in the expected state (e.g.
-   // only a row still "Needed" is eligible for a pick decision) stops a
-   // stale/older row from getting updated instead of the current one.
-   function findFloorRestockRow(sku, size, statePredicate) {
+   // Column lookup shared by every FloorRestock handler -- previously each
+   // one repeated its own block of findColumnIndex calls.
+   function getFloorRestockColumns(headerRow) {
+     return {
+       sku: findColumnIndex(headerRow, "SKU"),
+       size: findColumnIndex(headerRow, "SIZE"),
+       gender: findColumnIndex(headerRow, "GENDER"),
+       category: findColumnIndex(headerRow, "CLOTHING CATEGORY"),
+       desc: findColumnIndex(headerRow, "MODEL NAME"),
+       color: findColumnIndex(headerRow, "COLOR"),
+       status: findColumnIndex(headerRow, "STATUS"),
+       checkedBy: findColumnIndex(headerRow, "CHECKED BY"),
+       checkedDate: findColumnIndex(headerRow, "CHECKED DATE"),
+       flag86: findColumnIndex(headerRow, "86"),
+       restocked: findColumnIndex(headerRow, "RESTOCKED"),
+     };
+   }
+
+   // Loads FloorRestock's header + full body ONCE so a handler that processes
+   // several decisions in one request (Check Floor Update, Replen Update, 86
+   // Board Restocked) can find and patch every matching row purely in memory,
+   // then write back only what actually changed in a couple of batched
+   // calls -- replacing what used to be a full-sheet read PER decision (the
+   // old findFloorRestockRow re-fetched the whole sheet every single call)
+   // and a separate API round trip per cell written.
+   //
+   // sku+size alone is NOT a stable key: the same product can sell out, get
+   // restocked, and sell out again, leaving multiple rows sharing a sku+size
+   // at different points in the blank -> Needed -> Picked/Out of Stock ->
+   // Restocked lifecycle. find()'s statePredicate scopes every match to the
+   // row actually in the expected state, same as before.
+   function loadFloorRestock() {
      const sheet = getOrCreateSheet("FloorRestock", FLOOR_RESTOCK_HEADER);
      const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-     const skuCol = findColumnIndex(headerRow, "SKU");
-     const sizeCol = findColumnIndex(headerRow, "SIZE");
-     const statusCol = findColumnIndex(headerRow, "STATUS");
-     const col86 = findColumnIndex(headerRow, "86");
-     const restockedCol = findColumnIndex(headerRow, "RESTOCKED");
-     if (skuCol === -1) return null;
-     const data = sheet.getDataRange().getValues();
-     for (let i = 1; i < data.length; i++) {
-       if (String(data[i][skuCol - 1]) !== String(sku)) continue;
-       if (sizeCol !== -1 && String(data[i][sizeCol - 1]) !== String(size)) continue;
-       const state = {
-         status: statusCol !== -1 ? String(data[i][statusCol - 1] || "").trim() : "",
-         flag86: col86 !== -1 ? String(data[i][col86 - 1] || "").trim() : "",
-         restocked: restockedCol !== -1 ? String(data[i][restockedCol - 1] || "").trim() : "",
-       };
-       if (statePredicate && !statePredicate(state)) continue;
-       return { sheet, headerRow, rowIndex: i + 1, row: data[i] };
-     }
-     return null;
+     const lastRow = sheet.getLastRow();
+     const body = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, headerRow.length).getValues() : [];
+     const cols = getFloorRestockColumns(headerRow);
+     const dirty = new Set();
+     const appended = [];
+
+     return {
+       sheet,
+       headerRow,
+       body,
+       cols,
+       find(sku, size, statePredicate) {
+         for (let i = 0; i < body.length; i++) {
+           const row = body[i];
+           if (cols.sku === -1 || String(row[cols.sku - 1]) !== String(sku)) continue;
+           if (cols.size !== -1 && String(row[cols.size - 1]) !== String(size)) continue;
+           const state = {
+             status: cols.status !== -1 ? String(row[cols.status - 1] || "").trim() : "",
+             flag86: cols.flag86 !== -1 ? String(row[cols.flag86 - 1] || "").trim() : "",
+             restocked: cols.restocked !== -1 ? String(row[cols.restocked - 1] || "").trim() : "",
+           };
+           if (statePredicate && !statePredicate(state)) continue;
+           return i;
+         }
+         return -1;
+       },
+       patch(index) {
+         dirty.add(index);
+       },
+       appendRow(row) {
+         appended.push(row);
+       },
+       // Writes only what actually changed: one setValues() per patched row
+       // (their positions in the sheet generally aren't contiguous, so they
+       // can't be merged into a single call) plus one more for every appended
+       // row together -- never rewrites rows nothing touched.
+       save() {
+         dirty.forEach((i) => {
+           sheet.getRange(i + 2, 1, 1, headerRow.length).setValues([body[i]]);
+         });
+         if (appended.length > 0) {
+           sheet.getRange(lastRow + 1, 1, appended.length, headerRow.length).setValues(appended);
+         }
+       },
+     };
    }
 
    // Commits every staged Check Floor decision in one request. body.decisions
    // is an array of { sku, size, status: "Needed"|"Not Needed", sizes: [...] }.
    // FloorRestock is hand-managed (like ConsolMaster), so its columns are
-   // found by name via findColumnIndex, not a fixed position — staff must
-   // have added the Status/Checked By/Checked Date/86/Restocked columns
-   // themselves. A "Needed" decision also appends one new FloorRestock row
-   // for every size checked *besides* the row's own size — those become
-   // Replen queue entries for sizes that were never actually sold (Quantity
-   // Sold/On Hand left blank so they're easy to spot as placeholders). Only
-   // matches a row with a still-blank Status — that's what makes a fresh
-   // re-paste of the same sku+size (after an earlier sale of it already
-   // ran the whole lifecycle) land on the new row, not the old one.
+   // found by name, not a fixed position -- staff must have added the
+   // Status/Checked By/Checked Date/86/Restocked columns themselves. A
+   // "Needed" decision also appends one new FloorRestock row for every size
+   // checked *besides* the row's own size -- those become Replen queue
+   // entries for sizes that were never actually sold (Quantity Sold/On Hand
+   // left blank so they're easy to spot as placeholders). Only matches a row
+   // with a still-blank Status -- that's what makes a fresh re-paste of the
+   // same sku+size (after an earlier sale of it already ran the whole
+   // lifecycle) land on the new row, not the old one.
    function handleCheckFloorUpdate(body) {
      const decisions = body.decisions || [];
      if (decisions.length === 0) return jsonResponse({ ok: true, updated: 0 });
 
+     const fr = loadFloorRestock();
+     const cols = fr.cols;
      const timestamp = new Date();
-     const newRows = [];
      let updated = 0;
 
      decisions.forEach((d) => {
-       const match = findFloorRestockRow(d.sku, d.size, (s) => s.status === "");
-       if (!match) return;
-       const { sheet, headerRow, rowIndex, row } = match;
-       const skuCol = findColumnIndex(headerRow, "SKU");
-       const sizeCol = findColumnIndex(headerRow, "SIZE");
-       const genderCol = findColumnIndex(headerRow, "GENDER");
-       const categoryCol = findColumnIndex(headerRow, "CLOTHING CATEGORY");
-       const descCol = findColumnIndex(headerRow, "MODEL NAME");
-       const colorCol = findColumnIndex(headerRow, "COLOR");
-       const statusCol = findColumnIndex(headerRow, "STATUS");
-       const checkedByCol = findColumnIndex(headerRow, "CHECKED BY");
-       const checkedDateCol = findColumnIndex(headerRow, "CHECKED DATE");
-       if (statusCol === -1 || checkedByCol === -1 || checkedDateCol === -1) return;
+       const idx = fr.find(d.sku, d.size, (s) => s.status === "");
+       if (idx === -1) return;
+       if (cols.status === -1 || cols.checkedBy === -1 || cols.checkedDate === -1) return;
 
-       sheet.getRange(rowIndex, statusCol).setValue(d.status || "");
-       sheet.getRange(rowIndex, checkedByCol).setValue(body.initials || "");
-       sheet.getRange(rowIndex, checkedDateCol).setValue(timestamp);
+       const row = fr.body[idx];
+       row[cols.status - 1] = d.status || "";
+       row[cols.checkedBy - 1] = body.initials || "";
+       row[cols.checkedDate - 1] = timestamp;
+       fr.patch(idx);
        updated++;
 
        if (d.status === "Needed") {
-         const ownSize = sizeCol !== -1 ? row[sizeCol - 1] : "";
+         const ownSize = cols.size !== -1 ? row[cols.size - 1] : "";
          const extraSizes = (d.sizes || []).filter((size) => String(size) !== String(ownSize));
          extraSizes.forEach((size) => {
-           const newRow = new Array(headerRow.length).fill("");
-           if (genderCol !== -1) newRow[genderCol - 1] = row[genderCol - 1];
-           if (categoryCol !== -1) newRow[categoryCol - 1] = row[categoryCol - 1];
-           if (descCol !== -1) newRow[descCol - 1] = row[descCol - 1];
-           if (colorCol !== -1) newRow[colorCol - 1] = row[colorCol - 1];
-           if (sizeCol !== -1) newRow[sizeCol - 1] = size;
-           newRow[skuCol - 1] = d.sku;
-           newRow[statusCol - 1] = "Needed";
-           newRow[checkedByCol - 1] = body.initials || "";
-           newRow[checkedDateCol - 1] = timestamp;
-           newRows.push(newRow);
+           const newRow = new Array(fr.headerRow.length).fill("");
+           if (cols.gender !== -1) newRow[cols.gender - 1] = row[cols.gender - 1];
+           if (cols.category !== -1) newRow[cols.category - 1] = row[cols.category - 1];
+           if (cols.desc !== -1) newRow[cols.desc - 1] = row[cols.desc - 1];
+           if (cols.color !== -1) newRow[cols.color - 1] = row[cols.color - 1];
+           if (cols.size !== -1) newRow[cols.size - 1] = size;
+           newRow[cols.sku - 1] = d.sku;
+           newRow[cols.status - 1] = "Needed";
+           newRow[cols.checkedBy - 1] = body.initials || "";
+           newRow[cols.checkedDate - 1] = timestamp;
+           fr.appendRow(newRow);
          });
        }
      });
 
-     if (newRows.length > 0) {
-       const sheet = getOrCreateSheet("FloorRestock", FLOOR_RESTOCK_HEADER);
-       sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, FLOOR_RESTOCK_HEADER.length).setValues(newRows);
-     }
-
+     fr.save();
      return jsonResponse({ ok: true, updated: updated });
    }
 
    // Appends one new FloorRestock row for a product that wasn't on the MAO
    // "items sold" export -- staff found it via the catalog lookup on Check
-   // Floor. Quantity Sold/On Hand and Status are all left blank, so it
-   // lands in the normal Check Floor list for a Needed/Not Needed decision,
-   // exactly like a pasted row. Columns are found by name via
-   // findColumnIndex, same as handleCheckFloorUpdate's extra-size append,
-   // since FloorRestock is hand-managed and its column order isn't
-   // guaranteed to match FLOOR_RESTOCK_HEADER.
+   // Floor. Quantity Sold/On Hand and Status are all left blank, so it lands
+   // in the normal Check Floor list for a Needed/Not Needed decision, exactly
+   // like a pasted row. Only needs the header row (for column positions),
+   // never the sheet's full body -- a blind append, same as before.
    function handleFloorRestockAdd(body) {
      const sheet = getOrCreateSheet("FloorRestock", FLOOR_RESTOCK_HEADER);
      const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-     const skuCol = findColumnIndex(headerRow, "SKU");
-     const genderCol = findColumnIndex(headerRow, "GENDER");
-     const descCol = findColumnIndex(headerRow, "MODEL NAME");
-     const colorCol = findColumnIndex(headerRow, "COLOR");
-     const sizeCol = findColumnIndex(headerRow, "SIZE");
-     if (skuCol === -1) {
+     const cols = getFloorRestockColumns(headerRow);
+     if (cols.sku === -1) {
        return jsonResponse({ ok: false, error: "FloorRestock is missing a SKU column." });
      }
 
      const newRow = new Array(headerRow.length).fill("");
-     if (genderCol !== -1) newRow[genderCol - 1] = body.gender || "";
-     if (descCol !== -1) newRow[descCol - 1] = body.description || "";
-     if (colorCol !== -1) newRow[colorCol - 1] = body.color || "";
-     if (sizeCol !== -1) newRow[sizeCol - 1] = body.size || "";
-     newRow[skuCol - 1] = body.sku || "";
+     if (cols.gender !== -1) newRow[cols.gender - 1] = body.gender || "";
+     if (cols.desc !== -1) newRow[cols.desc - 1] = body.description || "";
+     if (cols.color !== -1) newRow[cols.color - 1] = body.color || "";
+     if (cols.size !== -1) newRow[cols.size - 1] = body.size || "";
+     newRow[cols.sku - 1] = body.sku || "";
 
      sheet.appendRow(newRow);
      return jsonResponse({ ok: true });
    }
 
-   // Adds one manually-typed product straight to Replen (Status "Needed")
-   // in a single call, instead of chaining handleFloorRestockAdd +
-   // handleCheckFloorUpdate — that two-call version could leave a
-   // duplicate row behind if postToSheet's client-side retry fired after
-   // the first call had already succeeded (Apps Script's doPost can be
-   // slow enough to look dropped even when it isn't). Idempotent by
-   // body.sku: the client generates a fresh synthetic SKU per submission
-   // (see findFloorRestockRow, defined below), so a retried request that
-   // already landed just no-ops instead of appending again.
+   // Adds one manually-typed product straight to Replen (Status "Needed") in
+   // a single call. Idempotent by body.sku: the client generates a fresh
+   // synthetic SKU per submission, so it can only already exist here if this
+   // exact request got retried after already succeeding (postToSheet retries
+   // anything it thinks failed, and Apps Script's doPost can be slow enough
+   // to look dropped even when it isn't) -- in that case this just no-ops
+   // instead of appending a duplicate row. A cheap TextFinder scoped to just
+   // the SKU column checks that without reading the sheet's full body into
+   // memory, since a fresh sku can only ever match zero or one row.
    function handleReplenManualAdd(body) {
      const sheet = getOrCreateSheet("FloorRestock", FLOOR_RESTOCK_HEADER);
      const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-     const skuCol = findColumnIndex(headerRow, "SKU");
-     const sizeCol = findColumnIndex(headerRow, "SIZE");
-     const descCol = findColumnIndex(headerRow, "MODEL NAME");
-     const statusCol = findColumnIndex(headerRow, "STATUS");
-     const checkedByCol = findColumnIndex(headerRow, "CHECKED BY");
-     const checkedDateCol = findColumnIndex(headerRow, "CHECKED DATE");
-     if (skuCol === -1 || statusCol === -1) {
+     const cols = getFloorRestockColumns(headerRow);
+     if (cols.sku === -1 || cols.status === -1) {
        return jsonResponse({ ok: false, error: "FloorRestock is missing a SKU or Status column." });
      }
 
-     if (findFloorRestockRow(body.sku, body.size, null)) {
+     const lastRow = sheet.getLastRow();
+     const alreadyExists =
+       lastRow >= 2 &&
+       sheet.getRange(2, cols.sku, lastRow - 1, 1).createTextFinder(String(body.sku)).matchEntireCell(true).findNext() !== null;
+     if (alreadyExists) {
        return jsonResponse({ ok: true, added: false, reason: "already exists" });
      }
 
      const newRow = new Array(headerRow.length).fill("");
-     if (descCol !== -1) newRow[descCol - 1] = body.description || "";
-     if (sizeCol !== -1) newRow[sizeCol - 1] = body.size || "";
-     newRow[skuCol - 1] = body.sku || "";
-     newRow[statusCol - 1] = "Needed";
-     if (checkedByCol !== -1) newRow[checkedByCol - 1] = body.initials || "";
-     if (checkedDateCol !== -1) newRow[checkedDateCol - 1] = new Date();
+     if (cols.desc !== -1) newRow[cols.desc - 1] = body.description || "";
+     if (cols.size !== -1) newRow[cols.size - 1] = body.size || "";
+     newRow[cols.sku - 1] = body.sku || "";
+     newRow[cols.status - 1] = "Needed";
+     if (cols.checkedBy !== -1) newRow[cols.checkedBy - 1] = body.initials || "";
+     if (cols.checkedDate !== -1) newRow[cols.checkedDate - 1] = new Date();
 
      sheet.appendRow(newRow);
      return jsonResponse({ ok: true, added: true });
    }
 
    // Commits a batch of picking decisions in one request. body.decisions is
-   // an array of { sku, size, action: "picked"|"outOfStock" } — sets Status
-   // to "Picked" or "Out of Stock" on the matching FloorRestock row, and
-   // Out of Stock also stamps that row's 86 column so it shows on the
-   // 86 Board. Only matches a row whose Status is still "Needed" — see
-   // findFloorRestockRow's comment for why sku+size alone isn't enough.
+   // an array of { sku, size, action: "picked"|"outOfStock" } -- sets Status
+   // to "Picked" or "Out of Stock" on the matching FloorRestock row, and Out
+   // of Stock also stamps that row's 86 column so it shows on the 86 Board.
+   // Only matches a row whose Status is still "Needed".
    function handleFloorPickUpdate(body) {
      const timestamp = new Date();
      const decisions = body.decisions || [];
+     const fr = loadFloorRestock();
+     const cols = fr.cols;
      let updated = 0;
+
      decisions.forEach((d) => {
-       const match = findFloorRestockRow(d.sku, d.size, (s) => s.status === "Needed");
-       if (!match) return;
-       const statusCol = findColumnIndex(match.headerRow, "STATUS");
-       const col86 = findColumnIndex(match.headerRow, "86");
+       const idx = fr.find(d.sku, d.size, (s) => s.status === "Needed");
+       if (idx === -1) return;
+       const row = fr.body[idx];
        const status = d.action === "picked" ? "Picked" : "Out of Stock";
-       if (statusCol !== -1) match.sheet.getRange(match.rowIndex, statusCol).setValue(status);
-       if (d.action === "outOfStock" && col86 !== -1) match.sheet.getRange(match.rowIndex, col86).setValue(timestamp);
+       if (cols.status !== -1) row[cols.status - 1] = status;
+       if (d.action === "outOfStock" && cols.flag86 !== -1) row[cols.flag86 - 1] = timestamp;
+       fr.patch(idx);
        updated++;
      });
+
+     fr.save();
      return jsonResponse({ ok: true, updated: updated });
    }
 
    // Closes out one or more 86 Board entries as restocked. body.items is an
-   // array of { sku, size } — stamps the matching FloorRestock row's
-   // RESTOCKED column, which is what drops it off the 86 Board. Only
-   // matches a row that's actually still on the board (86 set, RESTOCKED
-   // still blank) — see findFloorRestockRow's comment for why sku+size
-   // alone isn't enough.
+   // array of { sku, size } -- stamps the matching FloorRestock row's
+   // RESTOCKED column, which is what drops it off the 86 Board. Only matches
+   // a row that's actually still on the board (86 set, RESTOCKED still blank).
    function handleFloor86Restock(body) {
      const timestamp = new Date();
      const items = body.items || [];
+     const fr = loadFloorRestock();
+     const cols = fr.cols;
      let updated = 0;
+
      items.forEach((it) => {
-       const match = findFloorRestockRow(it.sku, it.size, (s) => s.flag86 !== "" && s.restocked === "");
-       if (!match) return;
-       const restockedCol = findColumnIndex(match.headerRow, "RESTOCKED");
-       if (restockedCol === -1) return;
-       match.sheet.getRange(match.rowIndex, restockedCol).setValue(timestamp);
+       const idx = fr.find(it.sku, it.size, (s) => s.flag86 !== "" && s.restocked === "");
+       if (idx === -1 || cols.restocked === -1) return;
+       fr.body[idx][cols.restocked - 1] = timestamp;
+       fr.patch(idx);
        updated++;
      });
+
+     fr.save();
      return jsonResponse({ ok: true, updated: updated });
    }
 
    // Looks up a header's column by name (1-based) instead of a hardcoded
-   // index, so it keeps working if ConsolMaster's columns are ever reordered.
+   // index, so it keeps working if a hand-managed sheet's columns are ever
+   // reordered.
    function findColumnIndex(headerRow, name) {
      const idx = headerRow.findIndex((h) => (h || "").toString().trim().toUpperCase() === name.toUpperCase());
      return idx === -1 ? -1 : idx + 1;
    }
 
-   // Flags one ConsolMaster row PROCESSED by ECC Generic Material — this is
-   // the only way the app ever writes to ConsolMaster. Uses a TextFinder
-   // scoped to just that one column instead of reading the whole sheet's
-   // values into memory — keeps this fast as ConsolMaster grows.
-   function markConsolProcessed(eccMaterial) {
-     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("ConsolMaster");
-     if (!sheet || !eccMaterial || sheet.getLastRow() < 2) return;
+   // Flags every given ECC Generic Material row PROCESSED on ConsolMaster in
+   // one pass -- previously called once per item in a box, each doing its
+   // own header lookup and TextFinder scan; this reads the header and the
+   // ECC column once for the whole batch.
+   function markConsolProcessedBatch(eccMaterials) {
+     const targets = (eccMaterials || []).filter(Boolean);
+     if (targets.length === 0) return;
+
+     const sheet = getSpreadsheet().getSheetByName("ConsolMaster");
+     if (!sheet || sheet.getLastRow() < 2) return;
      const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
      const eccCol = findColumnIndex(headerRow, "ECC GENERIC MATERIAL");
      const processedCol = findColumnIndex(headerRow, "PROCESSED");
      if (eccCol === -1 || processedCol === -1) return;
 
-     const match = sheet
-       .getRange(2, eccCol, sheet.getLastRow() - 1, 1)
-       .createTextFinder(eccMaterial)
-       .matchEntireCell(true)
-       .findNext();
-     if (match) sheet.getRange(match.getRow(), processedCol).setValue("Processed");
+     const wanted = new Set(targets.map(String));
+     const eccValues = sheet.getRange(2, eccCol, sheet.getLastRow() - 1, 1).getValues();
+     eccValues.forEach((r, i) => {
+       if (wanted.has(String(r[0]))) sheet.getRange(i + 2, processedCol).setValue("Processed");
+     });
    }
 
-   function appendConsolLogRow(fields) {
+   // Single-material convenience wrapper, for the one call site (a mark-out
+   // batch is always for one style/ECC material at a time) that doesn't have
+   // a list to begin with.
+   function markConsolProcessed(eccMaterial) {
+     markConsolProcessedBatch([eccMaterial]);
+   }
+
+   function consolLogRow(fields) {
+     return CONSOL_LOG_HEADER.map((key) => (key in fields ? fields[key] : ""));
+   }
+
+   // Appends a whole batch of ConsolLog rows in one call, instead of one
+   // appendRow() (and its own sheet lookup) per row.
+   function appendConsolLogRows(rows) {
+     if (rows.length === 0) return;
      const sheet = getOrCreateSheet("ConsolLog", CONSOL_LOG_HEADER);
-     sheet.appendRow(CONSOL_LOG_HEADER.map((key) => (key in fields ? fields[key] : "")));
+     sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, CONSOL_LOG_HEADER.length).setValues(rows);
    }
 
-   // Closes a Packed Box: logs every item as Completed under one packing
-   // slip reference number, flags each Processed on ConsolMaster, and adds
-   // one closure record — all from a single request.
+   // Closes a Packed Box: logs every item as Completed under one packing slip
+   // reference number, flags each Processed on ConsolMaster, and adds one
+   // closure record -- all from a single request, all in one batched write.
    function handleConsolBoxClose(body) {
      const date = body.date ? new Date(body.date + "T00:00:00") : new Date();
      const timestamp = new Date();
      const items = body.items || [];
 
-     items.forEach((item) => {
-       appendConsolLogRow({
+     const logRows = items.map((item) =>
+       consolLogRow({
          id: Utilities.getUuid(),
          entryType: "status",
          date: date,
@@ -834,39 +1042,41 @@ Setup, if you're starting fresh or need to redeploy:
          color: item.color || "",
          status: "Completed",
          referenceNumber: body.referenceNumber || "",
-       });
-       markConsolProcessed(item.eccMaterial);
-     });
+       })
+     );
+     logRows.push(
+       consolLogRow({
+         id: Utilities.getUuid(),
+         entryType: "packout",
+         date: date,
+         timestamp: timestamp,
+         initials: body.initials || "",
+         unitsOut: items.length,
+         referenceNumber: body.referenceNumber || "",
+       })
+     );
+     appendConsolLogRows(logRows);
 
-     appendConsolLogRow({
-       id: Utilities.getUuid(),
-       entryType: "packout",
-       date: date,
-       timestamp: timestamp,
-       initials: body.initials || "",
-       unitsOut: items.length,
-       referenceNumber: body.referenceNumber || "",
-     });
+     markConsolProcessedBatch(items.map((item) => item.eccMaterial));
 
      return jsonResponse({ ok: true, processed: items.length });
    }
 
    // "Needs Adjustment" for one or more sizes of the same style, submitted
    // together in one request (body.items = [{ upc, size, units,
-   // productDescription }, ...]): logs each in the consolidation log,
-   // pushes each chosen UPC/units into the AuditLog's existing shared Mark
-   // Out section (same queue regular audit shrink uses — reuse your own
-   // appendToSection helper if the column start differs; this assumes Mark
-   // Out starts at column U (21), 6 columns wide: Date, UPC, Description,
-   // Units to Remove, Lead Initials, Date Complete), and flags the
-   // ConsolMaster row Processed once at the end.
+   // productDescription }, ...]): logs each in the consolidation log, pushes
+   // each chosen UPC/units into the AuditLog's existing shared Mark Out
+   // section (same queue regular audit shrink uses -- this assumes Mark Out
+   // starts at column U (21), 6 columns wide: Date, UPC, Description, Units
+   // to Remove, Lead Initials, Date Complete), and flags the ConsolMaster row
+   // Processed once at the end.
    function handleConsolMarkoutBatch(body) {
      const date = body.date ? new Date(body.date + "T00:00:00") : new Date();
      const items = body.items || [];
      const auditSheet = getOrCreateSheet("AuditLog", AUDIT_HEADER);
 
-     items.forEach((item) => {
-       appendConsolLogRow({
+     const logRows = items.map((item) =>
+       consolLogRow({
          id: Utilities.getUuid(),
          entryType: "status",
          date: date,
@@ -878,51 +1088,49 @@ Setup, if you're starting fresh or need to redeploy:
          status: "Needs Adjustment",
          size: item.size || "",
          unitsOut: item.units || 0,
-       });
+       })
+     );
+     appendConsolLogRows(logRows);
 
-       appendToSection(auditSheet, 21, 6, [date, item.upc || "", item.productDescription || "", item.units || 0, "", ""]);
-     });
+     const markOutRows = items.map((item) => [date, item.upc || "", item.productDescription || "", item.units || 0, "", ""]);
+     appendRowsToSection(auditSheet, 21, 6, markOutRows);
 
      markConsolProcessed(body.eccMaterial);
 
      return jsonResponse({ ok: true, items: items.length });
    }
 
-   // Only needed if your script doesn't already have one from the Mark
-   // In/Out dashboard additions — appends within one section of a sheet
-   // that has several independent sections side by side (so plain
-   // appendRow(), which looks at the whole sheet's last row, can't be used).
+   // Appends within one section of a sheet that has several independent
+   // sections side by side (so plain appendRow(), which looks at the whole
+   // sheet's last row, can't be used). Finds the section's own last used row
+   // with one manual scan, then writes every row in `rowsValues` in a single
+   // call, instead of a full section re-scan per row.
    //
    // NOTE: an earlier version of this used getNextDataCell(DOWN) from the
-   // header cell to avoid a full-column read. Don't do that — it has the
+   // header cell to avoid a full-column read. Don't do that -- it has the
    // same gotcha as pressing Ctrl+Down in the Sheets UI: starting from a
-   // filled cell (the header) with an EMPTY cell right below it and no
-   // more data anywhere further down that column, it jumps to the
-   // sheet's absolute last row instead of stopping just past the header —
-   // so the new row gets written hundreds of rows down, off-screen, and
-   // looks like nothing happened. A manual scan is the reliable way to do
-   // this; getLastRow() (not getMaxRows()) keeps the read reasonably
-   // tight without that failure mode.
-   //
-   // Also: if you still have an appendToSection with `lastRow + 2` in it
-   // from even earlier, that's a separate off-by-one — it leaves one
-   // blank row before every entry. This version uses `lastRow + 1`.
-   function appendToSection(sheet, startCol, numCols, rowValues) {
+   // filled cell (the header) with an EMPTY cell right below it and no more
+   // data anywhere further down that column, it jumps to the sheet's
+   // absolute last row instead of stopping just past the header -- so the
+   // new row gets written hundreds of rows down, off-screen, and looks like
+   // nothing happened. A manual scan is the reliable way to do this;
+   // getLastRow() (not getMaxRows()) keeps the read reasonably tight without
+   // that failure mode.
+   function appendRowsToSection(sheet, startCol, numCols, rowsValues) {
+     if (!rowsValues || rowsValues.length === 0) return;
      const numRows = Math.max(sheet.getLastRow(), 1);
      const values = sheet.getRange(1, startCol, numRows, numCols).getValues();
      let lastRow = 0;
      for (let i = 0; i < values.length; i++) {
        if (values[i].some((v) => v !== "")) lastRow = i + 1;
      }
-     sheet.getRange(lastRow + 1, startCol, 1, numCols).setValues([rowValues]);
+     sheet.getRange(lastRow + 1, startCol, rowsValues.length, numCols).setValues(rowsValues);
    }
 
-   function getOrCreateSheet(name, header) {
-     const ss = SpreadsheetApp.getActiveSpreadsheet();
-     let sheet = ss.getSheetByName(name);
-     if (!sheet) sheet = ss.insertSheet(name);
-     if (sheet.getLastRow() === 0) sheet.appendRow(header);
-     return sheet;
+   // Single-row convenience wrapper -- handleAuditPost only ever has one
+   // Mark In/Out row to push per count.
+   function appendToSection(sheet, startCol, numCols, rowValues) {
+     appendRowsToSection(sheet, startCol, numCols, [rowValues]);
    }
 
    function sheetToObjects(sheet) {
@@ -936,9 +1144,9 @@ Setup, if you're starting fresh or need to redeploy:
      });
    }
 
-   // Same idea as sheetToObjects(), but keyed by a fixed array of names
-   // (the sheet's actual column ORDER) instead of whatever text is
-   // currently in row 1 — see the note on doGet() above for why.
+   // Same idea as sheetToObjects(), but keyed by a fixed array of names (the
+   // sheet's actual column ORDER) instead of whatever text is currently in
+   // row 1 -- see the note on doGet() above for why.
    function sheetToObjectsByPosition(sheet, keys) {
      const values = sheet.getDataRange().getValues();
      if (values.length < 2) return [];
@@ -958,12 +1166,13 @@ Setup, if you're starting fresh or need to redeploy:
    ```
 
    If your live script already has the Mark In/Out/Overdue additions on top
-   of `handleAuditPost` (an `appendToSection` helper, `ensureDashboardHeaders`,
-   an `onEdit` trigger), **keep your own `appendToSection` and skip the one
-   above** — the version here is only a fallback for a script that doesn't
-   have one yet. Otherwise, add everything shown: the `findColumnIndex`/
-   `markConsolProcessed`/`appendConsolLogRow` helpers, the two new handler
-   functions, and the `doPost`/`doGet` routing.
+   of `handleAuditPost` (an `ensureDashboardHeaders`, an `onEdit` trigger),
+   those are unaffected by anything above — this version just changed how
+   `appendToSection` itself is implemented internally (it's now a thin
+   wrapper over a new `appendRowsToSection`, which batches multiple rows
+   into one write; several handlers depend on `appendRowsToSection`
+   existing, so paste in the whole block above rather than keeping an
+   older standalone `appendToSection` in isolation).
 
 3. **Deploy → New deployment → Web app**. "Execute as: Me," "Who has
    access: Anyone." Deploy, copy the URL.
@@ -1050,10 +1259,13 @@ from a stale cache.
 retries up to 3 times with a short backoff before giving up — Apps Script
 Web Apps occasionally drop or time out an individual request under load,
 and this clears most of those without anyone needing to notice or retry by
-hand. Batch operations (bulk import, Save to Sheet) also keep going through
-the rest of the batch if one entry still fails after its retries, instead
-of stopping the whole batch at the first
-failure.
+hand. Batch operations (Receiving's bulk import, Save to Sheet, Check
+Floor/Replen Update, and the rest) send the whole batch as a single
+request rather than one request per item — see **Performance** below —
+which also means they're all-or-nothing: if a batch still fails after its
+retries, none of it synced rather than some of it, and everything involved
+stays queued locally to try again on the next tap. Nothing already in
+local storage is ever lost either way, just delayed.
 
 **Why a "Marking out…" status can outlast the sheet update:** the row
 write happens partway through the Apps Script function and is visible in
@@ -1063,11 +1275,51 @@ building the response) and the HTTP response makes it back. So there's an
 inherent gap between "visible in the sheet" and "the app's request
 resolves." That gap grows with how much work the script does per request
 and with Apps Script's own execution/cold-start overhead, which the app
-has no control over. `markConsolProcessed` above keeps its own read small
-(a scoped `TextFinder` on just one column instead of the whole sheet), but
-a couple of seconds of lag is normal for an Apps Script Web App and not
-something a
-static client PWA can eliminate entirely.
+has no control over — see **Performance** below for what keeps that
+per-request work as small as possible.
+
+## Performance
+
+Every write handler in `Code.gs` follows the same rule: read the sheet at
+most once per request, no matter how many rows the request touches, and
+write back only what actually changed. Earlier versions of a few handlers
+didn't — `handleCheckFloorUpdate`/`handleFloorPickUpdate`/
+`handleFloor86Restock` used to re-read the *entire* FloorRestock sheet
+once *per decision* in the batch (checking off 15 items at once meant 15
+full-sheet reads), and `handleReceivingStatusPost` did the same per
+barcode. They now read FloorRestock/ReceivingLog exactly once per request
+(via `loadFloorRestock()` or a plain column read), match everything in
+memory, and write only the rows that changed.
+
+Two flows on the client used to make one sequential network request *per
+item* instead of one request for the whole batch: pasting a Receiving
+shipment (one request per box — a big shipment could be 50-100+ round
+trips) and **Save to Sheet** on the Audit Dashboard (one request per
+unsynced count). Both now send everything in a single request
+(`receivingimportbatch` / `auditbatch`), which is almost always the
+biggest visible speedup of all this, since network round-trip latency (not
+the Sheet read/write itself) dominates when a flow was making many
+requests back to back.
+
+Also: `ensurePlainTextColumn` used to reformat all the way to
+`getMaxRows()` (which can be far larger than the sheet's real data after
+repeated pastes/deletes) on every single receiving write — now bounded to
+the actual used range plus a little headroom. `getSpreadsheet()` is
+memoized per execution so handlers that touch more than one sheet (e.g.
+closing a Packed Box, which touches ConsolLog and ConsolMaster) don't
+re-fetch the spreadsheet object for each one.
+
+`doGet` also caches its JSON response for 10 seconds
+(`DOGET_CACHE_SECONDS`) so two staff refreshing around the same time don't
+both trigger a full sheet read — the tradeoff is that a change can take up
+to that long to show up for someone who refreshes right after someone
+else's write. If that staleness is ever unwanted, delete the cache
+get/put in `doGet` (the comment right above it says exactly what to
+remove) and it'll always read live.
+
+None of this changes what any request sends or what shape its response
+has, except the two new batch endpoints above — every other request/
+response contract in this file is unchanged.
 
 ## Roadmap
 

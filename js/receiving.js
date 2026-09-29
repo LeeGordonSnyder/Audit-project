@@ -22,16 +22,14 @@ function initReceiving() {
     const url = getWebhookUrl();
     let shared = 0;
     if (navigator.onLine) {
-      // pushReceivingItemToSheet() already retries transient failures
-      // internally, so keep going through the rest of the batch rather
-      // than stopping at the first one that still fails.
-      for (const item of parsed) {
-        try {
-          await pushReceivingItemToSheet(url, item);
-          shared++;
-        } catch (e) {
-          // leave this one local-only, keep going with the rest
-        }
+      // One request for the whole pasted list instead of one sequential
+      // request per box — a big shipment used to mean 50-100+ round trips,
+      // one at a time, which is most of what made a big import feel slow.
+      try {
+        await pushReceivingItemsBatch(url, parsed);
+        shared = parsed.length;
+      } catch (e) {
+        // leave everything local-only, try again on the next import
       }
     }
 
@@ -39,7 +37,7 @@ function initReceiving() {
       "receiving-import-status",
       shared === parsed.length
         ? `Added ${result.added}, updated ${result.updated}, and shared all ${shared} with the sheet.`
-        : `Added ${result.added}, updated ${result.updated} locally. Only shared ${shared} of ${parsed.length} with the sheet — check your connection and import again to finish sharing.`,
+        : `Added ${result.added}, updated ${result.updated} locally. Couldn't share with the sheet — check your connection and import again to finish sharing.`,
       shared !== parsed.length
     );
   });
