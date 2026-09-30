@@ -1,4 +1,4 @@
-# Oakridge Ops Suite
+# Oakridge Product Suite
 
 An offline-friendly web app for store associates: look up security-tag
 placement by style, run physical inventory counts, consolidate product for

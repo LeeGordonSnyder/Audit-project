@@ -1,6 +1,6 @@
 {
-  "name": "Oakridge Ops Suite",
-  "short_name": "Oakridge Ops",
+  "name": "Oakridge Product Suite",
+  "short_name": "Oakridge Product",
   "description": "Security tag lookup, inventory audit counting, and adjustment tracking for store associates.",
   "start_url": "./index.html",
   "scope": "./",
