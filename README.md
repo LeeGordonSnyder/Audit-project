@@ -369,6 +369,8 @@ Setup, if you're starting fresh or need to redeploy:
 2. Extensions → Apps Script, replace everything in `Code.gs` with:
 
    ```javascript
+   "use strict";
+
    function doPost(e) {
      const body = JSON.parse(e.postData.contents);
      if (body.type === "master") return handleMasterPost(body);
@@ -501,7 +503,8 @@ Setup, if you're starting fresh or need to redeploy:
        if (key === "timestamp") return timestamp;
        return entry[key];
      });
-     sheet.appendRow(row);
+     const lastRow = findLastRowInColumns(sheet, 1, AUDIT_HEADER.length);
+     sheet.getRange(lastRow + 1, 1, 1, row.length).setValues([row]);
 
      // A nonzero variance means the physical count didn't match expected --
      // push it into the shared Mark In (over) or Mark Out (under) queue so a
@@ -549,7 +552,8 @@ Setup, if you're starting fresh or need to redeploy:
        }
      });
 
-     sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, AUDIT_HEADER.length).setValues(rows);
+     const lastRow = findLastRowInColumns(sheet, 1, AUDIT_HEADER.length);
+     sheet.getRange(lastRow + 1, 1, rows.length, AUDIT_HEADER.length).setValues(rows);
      appendRowsToSection(sheet, 14, 6, markInRows);
      appendRowsToSection(sheet, 21, 6, markOutRows);
 
@@ -564,8 +568,12 @@ Setup, if you're starting fresh or need to redeploy:
        if (data[i][0] === item.sku) { rowIndex = i + 1; break; }
      }
      const row = [item.sku, item.upc, item.dept || "", item.style || "", item.color || "", item.size || "", item.description || "", new Date().toISOString()];
-     if (rowIndex === -1) sheet.appendRow(row);
-     else sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+     if (rowIndex === -1) {
+       const lastRow = findLastRowInColumns(sheet, 1, MASTER_HEADER.length);
+       sheet.getRange(lastRow + 1, 1, 1, row.length).setValues([row]);
+     } else {
+       sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+     }
      return jsonResponse({ ok: true });
    }
 
@@ -653,7 +661,9 @@ Setup, if you're starting fresh or need to redeploy:
      const sheet = getOrCreateSheet("Feedback", FEEDBACK_HEADER);
      const date = body.date ? new Date(body.date + "T00:00:00") : new Date();
      const timestamp = body.timestamp ? new Date(body.timestamp) : new Date();
-     sheet.appendRow([body.id || "", date, body.initials || "", body.feedback || "", timestamp]);
+     const row = [body.id || "", date, body.initials || "", body.feedback || "", timestamp];
+     const lastRow = findLastRowInColumns(sheet, 1, FEEDBACK_HEADER.length);
+     sheet.getRange(lastRow + 1, 1, 1, row.length).setValues([row]);
      return jsonResponse({ ok: true });
    }
 
@@ -694,7 +704,9 @@ Setup, if you're starting fresh or need to redeploy:
      // off the sheet.
      const barcodeText = "'" + item.barcode;
      if (rowIndex === -1) {
-       sheet.appendRow([barcodeText, item.po || "", item.expectedDate || "", "", "", "", "", now]);
+       const row = [barcodeText, item.po || "", item.expectedDate || "", "", "", "", "", now];
+       const lastRow = findLastRowInColumns(sheet, 1, RECEIVING_HEADER.length);
+       sheet.getRange(lastRow + 1, 1, 1, row.length).setValues([row]);
      } else {
        sheet.getRange(rowIndex, 2, 1, 2).setValues([[item.po || "", item.expectedDate || ""]]);
        sheet.getRange(rowIndex, 8).setValue(now);
@@ -762,7 +774,8 @@ Setup, if you're starting fresh or need to redeploy:
        sheet.getRange(i + 2, 1, 1, RECEIVING_HEADER.length).setValues([existing[i]]);
      });
      if (newRows.length > 0) {
-       sheet.getRange(lastRow + 1, 1, newRows.length, RECEIVING_HEADER.length).setValues(newRows);
+       const appendRow = findLastRowInColumns(sheet, 1, RECEIVING_HEADER.length);
+       sheet.getRange(appendRow + 1, 1, newRows.length, RECEIVING_HEADER.length).setValues(newRows);
      }
 
      return jsonResponse({ ok: true, added: added, updated: updated });
@@ -870,7 +883,14 @@ Setup, if you're starting fresh or need to redeploy:
            sheet.getRange(i + 2, 1, 1, headerRow.length).setValues([body[i]]);
          });
          if (appended.length > 0) {
-           sheet.getRange(lastRow + 1, 1, appended.length, headerRow.length).setValues(appended);
+           // Scoped to FLOOR_RESTOCK_HEADER's own columns, not headerRow.length --
+           // headerRow spans the sheet's current full width, which can include
+           // staff-added tracking columns (e.g. a checkbox) far to the right
+           // whose formatting extends further down than any real product row,
+           // inflating getLastRow() the same way it did for Feedback. See
+           // findLastRowInColumns above.
+           const appendRow = findLastRowInColumns(sheet, 1, FLOOR_RESTOCK_HEADER.length);
+           sheet.getRange(appendRow + 1, 1, appended.length, headerRow.length).setValues(appended);
          }
        },
      };
@@ -953,7 +973,10 @@ Setup, if you're starting fresh or need to redeploy:
      if (cols.size !== -1) newRow[cols.size - 1] = body.size || "";
      newRow[cols.sku - 1] = body.sku || "";
 
-     sheet.appendRow(newRow);
+     // Scoped to FLOOR_RESTOCK_HEADER's own columns, not headerRow.length --
+     // see the matching note in loadFloorRestock()'s save() above.
+     const lastRow = findLastRowInColumns(sheet, 1, FLOOR_RESTOCK_HEADER.length);
+     sheet.getRange(lastRow + 1, 1, 1, newRow.length).setValues([newRow]);
      return jsonResponse({ ok: true });
    }
 
@@ -1083,7 +1106,8 @@ Setup, if you're starting fresh or need to redeploy:
    function appendConsolLogRows(rows) {
      if (rows.length === 0) return;
      const sheet = getOrCreateSheet("ConsolLog", CONSOL_LOG_HEADER);
-     sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, CONSOL_LOG_HEADER.length).setValues(rows);
+     const lastRow = findLastRowInColumns(sheet, 1, CONSOL_LOG_HEADER.length);
+     sheet.getRange(lastRow + 1, 1, rows.length, CONSOL_LOG_HEADER.length).setValues(rows);
    }
 
    // Registers who closed a box, and when -- deliberately just the reference
@@ -1205,30 +1229,37 @@ Setup, if you're starting fresh or need to redeploy:
      return jsonResponse({ ok: true, resolved: true });
    }
 
-   // Appends within one section of a sheet that has several independent
-   // sections side by side (so plain appendRow(), which looks at the whole
-   // sheet's last row, can't be used). Finds the section's own last used row
-   // with one manual scan, then writes every row in `rowsValues` in a single
-   // call, instead of a full section re-scan per row.
-   //
-   // NOTE: an earlier version of this used getNextDataCell(DOWN) from the
-   // header cell to avoid a full-column read. Don't do that -- it has the
-   // same gotcha as pressing Ctrl+Down in the Sheets UI: starting from a
-   // filled cell (the header) with an EMPTY cell right below it and no more
-   // data anywhere further down that column, it jumps to the sheet's
-   // absolute last row instead of stopping just past the header -- so the
-   // new row gets written hundreds of rows down, off-screen, and looks like
-   // nothing happened. A manual scan is the reliable way to do this;
-   // getLastRow() (not getMaxRows()) keeps the read reasonably tight without
-   // that failure mode.
-   function appendRowsToSection(sheet, startCol, numCols, rowsValues) {
-     if (!rowsValues || rowsValues.length === 0) return;
+   // Finds the last used row (1-based, 0 if none) within a fixed column
+   // range only, ignoring content anywhere outside it. appendRow() and
+   // sheet.getLastRow() both look at the sheet's ENTIRE width -- a hand-added
+   // column further right (a staff tracking checkbox, a note column, a
+   // second section of a dashboard sheet) with content or formatting
+   // extending down the sheet makes those think there's real data much
+   // further down than the columns this app actually manages, so a new row
+   // lands far below where anyone would think to look for it -- exactly the
+   // same gotcha as pressing Ctrl+Down in the Sheets UI, or the old
+   // getNextDataCell(DOWN) approach this replaced: starting from a filled
+   // header cell with an empty cell right below it and no more data further
+   // down THAT column, it jumps to the sheet's absolute last row instead of
+   // stopping just past the header. Scanning just the relevant columns
+   // avoids all of that regardless of what's off to the side. Bounded by
+   // getLastRow() (not getMaxRows()) to keep the read reasonably tight.
+   function findLastRowInColumns(sheet, startCol, numCols) {
      const numRows = Math.max(sheet.getLastRow(), 1);
      const values = sheet.getRange(1, startCol, numRows, numCols).getValues();
      let lastRow = 0;
      for (let i = 0; i < values.length; i++) {
        if (values[i].some((v) => v !== "")) lastRow = i + 1;
      }
+     return lastRow;
+   }
+
+   // Appends within one section of a sheet that has several independent
+   // sections side by side (so plain appendRow(), which looks at the whole
+   // sheet's last row, can't be used) -- see findLastRowInColumns above.
+   function appendRowsToSection(sheet, startCol, numCols, rowsValues) {
+     if (!rowsValues || rowsValues.length === 0) return;
+     const lastRow = findLastRowInColumns(sheet, startCol, numCols);
      sheet.getRange(lastRow + 1, startCol, rowsValues.length, numCols).setValues(rowsValues);
    }
 
@@ -1398,6 +1429,23 @@ instance) is logged to the console and initialization moves on to the
 next tab instead of stopping cold — which used to also silently skip
 whatever ran later in that same list, including Feedback, the offline
 indicator, the Refresh button, and even service worker registration.
+
+**A new row landing much further down than expected (e.g. Feedback
+appearing to "not save" when it was actually appending 40+ rows below the
+visible data):** every append in `Code.gs` used to rely on `appendRow()` or
+`getLastRow() + 1`, both of which look at the sheet's *entire* width, not
+just the columns that handler manages. Adding a hand-tracked column further
+right — a checkbox (like Feedback's "ACTIONED" column), a note, anything
+with content or formatting extending down the sheet — makes those think
+real data goes much further down than it actually does in the columns this
+app manages, so the next appended row lands far below the visible area
+instead of right after it. `findLastRowInColumns` fixes this by scanning
+only the columns a given handler actually owns, ignoring anything to the
+side; every append site in `Code.gs` (Feedback, AuditLog, ProductMaster,
+ReceivingLog, FloorRestock, ConsolLog) now goes through it. This is a
+server-only fix — paste the updated `Code.gs` in and redeploy (**Deploy →
+Manage deployments → pencil icon → New version → Deploy**); no app reload
+or cache-clear is needed on any device.
 
 **Why a "Marking out…" status can outlast the sheet update:** the row
 write happens partway through the Apps Script function and is visible in
