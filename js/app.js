@@ -101,14 +101,30 @@ document.addEventListener("DOMContentLoaded", async () => {
       loadSharedReceivingMaster(),
       loadSharedFloorRestock(),
     ]);
-    initTagLookup();
-    initAuditDashboard();
-    initMasterList();
-    initConsol();
-    initReceiving();
-    initFloorReplen();
-    initBoard86();
-    initFeedback();
+    // Each tab's init runs independently — a bug tripped up by one tab's
+    // real data (a bad row shape, a stale local-storage entry from before
+    // a schema change, etc.) used to throw here and silently skip every
+    // init call after it in this list, including Feedback, the offline
+    // indicator, the Refresh button, and service worker registration
+    // below. Now a broken tab logs to the console and initialization
+    // moves on instead of taking the rest of the app down with it.
+    [
+      ["Tag Lookup", initTagLookup],
+      ["Audit Dashboard", initAuditDashboard],
+      ["Product Master", initMasterList],
+      ["Consolidations", initConsol],
+      ["Receiving Log", initReceiving],
+      ["Floor Replen", initFloorReplen],
+      ["86 Board", initBoard86],
+      ["Feedback", initFeedback],
+    ].forEach(([name, fn]) => {
+      try {
+        fn();
+      } catch (e) {
+        console.error(`Failed to initialize ${name}:`, e);
+      }
+    });
+
     setOffline(!navigator.onLine);
 
     const refreshBtn = document.getElementById("global-refresh-btn");
@@ -116,7 +132,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     refreshBtn.addEventListener("click", refreshSharedData);
 
     if ("serviceWorker" in navigator) {
+      // A controller already means some earlier visit's service worker is
+      // running this page -- a later controllerchange is a genuine update
+      // taking over. On a first-ever visit there's no controller yet, and
+      // the very first activation (skipWaiting + clients.claim in sw.js)
+      // fires this same event once purely from taking control for the
+      // first time, which isn't something to prompt anyone about.
+      const hadController = !!navigator.serviceWorker.controller;
       navigator.serviceWorker.register("sw.js").catch(() => {});
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!hadController) return;
+        document.getElementById("update-banner").hidden = false;
+      });
     }
+
+    document.getElementById("update-reload-btn").addEventListener("click", () => window.location.reload());
   });
 });

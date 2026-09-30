@@ -17,7 +17,7 @@
 <div class="app-header">
   <header class="topbar">
     <!-- Bump this by 1 on every shipped change, same as sw.js's CACHE_NAME. -->
-    <span class="header-version">v31</span>
+    <span class="header-version">v32</span>
     <img src="icons/icon-192.png" alt="Oakridge Park Arc'teryx" class="topbar-logo">
     <h1>Oakridge Ops Suite</h1>
     <div id="offline-badge" class="badge" hidden>Offline</div>
@@ -35,6 +35,11 @@
     <button class="tab-btn" data-tab="floorreplen" role="tab" aria-selected="false">Floor Replen</button>
     <button class="tab-btn" data-tab="board86" role="tab" aria-selected="false">86 Board</button>
   </nav>
+
+  <div id="update-banner" class="update-banner" hidden>
+    <span>A new version is ready.</span>
+    <button id="update-reload-btn" class="btn primary small">Reload</button>
+  </div>
 </div>
 
 <main>

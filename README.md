@@ -1310,6 +1310,12 @@ Deploy** — this keeps the same URL, so no app changes are needed.
 If you rename the app again later, remove the old home-screen icon and
 re-add it — iOS caches the name/icon from whatever was live at install time.
 
+**After shipping an update:** the app now shows its own **"A new version is
+ready" banner with a Reload button** once the new code has actually taken
+over in the background — no more guessing whether one reload was enough or
+a second is needed. It only fires for a genuine update (an already-running
+older version being replaced), never on someone's very first-ever visit.
+
 ## Data & offline behavior
 
 The session (date/initials) is purely local (`localStorage`) — there's no
@@ -1373,6 +1379,25 @@ which also means they're all-or-nothing: if a batch still fails after its
 retries, none of it synced rather than some of it, and everything involved
 stays queued locally to try again on the next tap. Nothing already in
 local storage is ever lost either way, just delayed.
+
+**A request isn't trusted just because it got an HTTP 200 back:** Apps
+Script Web Apps return 200 even when the underlying function throws — the
+body comes back as an HTML error page instead of the JSON every handler
+returns, not as an error status. `postToSheet` (`js/sync.js`) parses that
+body and checks the `ok` field every handler sets; without that, a
+server-side failure looked exactly like success everywhere in the app —
+a dialog would close, no error would show, and nothing was actually
+written. A malformed body goes through the same retry-with-backoff as a
+dropped connection; a clean `{ok: false}` from a handler (a real, handled
+error, not a network blip) fails immediately instead of retrying.
+
+**One broken tab can't take the rest of the app down with it:** every
+tab's `init*()` call at boot runs independently, wrapped so a thrown error
+(bad locally-stored data left over from before a schema change, for
+instance) is logged to the console and initialization moves on to the
+next tab instead of stopping cold — which used to also silently skip
+whatever ran later in that same list, including Feedback, the offline
+indicator, the Refresh button, and even service worker registration.
 
 **Why a "Marking out…" status can outlast the sheet update:** the row
 write happens partway through the Apps Script function and is visible in

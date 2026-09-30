@@ -178,6 +178,23 @@ body {
   border-bottom-color: var(--accent);
 }
 
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--accent-dark);
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.update-banner .btn {
+  width: auto;
+  flex-shrink: 0;
+}
+
 main {
   flex: 1;
   padding: 16px 16px 32px;
