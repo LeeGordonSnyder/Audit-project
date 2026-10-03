@@ -17,7 +17,7 @@
 <div class="app-header">
   <header class="topbar">
     <!-- Bump this by 1 on every shipped change, same as sw.js's CACHE_NAME. -->
-    <span class="header-version">v34</span>
+    <span class="header-version">v35</span>
     <img src="icons/icon-192.png" alt="Oakridge Park Arc'teryx" class="topbar-logo">
     <h1>Oakridge Product Suite</h1>
     <div id="offline-badge" class="badge" hidden>Offline</div>
@@ -187,37 +187,12 @@
   <!-- CONSOLIDATIONS TAB -->
   <section id="tab-consol" class="tab-panel" role="tabpanel" hidden>
     <div class="audit-list-header">
-      <h2>Items to Consolidate</h2>
-      <div class="audit-list-actions">
-        <button id="consol-refresh-btn" class="btn secondary small">🔄 Refresh from Sheet</button>
-      </div>
-    </div>
-    <p class="hint">The HQ consolidation list is pasted directly into the "ConsolMaster" tab of the Google Sheet, not here — this just reflects what's there. Tap Refresh after pasting a new list into the sheet.</p>
-    <p id="consol-list-status" class="status-msg" role="status"></p>
-    <input id="consol-filter" type="text" autocomplete="off" placeholder="Filter by description, colour, or destination…" class="filter-input">
-    <p id="consol-count" class="hint"></p>
-    <div class="table-wrap">
-      <table class="master-table consol-table">
-        <thead>
-          <tr>
-            <th>Description</th>
-            <th>Colour</th>
-            <th>Destination</th>
-            <th>Total</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody id="consol-table-body"></tbody>
-      </table>
-    </div>
-
-    <div class="audit-list-header">
       <h2>Consolidation — Holding</h2>
       <div class="audit-list-actions">
         <span id="consol-holding-count" class="hint"></span>
       </div>
     </div>
-    <p id="consol-holding-empty" class="hint">Nothing staged yet — mark an item Actioned or Needs Adjustment above.</p>
+    <p id="consol-holding-empty" class="hint">Nothing staged yet — mark an item Actioned or Needs Adjustment below.</p>
     <div id="consol-holding-table-wrap" class="table-wrap" hidden>
       <table class="master-table consol-holding-table">
         <thead>
@@ -234,6 +209,31 @@
 
     <div class="active-item-actions">
       <button id="consol-update-btn" class="btn primary" disabled>Update</button>
+    </div>
+
+    <div class="audit-list-header">
+      <h2>Items to Consolidate</h2>
+      <div class="audit-list-actions">
+        <button id="consol-refresh-btn" class="btn secondary small">🔄 Refresh from Sheet</button>
+      </div>
+    </div>
+    <p class="hint">The HQ consolidation list is pasted directly into the "ConsolMaster" tab of the Google Sheet, not here — this just reflects what's there. Tap Refresh after pasting a new list into the sheet.</p>
+    <p id="consol-list-status" class="status-msg" role="status"></p>
+    <input id="consol-filter" type="text" autocomplete="off" placeholder="Filter by description, colour, or destination…" class="filter-input">
+    <p id="consol-count" class="hint"></p>
+    <div class="table-wrap table-wrap-scroll">
+      <table class="master-table consol-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Colour</th>
+            <th>Destination</th>
+            <th>Total</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="consol-table-body"></tbody>
+      </table>
     </div>
 
     <h2>Close a Box</h2>

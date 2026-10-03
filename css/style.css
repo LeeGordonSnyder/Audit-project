@@ -653,6 +653,15 @@ code {
   background: var(--bg-elevated);
 }
 
+/* Caps a long list's height and scrolls it internally (sticky header stays
+   visible) instead of letting the whole page grow with it — used where a
+   list can realistically run to dozens of rows, like Consolidations'
+   "Items to Consolidate". */
+.table-wrap-scroll {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
 .master-table {
   width: 100%;
   border-collapse: collapse;

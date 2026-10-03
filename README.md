@@ -111,7 +111,10 @@ directly into the "ConsolMaster" tab of the Google Sheet, not into the
 app** — that keeps it in clean, native Excel columns for reliable
 referencing instead of round-tripping through a text paste box. The app
 only ever reads that sheet: tap **🔄 Refresh from Sheet** after pasting a
-new list in to pull it into the app. ConsolMaster's columns are **Material,
+new list in to pull it into the app. **Items to Consolidate** scrolls
+within its own fixed-height list (column headers stay put) instead of
+stretching the whole page — a full HQ list can easily run to dozens of
+rows. ConsolMaster's columns are **Material,
 Color, Style SKU, ECC Generic Material, Destination, Total, Processed** —
 matching is by **ECC Generic Material** (unique per style/colour), and
 **Style SKU** must match a style already in Product Master for the
@@ -120,7 +123,7 @@ Needs Adjustment flow below to find its sizes.
 Every item shows a **Status** dropdown:
 
 - **Actioned** — the item was physically found and handled. Stages it
-  straight into **Consolidation — Holding** below, same as everything
+  straight into **Consolidation — Holding** above, same as everything
   else here — nothing hits the sheet until Update.
 - **Needs Adjustment** — something showed in MAO during consolidation that
   couldn't be found physically. Opens a picker of every size/colour Product
