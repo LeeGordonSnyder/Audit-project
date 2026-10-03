@@ -114,36 +114,39 @@ only ever reads that sheet: tap **🔄 Refresh from Sheet** after pasting a
 new list in to pull it into the app. **Items to Consolidate** scrolls
 within its own fixed-height list (column headers stay put) instead of
 stretching the whole page — a full HQ list can easily run to dozens of
-rows. ConsolMaster's columns are **Material,
-Color, Style SKU, ECC Generic Material, Destination, Total, Processed** —
-matching is by **ECC Generic Material** (unique per style/colour), and
-**Style SKU** must match a style already in Product Master for the
-Needs Adjustment flow below to find its sizes.
+rows. ConsolMaster's columns are **Material, Color, Style SKU, ECC
+Generic Material, Destination, Total, Processed** — matching is by **ECC
+Generic Material** (unique per style/colour).
 
-Every item shows a **Status** dropdown:
+Each row has an **Actual Count** stepper — **[− # +]** — next to its
+Total, for counting as you physically pull a line: tap **+**/**−** to
+walk the number up or down, or tap the number itself and type a value
+directly rather than tapping repeatedly. Unlike everything else on this
+page, Actual Count is never staged — **every tap (or typed value) pushes
+to the sheet immediately**, acting as its own Update, so the count is
+live on every device within one request. Rapid taps are coalesced
+client-side (a tap that lands while the previous one is still in flight
+just updates what the *next* request will send, rather than firing a
+second overlapping one), and since every push sends the current total —
+not a step — a request that fails outright is simply superseded by the
+next tap's; nothing needs to be retried by hand. Once Actual Count
+reaches the line's Total, the stepper highlights green. It's stored on
+**ConsolLog**, one row per ECC Generic Material (`entryType` **"count"**,
+repurposing column J — previously "units to remove" for the Needs
+Adjustment flow this replaced) — a repeat push overwrites that same row
+in place rather than appending a new history row per tap; see
+`handleConsolCountUpdate` in `Code.gs` for the upsert logic.
 
-- **Actioned** — the item was physically found and handled. Stages it
-  straight into **Consolidation — Holding** above, same as everything
-  else here — nothing hits the sheet until Update.
-- **Needs Adjustment** — something showed in MAO during consolidation that
-  couldn't be found physically. Opens a picker of every size/colour Product
-  Master has on file for that item's Style SKU — pick a size/colour, enter
-  units, and tap **+ Add Size**; repeat for every size that's actually
-  short (it's common for more than one size of a style to need marking
-  out) before tapping **Save**, which stages the whole set as one entry in
-  Holding (Marking product *in* isn't needed here — anything actually on
-  hand gets consolidated through the normal process anyway).
-
-Both decisions land in a **holding** list first — nothing hits the sheet
-until you tap **Update**, which commits every staged decision in one
-request: it logs each in the Consolidation Log (one row per Actioned item,
-one row per size for a Needs Adjustment item), pushes every Needs
-Adjustment size straight to the **AuditLog's shared Mark Out section** by
-UPC (the same queue a discrepant physical count feeds), and flags every
-item **Processed** back on the ConsolMaster sheet. **Processed is the
-qualifier for whether a line still shows on the website** — once set, the
-item drops off the Items to Consolidate list (checked again on refresh,
-and updated locally the instant Update succeeds).
+Each item also has a **Status** dropdown — just **Actioned** (stages it
+straight into **Consolidation — Holding** above, same as everything else
+here — nothing hits the sheet until Update) or **Not actioned** (a view
+state, nothing to do). Tapping **Update** commits every staged decision
+in one request: it logs one row per item in the Consolidation Log and
+flags every item **Processed** back on the ConsolMaster sheet.
+**Processed is the qualifier for whether a line still shows on the
+website** — once set, the item drops off the Items to Consolidate list
+(checked again on refresh, and updated locally the instant Update
+succeeds).
 
 **Close a Box** is completely separate from all of the above, and
 deliberately knows nothing about what's inside the box: scan its
@@ -153,17 +156,20 @@ actually in the box happens in MAO by that reference number, not here, so
 there's nothing to stage or review first; this button is always available,
 independent of whatever's currently staged in Holding.
 
-The **Consolidation Log** below lists every status change and box closure —
-there's nothing to manually sync here, every action pushes to the sheet
-immediately when it happens. Every **Needs Adjustment** entry has its own
-**Resolve** button — tapping it flips that entry's status on the ConsolLog
-sheet and drops it off this list (same "qualifier" idea as Processed on
-ConsolMaster above), without deleting the row itself. The row stays in the
-sheet permanently either way — ConsolLog is a full history, same as the
-Audit Dashboard's log — Resolve just stops the app from treating it as
-something still needing attention. **🔄 Refresh from Sheet** pulls both
-ConsolMaster and ConsolLog, so a Resolve done on another device shows up
-here too.
+The **Consolidation Log** below lists every status change and box closure
+— there's nothing to manually sync here, every action pushes to the sheet
+immediately when it happens. Actual Count's "count" rows don't show up in
+this feed — they're a live running number the list above already shows,
+not a discrete event worth a line in the history. (Older **Needs
+Adjustment** entries, logged before this feature replaced it, still
+display here with their own **Resolve** button — tapping it flips that
+entry's status on the ConsolLog sheet and drops it off this list, without
+deleting the row; the row stays in the sheet permanently either way, same
+as everything else in this history. There's no way to create a new one
+from the app anymore — a shortage is tracked by Actual Count against
+Total now.) **🔄 Refresh from Sheet** pulls both ConsolMaster and
+ConsolLog, so an Actual Count typed in — or a Resolve done — on another
+device shows up here too.
 
 ### 5. Receiving Log
 For incoming shipments. Paste the MAO shipment export — ETA, Package,
@@ -319,12 +325,16 @@ One spreadsheet with eight tabs:
   HQ export straight into this tab yourself, with header row `MATERIAL /
   COLOR / STYLE SKU / ECC GENERIC MATERIAL / DESTINATION / TOTAL /
   PROCESSED`. The app only reads it, and only ever writes the PROCESSED
-  column (via the backend, when a box closes or an item is marked out).
-- **ConsolLog** — every consolidation status change and box closure,
-  created automatically by the script. Rows are never deleted by the app —
-  a "Needs Adjustment" row's STATUS column can flip to "Resolved" (via the
-  Consolidation Log's Resolve button), but the row itself is permanent,
-  same as AuditLog.
+  column (via the backend, when an item is Actioned through Update).
+- **ConsolLog** — every consolidation status change, box closure, and
+  Actual Count, created automatically by the script. Rows are never
+  deleted by the app — a "Needs Adjustment" row's STATUS column can flip
+  to "Resolved" (via the Consolidation Log's Resolve button; no new ones
+  can be created anymore, see **Consolidations** above), but the row
+  itself is permanent, same as AuditLog. The one exception to "permanent":
+  an Actual Count row (`entryType` "count", one per ECC Generic Material)
+  is deliberately overwritten in place on every tap instead of appending a
+  new row — it's a live number, not a history entry.
 - **ReceivingLog** — one row per expected box, created automatically by the
   script and fully app-managed (unlike ConsolMaster, nothing here needs
   hand-editing). Columns: `barcode / po / expectedDate /
@@ -392,6 +402,7 @@ Setup, if you're starting fresh or need to redeploy:
      if (body.type === "feedback") return handleFeedbackPost(body);
      if (body.type === "auditbatch") return handleAuditBatchPost(body);
      if (body.type === "consollogresolve") return handleConsolLogResolve(body);
+     if (body.type === "consolcountupdate") return handleConsolCountUpdate(body);
      if (body.type === "tagassign") return handleTagAssign(body);
      return handleAuditPost(body);
    }
@@ -467,7 +478,7 @@ Setup, if you're starting fresh or need to redeploy:
    // Defensive fallback only -- ConsolMaster already exists with this exact
    // header row, hand-edited directly in Sheets; the app never creates it.
    const CONSOL_MASTER_HEADER = ["MATERIAL", "COLOR", "STYLE SKU", "ECC GENERIC MATERIAL", "DESTINATION", "TOTAL", "PROCESSED"];
-   const CONSOL_LOG_HEADER = ["id", "entryType", "date", "initials", "eccMaterial", "description", "color", "status", "size", "unitsOut", "referenceNumber", "timestamp"];
+   const CONSOL_LOG_HEADER = ["id", "entryType", "date", "initials", "eccMaterial", "description", "color", "status", "size", "actualCount", "referenceNumber", "timestamp"];
    const RECEIVING_HEADER = ["barcode", "po", "expectedDate", "physicallyReceivedDate", "physicallyReceivedBy", "receivedIntoMaoDate", "receivedIntoMaoBy", "updatedAt"];
    const FEEDBACK_HEADER = ["id", "date", "initials", "feedback", "timestamp"];
    // Defensive fallback only -- FloorRestock already exists with this exact
@@ -1134,18 +1145,18 @@ Setup, if you're starting fresh or need to redeploy:
      return jsonResponse({ ok: true });
    }
 
-   // Commits every staged Consolidation decision in one request.
-   // body.decisions is an array of { eccMaterial, description, color,
-   // status: "Actioned"|"Needs Adjustment", items? } -- items (only present
-   // for a Needs Adjustment decision) is an array of { upc, size, units,
-   // productDescription }. Logs one ConsolLog row per Actioned decision and
-   // one per Needs Adjustment size, pushes every Needs Adjustment size into
-   // the AuditLog's existing shared Mark Out section (same queue regular
-   // audit shrink uses -- this assumes Mark Out starts at column U (21), 6
-   // columns wide: Date, UPC, Description, Units to Remove, Lead Initials,
-   // Date Complete), and flags every item Processed on ConsolMaster -- all
-   // batched into a handful of calls regardless of how many decisions are in
-   // the request.
+   // Commits every staged Consolidation decision (currently only "Actioned" --
+   // see handleConsolCountUpdate below for how shortages are tracked now) in
+   // one request. body.decisions is an array of { eccMaterial, description,
+   // color, status }. Logs one ConsolLog row per decision and flags every
+   // item Processed on ConsolMaster -- batched into a handful of calls
+   // regardless of how many decisions are in the request.
+   //
+   // This used to also take a "Needs Adjustment" status with a per-size
+   // items[] breakdown, pushing each size into AuditLog's shared Mark Out
+   // queue. That's gone -- a line's ACTUAL COUNT (tracked live by
+   // handleConsolCountUpdate) against its ConsolMaster TOTAL is what shows a
+   // shortage now, so there's nothing left here to mark out.
    function handleConsolUpdate(body) {
      const decisions = body.decisions || [];
      if (decisions.length === 0) return jsonResponse({ ok: true, updated: 0 });
@@ -1153,56 +1164,88 @@ Setup, if you're starting fresh or need to redeploy:
      const date = body.date ? new Date(body.date + "T00:00:00") : new Date();
      const timestamp = new Date();
 
-     const logRows = [];
-     const markOutRows = [];
-
-     decisions.forEach((d) => {
-       if (d.status === "Needs Adjustment") {
-         (d.items || []).forEach((item) => {
-           logRows.push(
-             consolLogRow({
-               id: Utilities.getUuid(),
-               entryType: "status",
-               date: date,
-               timestamp: timestamp,
-               initials: body.initials || "",
-               eccMaterial: d.eccMaterial || "",
-               description: d.description || "",
-               color: d.color || "",
-               status: "Needs Adjustment",
-               size: item.size || "",
-               unitsOut: item.units || 0,
-             })
-           );
-           markOutRows.push([date, item.upc || "", item.productDescription || "", item.units || 0, "", ""]);
-         });
-       } else {
-         logRows.push(
-           consolLogRow({
-             id: Utilities.getUuid(),
-             entryType: "status",
-             date: date,
-             timestamp: timestamp,
-             initials: body.initials || "",
-             eccMaterial: d.eccMaterial || "",
-             description: d.description || "",
-             color: d.color || "",
-             status: "Actioned",
-           })
-         );
-       }
-     });
+     const logRows = decisions.map((d) =>
+       consolLogRow({
+         id: Utilities.getUuid(),
+         entryType: "status",
+         date: date,
+         timestamp: timestamp,
+         initials: body.initials || "",
+         eccMaterial: d.eccMaterial || "",
+         description: d.description || "",
+         color: d.color || "",
+         status: d.status || "Actioned",
+       })
+     );
 
      appendConsolLogRows(logRows);
-
-     if (markOutRows.length > 0) {
-       const auditSheet = getOrCreateSheet("AuditLog", AUDIT_HEADER);
-       appendRowsToSection(auditSheet, 21, 6, markOutRows);
-     }
-
      markConsolProcessedBatch(decisions.map((d) => d.eccMaterial));
 
      return jsonResponse({ ok: true, updated: decisions.length });
+   }
+
+   // Pushes the running "actual count" for one consolidation line straight to
+   // the sheet -- unlike every other Holding/Update flow in this app, there's
+   // no staging here: every tap of -/+ (or a typed value) on the
+   // Consolidations page calls this immediately, so ConsolLog's ACTUAL COUNT
+   // column (J -- repurposed from the old per-size "units to remove" field
+   // Needs Adjustment used to write, see CONSOL_LOG_HEADER) always reflects
+   // what's currently on screen, on any device, within one request.
+   //
+   // One row per ECC Generic Material tracks this (entryType "count",
+   // distinct from the "status"/"packout" history rows elsewhere in this
+   // sheet) -- a repeat call overwrites that SAME row's count/initials/
+   // timestamp in place instead of appending a new row per tap, which would
+   // flood the sheet with one row per click. The row's id is deterministic
+   // ("count-<eccMaterial>") specifically so the first create and every later
+   // overwrite agree on which row that is, and so a client that optimistically
+   // creates its own local copy before this request even returns stays in
+   // sync once a refresh pulls the sheet's copy back down -- same id either
+   // way, nothing to de-duplicate.
+   function handleConsolCountUpdate(body) {
+     const eccMaterial = String(body.eccMaterial || "").trim();
+     if (!eccMaterial) return jsonResponse({ ok: false, error: "Missing eccMaterial." });
+
+     const sheet = getOrCreateSheet("ConsolLog", CONSOL_LOG_HEADER);
+     const actualCount = Number(body.actualCount) || 0;
+     const timestamp = new Date();
+
+     const lastRow = sheet.getLastRow();
+     let rowIndex = -1;
+     if (lastRow >= 2) {
+       const entryTypeCol = CONSOL_LOG_HEADER.indexOf("entryType") + 1;
+       const eccCol = CONSOL_LOG_HEADER.indexOf("eccMaterial") + 1;
+       const types = sheet.getRange(2, entryTypeCol, lastRow - 1, 1).getValues();
+       const eccs = sheet.getRange(2, eccCol, lastRow - 1, 1).getValues();
+       for (let i = 0; i < types.length; i++) {
+         if (types[i][0] === "count" && String(eccs[i][0]) === eccMaterial) {
+           rowIndex = i + 2;
+           break;
+         }
+       }
+     }
+
+     if (rowIndex === -1) {
+       const row = consolLogRow({
+         id: "count-" + eccMaterial,
+         entryType: "count",
+         date: timestamp,
+         timestamp: timestamp,
+         initials: body.initials || "",
+         eccMaterial: eccMaterial,
+         description: body.description || "",
+         color: body.color || "",
+         actualCount: actualCount,
+       });
+       const appendRow = findLastRowInColumns(sheet, 1, CONSOL_LOG_HEADER.length);
+       sheet.getRange(appendRow + 1, 1, 1, row.length).setValues([row]);
+     } else {
+       sheet.getRange(rowIndex, CONSOL_LOG_HEADER.indexOf("initials") + 1).setValue(body.initials || "");
+       sheet.getRange(rowIndex, CONSOL_LOG_HEADER.indexOf("actualCount") + 1).setValue(actualCount);
+       sheet.getRange(rowIndex, CONSOL_LOG_HEADER.indexOf("timestamp") + 1).setValue(timestamp);
+     }
+
+     return jsonResponse({ ok: true, actualCount: actualCount });
    }
 
    // Marks one ConsolLog "Needs Adjustment" entry Resolved. The row itself
@@ -1371,12 +1414,16 @@ consolidation log are all backed by the Sheet and sync automatically:
   "Box Not in Expected Shipments" prompt follows the same pattern — it
   lands in holding locally right away regardless of connection, and just
   tries to share to the sheet in the background.
-- **Consolidation decisions** (Actioned, Needs Adjustment) stage into
-  Holding like Check Floor/Replen — nothing hits the sheet until Update,
-  which pushes the whole batch atomically; if it fails, everything stays
-  staged so it's always safe to just try again. **Closing a box** is
-  separate and pushes immediately on scan, same reasoning — if it fails,
-  nothing was logged, so just scan again.
+- **Consolidation decisions** (Actioned) stage into Holding like Check
+  Floor/Replen — nothing hits the sheet until Update, which pushes the
+  whole batch atomically; if it fails, everything stays staged so it's
+  always safe to just try again. **Closing a box** is separate and pushes
+  immediately on scan, same reasoning — if it fails, nothing was logged,
+  so just scan again. **Actual Count** is a third pattern of its own —
+  every tap (or typed value) pushes immediately, same as Closing a box,
+  but a failed push just gets superseded by the next tap's value instead
+  of needing a manual retry, since each push sends the current total
+  count rather than a step.
 - **The consolidation list itself is never written by the app** — it's
   pasted directly into the ConsolMaster sheet, and the app only ever reads
   it (on boot/refresh, or on demand via **🔄 Refresh from Sheet**).

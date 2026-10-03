@@ -86,13 +86,20 @@ function postConsolBoxCloseToSheet(url, payload) {
 
 // Commits every staged Consolidation decision in one request.
 // payload.decisions is an array of { eccMaterial, description, color,
-// status: "Actioned"|"Needs Adjustment", items? } — items (an array of
-// { upc, size, units, productDescription }) is only present for a Needs
-// Adjustment decision. Logs each in the consolidation log, pushes every
-// Needs Adjustment size into the AuditLog's Mark Out section, and flags
-// every item Processed on the ConsolMaster sheet.
+// status: "Actioned" }. Logs each in the consolidation log and flags every
+// item Processed on the ConsolMaster sheet.
 function postConsolUpdate(url, payload) {
   return postToSheet(url, { type: "consolupdate", ...payload });
+}
+
+// Pushes the current Actual Count for one consolidation line straight to
+// the sheet — unlike postConsolUpdate above, this isn't staged through
+// Holding; every tap of -/+ (or a typed value) calls this immediately, so
+// it acts as its own "Update." See the matching note on
+// handleConsolCountUpdate in Code.gs for how a repeat call overwrites the
+// same ConsolLog row instead of appending a new one per tap.
+function postConsolCountUpdate(url, payload) {
+  return postToSheet(url, { type: "consolcountupdate", ...payload });
 }
 
 // Marks one ConsolLog "Needs Adjustment" entry Resolved. The row itself
@@ -342,14 +349,23 @@ async function loadSharedConsolLog() {
       if (!row.id) continue;
       const existing = byId.get(row.id);
       if (existing) {
-        // Status is the only field a row can change after it's first
-        // written (a "Needs Adjustment" entry Resolved from any device,
-        // including this one on an earlier boot) — pick that up here
-        // instead of only ever adding brand-new rows, or a resolve done
-        // elsewhere would never show up on this device.
+        // Status and Actual Count are the only fields a row can change
+        // after it's first written — a resolve from any device, or an
+        // Actual Count tapped in on a different phone — so pick those up
+        // here instead of only ever adding brand-new rows, or a change
+        // made elsewhere would never show up on this device until its own
+        // next write.
         if (row.status && existing.status !== row.status) {
           existing.status = row.status;
           changed = true;
+        }
+        if (row.entryType === "count") {
+          const remoteCount = Number(row.actualCount) || 0;
+          if (existing.actualCount !== remoteCount) {
+            existing.actualCount = remoteCount;
+            existing.timestamp = row.timestamp;
+            changed = true;
+          }
         }
         continue;
       }
@@ -364,7 +380,7 @@ async function loadSharedConsolLog() {
         color: row.color,
         status: row.status,
         size: row.size,
-        unitsOut: Number(row.unitsOut) || 0,
+        actualCount: Number(row.actualCount) || 0,
         referenceNumber: row.referenceNumber,
         synced: true,
       };

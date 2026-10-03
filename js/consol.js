@@ -1,11 +1,11 @@
 "use strict";
 
-let consolAdjustItem = null;
-let consolAdjustVariants = [];
-// Staged size/unit rows for the current "Needs Adjustment" modal session —
-// more than one size of a style can be short, so the modal collects
-// several before Save submits all of them together.
-let consolAdjustRows = [];
+// Coalesces rapid-fire Actual Count taps per ECC Material: if a sync is
+// already in flight when another tap comes in, that tap just updates
+// pendingValue instead of firing a second overlapping request — the
+// in-flight request's own loop picks up the latest value once it finishes,
+// so taps during a slow connection never pile up or land out of order.
+const consolCountSyncState = {}; // eccMaterial -> { inFlight, pendingValue }
 
 function initConsol() {
   document.getElementById("consol-refresh-btn").addEventListener("click", async () => {
@@ -22,10 +22,6 @@ function initConsol() {
     openScanner("Scanning packing slip…", handleBoxCloseScan);
   });
 
-  document.getElementById("consol-adjust-add-row-btn").addEventListener("click", addConsolAdjustRow);
-  document.getElementById("consol-adjust-save-btn").addEventListener("click", saveConsolAdjustModal);
-  document.getElementById("consol-adjust-cancel-btn").addEventListener("click", closeConsolAdjustModal);
-
   document.getElementById("consol-update-btn").addEventListener("click", commitConsolUpdate);
 
   document.getElementById("export-consol-csv-btn").addEventListener("click", exportConsolCsv);
@@ -35,11 +31,13 @@ function initConsol() {
   renderConsolLog();
 }
 
-/* ---------- Holding (staged Actioned/Needs Adjustment decisions) ----------
+/* ---------- Holding (staged Actioned decisions) ----------
    Same pattern as Check Floor/Replen: nothing hits the sheet until Update
    commits everything staged in one request. Closing a box is a completely
    separate action now (see handleBoxCloseScan below) — it doesn't touch
-   this holding area or ConsolMaster at all. */
+   this holding area or ConsolMaster at all. Actual Count (below) is a
+   third, independent thing again — it never stages here, it pushes on
+   every tap. */
 
 function loadConsolHolding() {
   return loadJSON(STORAGE.consolHolding, []);
@@ -86,12 +84,10 @@ function renderConsolHolding() {
 
   tbody.innerHTML = "";
   for (const h of holding) {
-    const sizesText = h.status === "Needs Adjustment" ? h.items.map((i) => `${i.size} ×${i.units}`).join(", ") : "—";
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(h.description)} — ${escapeHtml(h.color)}</td>
       <td>${escapeHtml(h.status)}</td>
-      <td>${escapeHtml(sizesText)}</td>
       <td><button class="btn secondary small consol-holding-remove-btn" data-ecc="${escapeHtml(h.eccMaterial)}">Remove</button></td>
     `;
     tbody.appendChild(tr);
@@ -150,11 +146,20 @@ function renderConsolList() {
     .sort((a, b) => a.description.localeCompare(b.description) || a.color.localeCompare(b.color));
 
   for (const item of sorted) {
+    const actualCount = getConsolActualCount(item.eccMaterial);
+    const complete = item.total > 0 && actualCount >= item.total;
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(item.description)}</td>
       <td>${escapeHtml(item.color)}</td>
       <td>${escapeHtml(item.destination)}</td>
+      <td>
+        <div class="consol-count-stepper${complete ? " consol-count-complete" : ""}">
+          <button type="button" class="btn secondary small consol-count-minus" data-ecc="${escapeHtml(item.eccMaterial)}" aria-label="Decrease actual count">−</button>
+          <input type="number" inputmode="numeric" min="0" class="consol-count-input" data-ecc="${escapeHtml(item.eccMaterial)}" value="${actualCount}" aria-label="Actual count for ${escapeHtml(item.description)}">
+          <button type="button" class="btn secondary small consol-count-plus" data-ecc="${escapeHtml(item.eccMaterial)}" aria-label="Increase actual count">+</button>
+        </div>
+      </td>
       <td class="num">${item.total}</td>
       <td>
         <select class="consol-status-select" data-ecc="${escapeHtml(item.eccMaterial)}" aria-label="Status for ${escapeHtml(
@@ -162,7 +167,6 @@ function renderConsolList() {
     )}">
           <option value="">Not actioned</option>
           <option value="Actioned">Actioned</option>
-          <option value="Needs Adjustment">Needs Adjustment</option>
         </select>
       </td>
     `;
@@ -171,6 +175,19 @@ function renderConsolList() {
 
   tbody.querySelectorAll(".consol-status-select").forEach((sel) => {
     sel.addEventListener("change", () => handleConsolStatusChange(sel));
+  });
+
+  tbody.querySelectorAll(".consol-count-minus").forEach((btn) => {
+    btn.addEventListener("click", () => adjustConsolActualCount(btn.dataset.ecc, -1));
+  });
+  tbody.querySelectorAll(".consol-count-plus").forEach((btn) => {
+    btn.addEventListener("click", () => adjustConsolActualCount(btn.dataset.ecc, 1));
+  });
+  tbody.querySelectorAll(".consol-count-input").forEach((input) => {
+    input.addEventListener("change", () => commitConsolActualCountInput(input.dataset.ecc, input));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") input.blur(); // triggers the change handler above
+    });
   });
 }
 
@@ -183,135 +200,113 @@ function handleConsolStatusChange(sel) {
 
   if (!status) return; // "Not actioned" is just a view state, nothing to do
 
-  if (status === "Needs Adjustment") {
-    openConsolAdjustModal(item);
-    return; // staging happens once the modal is saved
-  }
-
   // Actioned — stage it into Holding, same as everything else; nothing
   // hits the sheet until Update.
   stageConsolDecision({ eccMaterial: item.eccMaterial, description: item.description, color: item.color, status: "Actioned" });
   renderConsolList();
 }
 
-/* ---------- Needs Adjustment: cross-reference Product Master by style ---------- */
+/* ---------- Actual Count: the one field on this page that's never staged ----------
+   Every other decision here (Actioned) goes through Holding/Update like
+   the rest of the app. Actual Count deliberately doesn't -- it's how staff
+   track what's physically been pulled against a line's Total *while*
+   they're standing there pulling it, so every tap of -/+ (or a typed
+   value) pushes immediately and acts as its own "Update." See
+   handleConsolCountUpdate in Code.gs: a repeat push overwrites the same
+   ConsolLog row (entryType "count", one per ECC Material) in place instead
+   of appending a new history row per tap. */
 
-function openConsolAdjustModal(item) {
-  consolAdjustItem = item;
-  consolAdjustRows = [];
-  const master = loadJSON(STORAGE.master, []);
-  consolAdjustVariants = master.filter((p) => item.styleSku && p.style === item.styleSku);
-
-  document.getElementById("consol-adjust-label").textContent = `${item.description} — ${item.color}`;
-
-  const select = document.getElementById("consol-adjust-variant");
-  const addBtn = document.getElementById("consol-adjust-add-row-btn");
-
-  if (consolAdjustVariants.length === 0) {
-    select.innerHTML = `<option value="">No sizes found for style ${escapeHtml(item.styleSku || "—")}</option>`;
-    select.disabled = true;
-    addBtn.disabled = true;
-  } else {
-    select.innerHTML = consolAdjustVariants
-      .map((v) => `<option value="${escapeHtml(v.upc)}">${escapeHtml(v.color)} — ${escapeHtml(v.size)}</option>`)
-      .join("");
-    select.disabled = false;
-    addBtn.disabled = false;
-  }
-
-  document.getElementById("consol-adjust-units").value = "";
-  renderConsolAdjustRows();
-  document.getElementById("consol-adjust-modal").hidden = false;
+function getConsolActualCount(eccMaterial) {
+  const log = loadJSON(STORAGE.consolLog, []);
+  const entry = log.find((e) => e.entryType === "count" && e.eccMaterial === eccMaterial);
+  return entry ? Number(entry.actualCount) || 0 : 0;
 }
 
-function closeConsolAdjustModal() {
-  consolAdjustItem = null;
-  consolAdjustVariants = [];
-  consolAdjustRows = [];
-  document.getElementById("consol-adjust-modal").hidden = true;
-  renderConsolList(); // dropdown falls back to "Not actioned" since nothing changed
+function setConsolActualCountLocal(item, value) {
+  const log = loadJSON(STORAGE.consolLog, []);
+  let entry = log.find((e) => e.entryType === "count" && e.eccMaterial === item.eccMaterial);
+  if (!entry) {
+    entry = {
+      id: "count-" + item.eccMaterial,
+      entryType: "count",
+      timestamp: new Date().toISOString(),
+      date: todayISO(),
+      initials: "",
+      eccMaterial: item.eccMaterial,
+      description: item.description,
+      color: item.color,
+      status: "",
+      size: "",
+      actualCount: 0,
+      referenceNumber: "",
+      synced: false,
+    };
+    log.unshift(entry);
+  }
+  entry.actualCount = value;
+  entry.timestamp = new Date().toISOString();
+  saveJSON(STORAGE.consolLog, log);
 }
 
-function addConsolAdjustRow() {
-  const upc = document.getElementById("consol-adjust-variant").value;
-  const unitsRaw = document.getElementById("consol-adjust-units").value;
-  const units = parseInt(unitsRaw, 10);
-
-  const variant = consolAdjustVariants.find((v) => String(v.upc) === upc);
-  if (!variant) {
-    alert("Select a size/colour first.");
-    return;
-  }
-  if (isNaN(units) || units <= 0) {
-    alert("Enter a valid number of units to mark out.");
-    return;
-  }
-  if (consolAdjustRows.some((r) => r.upc === variant.upc)) {
-    alert("That size is already added — remove it below first if you need to change the units.");
-    return;
-  }
-
-  consolAdjustRows.push({
-    upc: variant.upc,
-    size: variant.size,
-    color: variant.color,
-    units,
-    productDescription: combinedDescription(variant),
-  });
-
-  document.getElementById("consol-adjust-units").value = "";
-  renderConsolAdjustRows();
-}
-
-function removeConsolAdjustRow(upc) {
-  consolAdjustRows = consolAdjustRows.filter((r) => r.upc !== upc);
-  renderConsolAdjustRows();
-}
-
-function renderConsolAdjustRows() {
-  const wrap = document.getElementById("consol-adjust-rows");
-  const saveBtn = document.getElementById("consol-adjust-save-btn");
-
-  if (consolAdjustRows.length === 0) {
-    wrap.innerHTML = `<p class="hint">No sizes added yet — pick one above and tap + Add Size.</p>`;
-    saveBtn.disabled = true;
-    return;
-  }
-
-  wrap.innerHTML = consolAdjustRows
-    .map(
-      (r) => `
-      <div class="consol-adjust-row">
-        <span>${escapeHtml(r.color)} — ${escapeHtml(r.size)} × ${r.units}</span>
-        <button type="button" class="btn secondary small consol-adjust-row-remove" data-upc="${escapeHtml(r.upc)}">Remove</button>
-      </div>
-    `
-    )
-    .join("");
-  saveBtn.disabled = false;
-
-  wrap.querySelectorAll(".consol-adjust-row-remove").forEach((btn) => {
-    btn.addEventListener("click", () => removeConsolAdjustRow(btn.dataset.upc));
-  });
-}
-
-function saveConsolAdjustModal() {
-  if (!consolAdjustItem || consolAdjustRows.length === 0) return;
-
-  stageConsolDecision({
-    eccMaterial: consolAdjustItem.eccMaterial,
-    description: consolAdjustItem.description,
-    color: consolAdjustItem.color,
-    status: "Needs Adjustment",
-    items: consolAdjustRows.map((r) => ({ upc: r.upc, size: r.size, units: r.units, productDescription: r.productDescription })),
-  });
-
-  consolAdjustItem = null;
-  consolAdjustVariants = [];
-  consolAdjustRows = [];
-  document.getElementById("consol-adjust-modal").hidden = true;
-
+function adjustConsolActualCount(eccMaterial, delta) {
+  const master = loadJSON(STORAGE.consolMaster, []);
+  const item = master.find((p) => p.eccMaterial === eccMaterial);
+  if (!item) return;
+  const next = Math.max(0, getConsolActualCount(eccMaterial) + delta);
+  setConsolActualCountLocal(item, next);
   renderConsolList();
+  syncConsolActualCount(item);
+}
+
+function commitConsolActualCountInput(eccMaterial, inputEl) {
+  const master = loadJSON(STORAGE.consolMaster, []);
+  const item = master.find((p) => p.eccMaterial === eccMaterial);
+  if (!item) return;
+  const parsed = parseInt(inputEl.value, 10);
+  const next = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+  setConsolActualCountLocal(item, next);
+  renderConsolList();
+  syncConsolActualCount(item);
+}
+
+// Pushes the current Actual Count to the sheet immediately, coalescing
+// rapid taps: if a push is already in flight for this item, this just
+// records the latest value for that in-flight push to pick up next,
+// rather than firing a second overlapping request. postConsolCountUpdate
+// (via postToSheet) already retries transient failures on its own; a
+// request that fails outright is simply picked up again by the next tap,
+// since every push sends the current absolute count, not a delta.
+async function syncConsolActualCount(item) {
+  const state = consolCountSyncState[item.eccMaterial] || (consolCountSyncState[item.eccMaterial] = { inFlight: false, pendingValue: null });
+  state.pendingValue = getConsolActualCount(item.eccMaterial);
+  if (state.inFlight) return;
+
+  state.inFlight = true;
+  const session = loadJSON(STORAGE.session, {});
+  const initials = (session.initials || "").trim();
+
+  while (state.pendingValue !== null) {
+    const valueToSend = state.pendingValue;
+    state.pendingValue = null;
+    try {
+      await postConsolCountUpdate(getWebhookUrl(), {
+        eccMaterial: item.eccMaterial,
+        description: item.description,
+        color: item.color,
+        actualCount: valueToSend,
+        initials,
+      });
+      const log = loadJSON(STORAGE.consolLog, []);
+      const entry = log.find((e) => e.entryType === "count" && e.eccMaterial === item.eccMaterial);
+      if (entry && entry.actualCount === valueToSend) {
+        entry.synced = true;
+        saveJSON(STORAGE.consolLog, log);
+      }
+    } catch (e) {
+      break; // offline or unreachable — the next tap (or Refresh) will retry
+    }
+  }
+  state.inFlight = false;
 }
 
 /* ---------- Update: commit every staged Holding decision in one request ---------- */
@@ -341,13 +336,11 @@ async function commitConsolUpdate() {
         description: h.description,
         color: h.color,
         status: h.status,
-        items: h.status === "Needs Adjustment" ? h.items : undefined,
       })),
     });
 
-    // Mirror the same effects locally instead of waiting on a fresh GET:
-    // flag every held item Processed and record its ConsolLog entry (or
-    // entries — one per size for Needs Adjustment).
+    // Mirror the same effect locally instead of waiting on a fresh GET:
+    // flag every held item Processed and record its ConsolLog entry.
     const master = loadJSON(STORAGE.consolMaster, []);
     const log = loadJSON(STORAGE.consolLog, []);
 
@@ -355,41 +348,21 @@ async function commitConsolUpdate() {
       const idx = master.findIndex((p) => p.eccMaterial === h.eccMaterial);
       if (idx !== -1) master[idx].processed = "Processed";
 
-      if (h.status === "Actioned") {
-        log.unshift({
-          id: uid(),
-          entryType: "status",
-          timestamp: nowIso,
-          date,
-          initials,
-          eccMaterial: h.eccMaterial,
-          description: h.description,
-          color: h.color,
-          status: "Actioned",
-          size: "",
-          unitsOut: 0,
-          referenceNumber: "",
-          synced: true,
-        });
-      } else {
-        for (const it of h.items) {
-          log.unshift({
-            id: uid(),
-            entryType: "status",
-            timestamp: nowIso,
-            date,
-            initials,
-            eccMaterial: h.eccMaterial,
-            description: h.description,
-            color: h.color,
-            status: "Needs Adjustment",
-            size: it.size,
-            unitsOut: it.units,
-            referenceNumber: "",
-            synced: true,
-          });
-        }
-      }
+      log.unshift({
+        id: uid(),
+        entryType: "status",
+        timestamp: nowIso,
+        date,
+        initials,
+        eccMaterial: h.eccMaterial,
+        description: h.description,
+        color: h.color,
+        status: "Actioned",
+        size: "",
+        actualCount: 0,
+        referenceNumber: "",
+        synced: true,
+      });
     }
 
     saveJSON(STORAGE.consolMaster, master);
@@ -441,7 +414,7 @@ async function handleBoxCloseScan(text) {
       color: "",
       status: "",
       size: "",
-      unitsOut: 0,
+      actualCount: 0,
       referenceNumber: text,
       synced: true,
     });
@@ -465,8 +438,11 @@ function renderConsolLog() {
   const fullLog = loadJSON(STORAGE.consolLog, []);
   // Resolved entries stay in the sheet/local storage permanently (and in
   // Export CSV) — same as Check Floor/Replen, once actioned they just drop
-  // off the everyday view instead of cluttering it forever.
-  const log = fullLog.filter((e) => e.status !== "Resolved");
+  // off the everyday view instead of cluttering it forever. "count" entries
+  // are filtered out entirely here (not just hidden once done) — they're a
+  // live running number the Items to Consolidate table already shows, not
+  // a discrete event worth a line in this history feed.
+  const log = fullLog.filter((e) => e.status !== "Resolved" && e.entryType !== "count");
   listEl.innerHTML = "";
 
   if (log.length === 0) {
@@ -489,6 +465,11 @@ function renderConsolLog() {
         </div>
       `;
     } else {
+      // "Needs Adjustment" can't be created from the UI anymore (see
+      // Actual Count above, which replaced it), but old entries logged
+      // before that change still live in the sheet permanently — this
+      // branch (and Resolve below) stays just to keep displaying and
+      // resolving them.
       const pillClass = e.status === "Actioned" ? "match" : "under";
       const needsAdjustment = e.status === "Needs Adjustment";
       div.innerHTML = `
@@ -498,9 +479,11 @@ function renderConsolLog() {
         </div>
         <div class="meta">${escapeHtml(e.description)} — ${escapeHtml(e.color)}</div>
         <div class="meta">
-          ${needsAdjustment ? `Size ${escapeHtml(e.size)} · ${e.unitsOut} out · ` : ""}${escapeHtml(
-        e.initials || "—"
-      )} · ${escapeHtml(e.date)}
+          ${
+            needsAdjustment
+              ? `Size ${escapeHtml(e.size)} · ${e.actualCount ?? e.unitsOut ?? 0} out · `
+              : ""
+          }${escapeHtml(e.initials || "—")} · ${escapeHtml(e.date)}
         </div>
         ${
           needsAdjustment
@@ -555,7 +538,7 @@ function exportConsolCsv() {
     "color",
     "status",
     "size",
-    "unitsOut",
+    "actualCount",
     "referenceNumber",
     "timestamp",
   ];
