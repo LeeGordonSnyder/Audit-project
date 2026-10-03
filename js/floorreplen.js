@@ -20,7 +20,7 @@ function initFloorReplen() {
   document.getElementById("checkfloor-update-btn").addEventListener("click", commitCheckFloorUpdate);
   document.getElementById("replen-update-btn").addEventListener("click", commitReplenUpdate);
 
-  document.getElementById("checkfloor-manual-add-btn").addEventListener("click", openCheckFloorManualSizeModal);
+  document.getElementById("floor-lookup-manual-btn").addEventListener("click", openCheckFloorManualSizeModal);
   document.getElementById("checkfloor-manual-size-save-btn").addEventListener("click", saveCheckFloorManualEntry);
   document.getElementById("checkfloor-manual-size-cancel-btn").addEventListener("click", closeCheckFloorManualSizeModal);
 
@@ -36,13 +36,17 @@ function initFloorReplen() {
 
 function renderFloorLookupResults(query) {
   const resultsEl = document.getElementById("floor-lookup-results");
+  const manualBtn = document.getElementById("floor-lookup-manual-btn");
 
   if (!query) {
     resultsEl.hidden = true;
     resultsEl.innerHTML = "";
+    manualBtn.hidden = true;
     return;
   }
   resultsEl.hidden = false;
+  manualBtn.hidden = false;
+  manualBtn.textContent = `Add "${query}" Manually…`;
 
   const matches = findMasterMatches(query);
   if (matches.length === 0) {
@@ -570,11 +574,14 @@ async function commitReplenUpdate() {
 
 /* ---------- Manual entry: not on the MAO export or in the catalog at all ----------
    For the person checking the floor, not the person picking in the back —
-   they notice something's missing while working the Check Floor list, so
-   this lives right next to "Add a Product" and behaves exactly like it:
-   pick size(s) up front, then it's staged into Check Floor — Holding as a
-   "Needed" decision, same as ticking Needed on any pasted row, and only
-   actually syncs when the shared Update button commits the whole batch —
+   they notice something's missing while working the Check Floor list. This
+   shares the same search box as "Add a Product" above instead of its own
+   separate field — whatever's currently typed there (a real catalog query
+   that came up empty, or just a free-text description) is what gets added,
+   so there's never a need to retype it a second time. Pick size(s) up
+   front, then it's staged into Check Floor — Holding as a "Needed"
+   decision, same as ticking Needed on any pasted row, and only actually
+   syncs when the shared Update button commits the whole batch —
    indistinguishable from a row that had been on the items sold list all
    along. There's no real SKU for a hand-typed product, so a synthetic one
    is generated to key it through the same FloorRestock sku+size matching
@@ -585,10 +592,9 @@ async function commitReplenUpdate() {
    entry up. */
 
 function openCheckFloorManualSizeModal() {
-  const descInput = document.getElementById("checkfloor-manual-desc");
-  const description = descInput.value.trim();
+  const description = document.getElementById("floor-lookup-input").value.trim();
   if (!description) {
-    setStatus("checkfloor-manual-status", "Type a description first.", true);
+    setStatus("floor-lookup-status", "Type a description first.", true);
     return;
   }
   checkFloorManualDescription = description;
@@ -637,7 +643,7 @@ async function saveCheckFloorManualEntry() {
   }
 
   if (!navigator.onLine) {
-    setStatus("checkfloor-manual-status", "Offline — nothing was added. Try again once you have a connection.", true);
+    setStatus("floor-lookup-status", "Offline — nothing was added. Try again once you have a connection.", true);
     return;
   }
 
@@ -646,7 +652,7 @@ async function saveCheckFloorManualEntry() {
   const ownSize = sizes[0]; // the row's "own" size — any others become extra Replen rows, same as ticking Needed on a real MAO row
 
   closeCheckFloorManualSizeModal();
-  setStatus("checkfloor-manual-status", "Adding…", false);
+  setStatus("floor-lookup-status", "Adding…", false);
 
   try {
     // Same call the catalog "Add a Product" flow makes — creates one
@@ -676,11 +682,12 @@ async function saveCheckFloorManualEntry() {
 
     stageCheckFloorDecision(sku, ownSize, "Needed", sizes);
 
-    document.getElementById("checkfloor-manual-desc").value = "";
-    setStatus("checkfloor-manual-status", `Added ${description} — staged as Needed.`, false);
+    document.getElementById("floor-lookup-input").value = "";
+    renderFloorLookupResults("");
+    setStatus("floor-lookup-status", `Added ${description} — staged as Needed.`, false);
   } catch (e) {
     setStatus(
-      "checkfloor-manual-status",
+      "floor-lookup-status",
       "Couldn't reach the sheet — check your connection and try again.",
       true
     );

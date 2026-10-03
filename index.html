@@ -17,7 +17,7 @@
 <div class="app-header">
   <header class="topbar">
     <!-- Bump this by 1 on every shipped change, same as sw.js's CACHE_NAME. -->
-    <span class="header-version">v33</span>
+    <span class="header-version">v34</span>
     <img src="icons/icon-192.png" alt="Oakridge Park Arc'teryx" class="topbar-logo">
     <h1>Oakridge Product Suite</h1>
     <div id="offline-badge" class="badge" hidden>Offline</div>
@@ -328,21 +328,15 @@
     <p id="last-floor-check" class="hint"></p>
 
     <h2>Add a Product<span class="hint"> — not on the items sold list?</span></h2>
-    <p class="hint">Look it up in the catalog to add it here for a Needed / Not Needed decision, same as anything pasted from MAO.</p>
+    <p class="hint">Search the catalog to add a real match, or tap Add Manually to add exactly what you've typed — no catalog match needed.</p>
     <div class="search-row">
       <input id="floor-lookup-input" type="text" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off"
              placeholder="Search by SKU / UPC / description / style…" aria-label="Search catalog to add to Check Floor">
       <button id="floor-lookup-clear-btn" class="icon-btn" title="Clear" aria-label="Clear search">✕</button>
     </div>
     <div id="floor-lookup-results" class="results" hidden></div>
+    <button id="floor-lookup-manual-btn" class="btn secondary small" hidden>Add Manually…</button>
     <p id="floor-lookup-status" class="status-msg" role="status"></p>
-
-    <p class="hint">Not in the catalog either? Type a description and pick a size to add it the same way.</p>
-    <div class="search-row">
-      <input id="checkfloor-manual-desc" type="text" autocomplete="off" placeholder="Product description…" aria-label="Manual product description">
-      <button id="checkfloor-manual-add-btn" class="btn secondary small">Pick a Size…</button>
-    </div>
-    <p id="checkfloor-manual-status" class="status-msg" role="status"></p>
 
     <input id="checkfloor-filter" type="text" autocomplete="off" placeholder="Filter by description, colour, or SKU…" class="filter-input">
     <p id="checkfloor-count" class="hint"></p>

@@ -218,33 +218,34 @@ straight from the floor, never from the back, so they never belong in
 Check Floor, Replen, or the 86 Board; they simply never enter the app's
 local data (see `isFloorRestockAccessoryGender` in `js/storage.js`), the
 same as if they'd never been pasted at all. Each remaining row shows a
-**Needed** / **Not Needed** button. Above the list, **Add a Product**
-searches the catalog (SKU, UPC,
-description, style — same matching Tag Lookup and the Audit Dashboard's
-lookup use) for anything that wasn't on the "items sold" export — tapping
-a result appends it as a new blank row here, for the same Needed/Not
-Needed decision as anything pasted from MAO.
+**Needed** / **Not Needed** button.
 
-Right below that, **"Not in the catalog either?"** is for the person
-actually checking the floor — they'll often spot something missing that's
-neither on the sold list nor findable by search (sold the day before,
-mis-scanned, whatever). Type a description, tap **Pick a Size…**, and
-check every size that's actually needed (or type one under **Other**) —
-same multi-select as the Needed picker below, because that's exactly what
-this is standing in for. There's no real SKU for a hand-typed item, so the
-app generates one behind the scenes (`MANUAL-...`) purely to key it
-through the same sku+size matching every other Floor Replen action uses —
-gender, category, and color are left blank, same as a catalog "Add a
-Product," since nothing in the matching or lifecycle logic (Check Floor →
-Replen → 86 Board) ever keys off those fields, only sku+size. Tapping
-**Add** does two things: one immediate request (`floorrestockadd`, the
-same one "Add a Product" uses) creates the row with the first size you
-picked as its own size, then the Needed decision itself — including any
-extra sizes beyond that first one — is staged into **Check Floor —
-Holding** below, exactly like ticking Needed on any real row. It only
-actually reaches the sheet when you tap **Update**, batched together with
-whatever else is staged at that point — indistinguishable, once synced,
-from a row that had been on the items sold list all along.
+Above the list, **Add a Product** is one search box doing double duty.
+Typing searches the catalog (SKU, UPC, description, style — same matching
+Tag Lookup and the Audit Dashboard's lookup use) for anything that wasn't
+on the "items sold" export; tapping a result appends it as a new blank
+row here, for the same Needed/Not Needed decision as anything pasted from
+MAO. Right alongside those results (whether or not any came back) is an
+**Add "…" Manually…** button that adds *exactly what's currently typed in
+that same box* — no separate field to retype into. This is for the person
+actually checking the floor who spots something missing that's neither on
+the sold list nor in the catalog (sold the day before, mis-scanned,
+whatever). Tapping it opens the same size picker as the Needed button
+below — check every size that's actually needed (or type one under
+**Other**). There's no real SKU for a hand-typed item, so the app
+generates one behind the scenes (`MANUAL-...`) purely to key it through
+the same sku+size matching every other Floor Replen action uses — gender,
+category, and color are left blank, same as a catalog "Add a Product,"
+since nothing in the matching or lifecycle logic (Check Floor → Replen →
+86 Board) ever keys off those fields, only sku+size. Tapping **Add** does
+two things: one immediate request (`floorrestockadd`, the same one "Add a
+Product" uses) creates the row with the first size you picked as its own
+size, then the Needed decision itself — including any extra sizes beyond
+that first one — is staged into **Check Floor — Holding** below, exactly
+like ticking Needed on any real row. It only actually reaches the sheet
+when you tap **Update**, batched together with whatever else is staged at
+that point — indistinguishable, once synced, from a row that had been on
+the items sold list all along.
 
 - **Not Needed** — stages it straight into the holding section below.
 - **Needed** — opens a picker of the core sizes (S, M, L, 30, 32, 34, 2, 4,
