@@ -1,4 +1,4 @@
-const CACHE_NAME = "audit-tool-v49";
+const CACHE_NAME = "audit-tool-v50";
 const CORE_ASSETS = [
   "./",
   "./index.html",

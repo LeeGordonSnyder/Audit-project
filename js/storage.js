@@ -14,6 +14,10 @@ const STORAGE = {
   checkFloorHolding: "audit.checkFloorHolding.v1",
   replenHolding: "audit.replenHolding.v1",
   staffInitials: "audit.staffInitials.v1",
+  // Per-device, not per-user — it's the phone's camera that needs a given
+  // zoom level to focus close on a barcode, not anything about who's
+  // signed in, so this deliberately isn't cleared or touched by login.
+  scannerZoom: "audit.scannerZoom.v1",
 };
 
 // The core sizes offered when flagging an item "Needed" on Check Floor —

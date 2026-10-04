@@ -17,7 +17,7 @@
 <div class="app-header">
   <header class="topbar">
     <!-- Bump this by 1 on every shipped change, same as sw.js's CACHE_NAME. -->
-    <span class="header-version">v36</span>
+    <span class="header-version">v37</span>
     <img src="icons/icon-192.png" alt="Oakridge Park Arc'teryx" class="topbar-logo">
     <h1>Oakridge Product Suite</h1>
     <div id="offline-badge" class="badge" hidden>Offline</div>
@@ -481,6 +481,15 @@
   <div class="scanner-modal-inner">
     <h2 id="scanner-modal-title">Scanning…</h2>
     <div id="scanner-modal-view"></div>
+    <!-- Only shown when the camera reports zoom support (mainly Android
+         Chrome) — a fixed-focus or wide-angle lens often can't resolve a
+         barcode held close; backing off and zooming in digitally instead
+         usually reads it fine. -->
+    <div id="scanner-zoom-row" class="scanner-zoom-row" hidden>
+      <button id="scanner-zoom-out-btn" class="icon-btn" type="button" title="Zoom out" aria-label="Zoom out">−</button>
+      <span id="scanner-zoom-label" class="hint">1.0x</span>
+      <button id="scanner-zoom-in-btn" class="icon-btn" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+    </div>
     <p id="scanner-modal-feedback" class="status-msg" role="status"></p>
     <button id="scanner-modal-cancel" class="btn secondary">Cancel</button>
   </div>

@@ -6,9 +6,12 @@ let startPromise = null; // the in-flight start() call, if any — never stop() 
 let scannerBusy = false; // guards against a second scan session opening before the first tears down
 let scannerContinuous = false; // when true, the camera stays open across multiple decodes
 let closingPromise = null; // the in-flight closeScanner() call, if any — see closeScanner()
+let scannerZoomCapability = null; // { min, max, step } from the current track, or null if unsupported
 
 function initScannerModal() {
   document.getElementById("scanner-modal-cancel").addEventListener("click", closeScanner);
+  document.getElementById("scanner-zoom-out-btn").addEventListener("click", () => stepScannerZoom(-1));
+  document.getElementById("scanner-zoom-in-btn").addEventListener("click", () => stepScannerZoom(1));
 }
 
 // opts.continuous: true keeps the camera running after every decode
@@ -44,7 +47,26 @@ async function openScanner(title, onDecode, opts = {}) {
   startPromise = instance
     .start(
       { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 260, height: 130 } },
+      {
+        fps: 10,
+        qrbox: { width: 260, height: 130 },
+        // A phone's back camera defaults (picked by the OS/browser, not
+        // this app) are often a wide-angle lens with a focus range that
+        // doesn't go nearly as close as you'd want for a barcode held a
+        // few inches away. "continuous" keeps the camera re-focusing
+        // instead of locking on the first frame (Chrome on Android reads
+        // this; browsers that don't understand the constraint name just
+        // ignore it, including iOS Safari, which already autofocuses
+        // continuously on its own). The higher ideal resolution gives the
+        // decoder more real detail to work with at a given distance,
+        // independent of focus.
+        videoConstraints: {
+          facingMode: "environment",
+          focusMode: "continuous",
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+      },
       (decodedText) => {
         if (scannerContinuous) {
           if (activeScanCallback) activeScanCallback(decodedText.trim());
@@ -63,6 +85,69 @@ async function openScanner(title, onDecode, opts = {}) {
     });
 
   await startPromise;
+  if (html5QrCode === instance) await setupScannerZoom(instance);
+}
+
+/* ---------- Zoom: a software stand-in for "can't get close enough" ----------
+   A lens's true minimum focus distance is a hardware limit no constraint
+   can override — if a camera genuinely can't focus any closer than, say,
+   10cm, getting closer just makes it blurrier. The fix is the opposite:
+   back off to outside that limit, then zoom in digitally to bring the
+   barcode back up to a readable size. Only shown when the running camera
+   track actually reports zoom support (mainly Android Chrome — iOS Safari
+   doesn't expose track capabilities the same way, so this plainly stays
+   hidden there rather than showing a control that does nothing). The
+   chosen zoom level is remembered per device (see STORAGE.scannerZoom) and
+   re-applied automatically next time, since it's the phone's camera that
+   needs it, not anything about who's signed in. */
+
+async function setupScannerZoom(instance) {
+  const row = document.getElementById("scanner-zoom-row");
+  scannerZoomCapability = null;
+
+  let capabilities;
+  try {
+    capabilities = instance.getRunningTrackCapabilities();
+  } catch (e) {
+    row.hidden = true;
+    return;
+  }
+
+  const zoom = capabilities && capabilities.zoom;
+  if (!zoom || zoom.min === zoom.max) {
+    row.hidden = true;
+    return;
+  }
+
+  scannerZoomCapability = { min: zoom.min, max: zoom.max, step: zoom.step || (zoom.max - zoom.min) / 10 || 0.1 };
+  row.hidden = false;
+
+  const remembered = loadJSON(STORAGE.scannerZoom, null);
+  const initial = typeof remembered === "number" && Number.isFinite(remembered) ? clampScannerZoom(remembered) : zoom.min;
+  await applyScannerZoom(instance, initial);
+}
+
+function clampScannerZoom(value) {
+  if (!scannerZoomCapability) return value;
+  return Math.min(scannerZoomCapability.max, Math.max(scannerZoomCapability.min, value));
+}
+
+async function applyScannerZoom(instance, value) {
+  const clamped = clampScannerZoom(value);
+  try {
+    await instance.applyVideoConstraints({ zoom: clamped });
+    document.getElementById("scanner-zoom-label").textContent = `${clamped.toFixed(1)}x`;
+    saveJSON(STORAGE.scannerZoom, clamped);
+  } catch (e) {
+    // Reported support but rejected the actual call — leave the label/
+    // stored value as whatever last succeeded rather than guessing.
+  }
+}
+
+function stepScannerZoom(direction) {
+  if (!html5QrCode || !scannerZoomCapability) return;
+  const current = Number(loadJSON(STORAGE.scannerZoom, scannerZoomCapability.min)) || scannerZoomCapability.min;
+  applyScannerZoom(html5QrCode, current + direction * scannerZoomCapability.step);
 }
 
 // Callers (openScanner()'s own guard, a Cancel/Done tap, and now a
@@ -102,8 +187,10 @@ async function closeScanner() {
 
 async function closeScannerNow() {
   document.getElementById("scanner-modal").hidden = true;
+  document.getElementById("scanner-zoom-row").hidden = true;
   activeScanCallback = null;
   scannerContinuous = false;
+  scannerZoomCapability = null;
 
   const instance = html5QrCode;
   html5QrCode = null;

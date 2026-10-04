@@ -1498,6 +1498,28 @@ server-only fix — paste the updated `Code.gs` in and redeploy (**Deploy →
 Manage deployments → pencil icon → New version → Deploy**); no app reload
 or cache-clear is needed on any device.
 
+**A barcode held close won't focus, no matter how careful the scan:**
+every camera button in this app shares one scanner (`js/scanner.js`), and
+on many phones the back camera's default focus range (picked by the OS,
+not this app) simply doesn't go as close as you'd want for a barcode held
+a few inches away — no amount of holding steadier fixes a hardware focus
+limit. Two changes: the camera now explicitly asks for continuous
+autofocus (`focusMode: "continuous"` in `videoConstraints`, read by Chrome
+on Android; ignored harmlessly where it isn't, including iOS Safari, which
+already autofocuses continuously on its own) instead of only locking focus
+once at start, and a `[− #x +]` zoom control appears in the scanner modal
+on any device whose camera track reports zoom support
+(`getRunningTrackCapabilities().zoom`) — mainly Android Chrome again; iOS
+Safari doesn't expose it, so the control just stays hidden there rather
+than showing something that wouldn't do anything. Backing off to a
+distance the lens can actually focus at, then zooming in digitally to
+bring the barcode back up to a readable size, works around a fixed
+close-focus limit that no constraint can override. Whatever zoom level
+someone lands on is remembered per device (`STORAGE.scannerZoom`) and
+reapplied automatically on the next scan — it's the phone's camera that
+needs it, not anything about who's signed in, so it's never cleared by
+login.
+
 **Why a "Marking out…" status can outlast the sheet update:** the row
 write happens partway through the Apps Script function and is visible in
 the Sheet immediately, but the browser has no way to know that — it only
