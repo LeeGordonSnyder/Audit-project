@@ -117,6 +117,7 @@ function renderConsolList() {
     (item) =>
       !filterVal ||
       normalize(item.description).includes(filterVal) ||
+      normalize(item.styleSku).includes(filterVal) ||
       normalize(item.color).includes(filterVal) ||
       normalize(item.eccMaterial).includes(filterVal) ||
       normalize(item.destination).includes(filterVal)
@@ -131,7 +132,7 @@ function renderConsolList() {
   tbody.innerHTML = "";
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="no-results">${
+    tbody.innerHTML = `<tr><td colspan="7" class="no-results">${
       master.length === 0
         ? "No consolidation items yet — paste the HQ list into the ConsolMaster sheet, then tap Refresh."
         : remaining.length === 0
@@ -151,6 +152,7 @@ function renderConsolList() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(item.description)}</td>
+      <td>${escapeHtml(item.styleSku)}</td>
       <td>${escapeHtml(item.color)}</td>
       <td>${escapeHtml(item.destination)}</td>
       <td>
