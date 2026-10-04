@@ -105,6 +105,26 @@ body {
   color: rgba(255, 255, 255, 0.85);
 }
 
+.header-user-btn {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 38px);
+  left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 100px;
+  line-height: 1.3;
+}
+
+.header-user-btn:active { background: rgba(255, 255, 255, 0.35); }
+
 .header-icon-btn {
   position: absolute;
   top: calc(env(safe-area-inset-top) + 12px);
@@ -417,7 +437,7 @@ textarea { font-size: 0.9rem; resize: vertical; }
   margin-top: 12px;
 }
 
-#login-add-user-row {
+.add-user-row {
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
@@ -471,6 +491,7 @@ textarea { font-size: 0.9rem; resize: vertical; }
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -741,6 +762,12 @@ code {
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85em;
+}
+
+.consol-guide-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
 }
 
 .consol-table {

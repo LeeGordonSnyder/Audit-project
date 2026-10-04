@@ -83,6 +83,7 @@ async function refreshSharedData() {
 document.addEventListener("DOMContentLoaded", async () => {
   initTabs();
   initScannerModal();
+  initChangeUserButton();
 
   // The staff roster itself now lives in the sheet (ProductMaster column
   // J), so it has to be fetched before the login gate can even render its

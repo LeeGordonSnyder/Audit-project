@@ -17,7 +17,8 @@
 <div class="app-header">
   <header class="topbar">
     <!-- Bump this by 1 on every shipped change, same as sw.js's CACHE_NAME. -->
-    <span class="header-version">v37</span>
+    <span class="header-version">v38</span>
+    <button id="change-user-btn" class="header-user-btn" title="View or change the active user" aria-label="View or change the active user">👤 <span id="header-user-initials">—</span></button>
     <img src="icons/icon-192.png" alt="Oakridge Park Arc'teryx" class="topbar-logo">
     <h1>Oakridge Product Suite</h1>
     <div id="offline-badge" class="badge" hidden>Offline</div>
@@ -186,6 +187,9 @@
 
   <!-- CONSOLIDATIONS TAB -->
   <section id="tab-consol" class="tab-panel" role="tabpanel" hidden>
+    <div class="consol-guide-row">
+      <a href="docs/Consolidations-Guide.pdf" target="_blank" rel="noopener" class="btn secondary small">📘 View Guide</a>
+    </div>
     <div class="audit-list-header">
       <h2>Consolidation — Holding</h2>
       <div class="audit-list-actions">
@@ -464,7 +468,7 @@
 
     <button id="login-add-user-toggle-btn" class="btn secondary small login-add-user-toggle">+ Add User</button>
 
-    <div id="login-add-user-row" hidden>
+    <div id="login-add-user-row" class="add-user-row" hidden>
       <label>New Initials
         <input type="text" id="login-new-initials-input" autocomplete="off" maxlength="4" placeholder="e.g. AB">
       </label>
@@ -473,6 +477,37 @@
         <button id="login-add-user-cancel-btn" class="btn secondary">Cancel</button>
       </div>
       <p id="login-add-user-status" class="status-msg" role="status"></p>
+    </div>
+  </div>
+</div>
+
+<!-- Change active user — lets staff view/switch who's signed in without
+     going through the mandatory login gate above (that one re-runs the
+     app's full boot sequence on Continue; this one just updates the
+     session). -->
+<div id="change-user-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Change User</h2>
+    <p class="hint">Currently signed in as <strong id="change-user-current">—</strong>.</p>
+    <label>Initials
+      <select id="change-user-select"></select>
+    </label>
+    <div class="active-item-actions">
+      <button id="change-user-save-btn" class="btn primary">Switch User</button>
+      <button id="change-user-cancel-btn" class="btn secondary">Cancel</button>
+    </div>
+
+    <button id="change-user-add-toggle-btn" class="btn secondary small login-add-user-toggle">+ Add User</button>
+
+    <div id="change-user-add-row" class="add-user-row" hidden>
+      <label>New Initials
+        <input type="text" id="change-user-new-initials-input" autocomplete="off" maxlength="4" placeholder="e.g. AB">
+      </label>
+      <div class="active-item-actions">
+        <button id="change-user-add-save-btn" class="btn primary">Save</button>
+        <button id="change-user-add-cancel-btn" class="btn secondary">Cancel</button>
+      </div>
+      <p id="change-user-add-status" class="status-msg" role="status"></p>
     </div>
   </div>
 </div>

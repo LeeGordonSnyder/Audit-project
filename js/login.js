@@ -8,7 +8,7 @@ function initLoginGate(onReady) {
   const gate = document.getElementById("login-gate");
   const select = document.getElementById("login-initials-select");
 
-  renderLoginInitialsOptions();
+  renderInitialsOptions(select);
 
   document.getElementById("login-continue-btn").addEventListener("click", () => {
     const initials = select.value;
@@ -17,27 +17,83 @@ function initLoginGate(onReady) {
       return;
     }
     saveJSON(STORAGE.session, { initials });
+    updateHeaderUserBadge();
     gate.hidden = true;
     onReady();
   });
 
-  document.getElementById("login-add-user-toggle-btn").addEventListener("click", () => {
-    document.getElementById("login-add-user-row").hidden = false;
-    document.getElementById("login-add-user-toggle-btn").hidden = true;
-    document.getElementById("login-new-initials-input").focus();
+  initAddUserWidget({
+    toggleBtnId: "login-add-user-toggle-btn",
+    rowId: "login-add-user-row",
+    inputId: "login-new-initials-input",
+    saveBtnId: "login-add-user-save-btn",
+    cancelBtnId: "login-add-user-cancel-btn",
+    statusId: "login-add-user-status",
+    select,
   });
-
-  document.getElementById("login-add-user-cancel-btn").addEventListener("click", closeLoginAddUser);
-  document.getElementById("login-add-user-save-btn").addEventListener("click", saveLoginAddUser);
 
   gate.hidden = false;
 }
 
+// Lets staff check or switch the active user at any point after boot, e.g.
+// if a device gets handed off mid-shift. Deliberately separate from the
+// mandatory gate above: that one's Continue button re-runs the app's full
+// init pipeline (data loads + every tab's event listeners), which would
+// double up listeners if triggered a second time after boot. This one just
+// updates the session.
+function initChangeUserButton() {
+  const modal = document.getElementById("change-user-modal");
+  const select = document.getElementById("change-user-select");
+
+  function open() {
+    const current = loadJSON(STORAGE.session, {}).initials || "";
+    document.getElementById("change-user-current").textContent = current || "nobody yet";
+    renderInitialsOptions(select, current);
+    modal.hidden = false;
+  }
+  function close() {
+    modal.hidden = true;
+  }
+
+  document.getElementById("change-user-btn").addEventListener("click", open);
+  document.getElementById("change-user-cancel-btn").addEventListener("click", close);
+
+  document.getElementById("change-user-save-btn").addEventListener("click", () => {
+    const initials = select.value;
+    if (!initials) {
+      alert("Select initials first.");
+      return;
+    }
+    saveJSON(STORAGE.session, { initials });
+    updateHeaderUserBadge();
+    close();
+  });
+
+  initAddUserWidget({
+    toggleBtnId: "change-user-add-toggle-btn",
+    rowId: "change-user-add-row",
+    inputId: "change-user-new-initials-input",
+    saveBtnId: "change-user-add-save-btn",
+    cancelBtnId: "change-user-add-cancel-btn",
+    statusId: "change-user-add-status",
+    select,
+  });
+
+  updateHeaderUserBadge();
+}
+
+// Keeps the header's "who's active" pill in sync — called after login and
+// after every change-user switch.
+function updateHeaderUserBadge() {
+  const el = document.getElementById("header-user-initials");
+  if (!el) return;
+  el.textContent = loadJSON(STORAGE.session, {}).initials || "—";
+}
+
 // The roster comes from the shared sheet (loaded into STORAGE.staffInitials
-// before the gate ever renders — see app.js's boot sequence), falling back
-// to a hardcoded list only if nothing's ever been fetched successfully.
-function renderLoginInitialsOptions(preselect) {
-  const select = document.getElementById("login-initials-select");
+// before the login gate ever renders — see app.js's boot sequence), falling
+// back to a hardcoded list only if nothing's ever been fetched successfully.
+function renderInitialsOptions(select, preselect) {
   const selected = preselect || loadJSON(STORAGE.session, {}).initials || "";
   const roster = loadJSON(STORAGE.staffInitials, STAFF_INITIALS_FALLBACK);
 
@@ -48,43 +104,59 @@ function renderLoginInitialsOptions(preselect) {
       .join("");
 }
 
-function closeLoginAddUser() {
-  document.getElementById("login-add-user-row").hidden = true;
-  document.getElementById("login-add-user-toggle-btn").hidden = false;
-  document.getElementById("login-new-initials-input").value = "";
-  setStatus("login-add-user-status", "", false);
-}
+// Shared "+ Add User" mini-flow used by both the mandatory login gate and
+// the Change User modal — adds new initials to the shared roster sheet and
+// re-renders+selects it in whichever dropdown triggered it.
+function initAddUserWidget({ toggleBtnId, rowId, inputId, saveBtnId, cancelBtnId, statusId, select }) {
+  const toggleBtn = document.getElementById(toggleBtnId);
+  const row = document.getElementById(rowId);
+  const input = document.getElementById(inputId);
 
-async function saveLoginAddUser() {
-  const input = document.getElementById("login-new-initials-input");
-  const initials = input.value.trim().toUpperCase();
-
-  if (!initials) {
-    setStatus("login-add-user-status", "Enter your initials first.", true);
-    return;
+  function close() {
+    row.hidden = true;
+    toggleBtn.hidden = false;
+    input.value = "";
+    setStatus(statusId, "", false);
   }
 
-  const roster = loadJSON(STORAGE.staffInitials, STAFF_INITIALS_FALLBACK);
-  if (roster.some((i) => i.toUpperCase() === initials)) {
-    setStatus("login-add-user-status", "Already on the list — just select it above.", true);
-    return;
-  }
+  toggleBtn.addEventListener("click", () => {
+    row.hidden = false;
+    toggleBtn.hidden = true;
+    input.focus();
+  });
 
-  if (!navigator.onLine) {
-    setStatus("login-add-user-status", "Offline — can't add a new user without a connection.", true);
-    return;
-  }
+  document.getElementById(cancelBtnId).addEventListener("click", close);
 
-  setStatus("login-add-user-status", "Adding…", false);
+  document.getElementById(saveBtnId).addEventListener("click", async () => {
+    const initials = input.value.trim().toUpperCase();
 
-  try {
-    await postStaffAdd(getWebhookUrl(), { initials });
+    if (!initials) {
+      setStatus(statusId, "Enter your initials first.", true);
+      return;
+    }
 
-    roster.push(initials);
-    saveJSON(STORAGE.staffInitials, roster);
-    renderLoginInitialsOptions(initials);
-    closeLoginAddUser();
-  } catch (e) {
-    setStatus("login-add-user-status", "Couldn't reach the sheet — check your connection and try again.", true);
-  }
+    const roster = loadJSON(STORAGE.staffInitials, STAFF_INITIALS_FALLBACK);
+    if (roster.some((i) => i.toUpperCase() === initials)) {
+      setStatus(statusId, "Already on the list — just select it above.", true);
+      return;
+    }
+
+    if (!navigator.onLine) {
+      setStatus(statusId, "Offline — can't add a new user without a connection.", true);
+      return;
+    }
+
+    setStatus(statusId, "Adding…", false);
+
+    try {
+      await postStaffAdd(getWebhookUrl(), { initials });
+
+      roster.push(initials);
+      saveJSON(STORAGE.staffInitials, roster);
+      renderInitialsOptions(select, initials);
+      close();
+    } catch (e) {
+      setStatus(statusId, "Couldn't reach the sheet — check your connection and try again.", true);
+    }
+  });
 }
