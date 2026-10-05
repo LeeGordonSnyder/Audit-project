@@ -30,7 +30,11 @@
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab-btn active" data-tab="taglookup" role="tab" aria-selected="true">Tag Lookup</button>
     <button class="tab-btn" data-tab="audit" role="tab" aria-selected="false">Audit Dashboard</button>
-    <button class="tab-btn" data-tab="master" role="tab" aria-selected="false">Product Master</button>
+    <!-- Hidden from nav for now — the catalog table it shows (SKU/UPC/description/
+         counts) shouldn't be visible on a public site to outside viewers. The tab
+         and its code are untouched underneath; this is just removed from view.
+         See README's "Deploying to GitHub Pages" section before re-enabling. -->
+    <button class="tab-btn" data-tab="master" role="tab" aria-selected="false" hidden>Product Master</button>
     <button class="tab-btn" data-tab="consol" role="tab" aria-selected="false">Consolidations</button>
     <button class="tab-btn" data-tab="receiving" role="tab" aria-selected="false">Receiving Log</button>
     <button class="tab-btn" data-tab="floorreplen" role="tab" aria-selected="false">Floor Replen</button>
