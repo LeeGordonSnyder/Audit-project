@@ -8,6 +8,14 @@ function setWebhookUrl(url) {
   localStorage.setItem(STORAGE.webhookUrl, url);
 }
 
+function getApiKey() {
+  return localStorage.getItem(STORAGE.apiKey) || "";
+}
+
+function setApiKey(key) {
+  localStorage.setItem(STORAGE.apiKey, key);
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -24,7 +32,7 @@ async function postToSheet(url, payload, attempt = 1) {
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" }, // avoids a CORS preflight Apps Script can't handle
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, key: getApiKey() }),
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
     // Apps Script Web Apps return HTTP 200 even when the underlying
@@ -49,7 +57,7 @@ async function postToSheet(url, payload, attempt = 1) {
 async function fetchFromSheet(url, sheet, attempt = 1) {
   const sep = url.includes("?") ? "&" : "?";
   try {
-    const res = await fetch(`${url}${sep}sheet=${sheet}`, { method: "GET", cache: "no-store" });
+    const res = await fetch(`${url}${sep}sheet=${sheet}&key=${encodeURIComponent(getApiKey())}`, { method: "GET", cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     return await res.json();
   } catch (e) {
@@ -174,6 +182,18 @@ function initSync() {
   document.getElementById("save-sheet-url-btn").addEventListener("click", () => {
     setWebhookUrl(urlInput.value.trim());
     setStatus("sheet-url-status", "Saved.", false);
+  });
+
+  // The backend now requires this on every request (see Code.gs) — without
+  // it, every sync silently behaves like "offline" (reads keep whatever's
+  // already cached locally, writes fail) rather than a clear error, since
+  // that's the same fallback path a dropped connection already took.
+  const keyInput = document.getElementById("api-key-input");
+  keyInput.value = getApiKey();
+
+  document.getElementById("save-api-key-btn").addEventListener("click", () => {
+    setApiKey(keyInput.value.trim());
+    setStatus("api-key-status", "Saved.", false);
   });
 
   document.getElementById("save-shared-btn").addEventListener("click", syncUnsyncedEntries);

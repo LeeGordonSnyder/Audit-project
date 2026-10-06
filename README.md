@@ -385,8 +385,24 @@ Setup, if you're starting fresh or need to redeploy:
    ```javascript
    "use strict";
 
+   // Every request -- GET or POST -- must carry this shared secret, checked
+   // before anything else runs (before the doGet cache lookup, before any
+   // sheet is touched). Set it once under Project Settings -> Script
+   // Properties, name "ACCESS_KEY" -- never paste the real value into this
+   // file, since Code.gs isn't tracked in git the way the rest of the app
+   // is, but this whole block gets copy-pasted around (into README.md, into
+   // chat, etc.) and a hardcoded secret here would travel right along with
+   // it. Give the same value to staff to paste into the app's own Shared
+   // Log Settings -> Access Key field. Script Properties missing or blank
+   // means every request is rejected -- fails closed, not open.
+   function isAuthorized(key) {
+     const expected = PropertiesService.getScriptProperties().getProperty("ACCESS_KEY");
+     return !!expected && key === expected;
+   }
+
    function doPost(e) {
      const body = JSON.parse(e.postData.contents);
+     if (!isAuthorized(body.key)) return jsonResponse({ ok: false, error: "Unauthorized" });
      if (body.type === "master") return handleMasterPost(body);
      if (body.type === "consolboxclose") return handleConsolBoxClose(body);
      if (body.type === "consolupdate") return handleConsolUpdate(body);
@@ -416,6 +432,8 @@ Setup, if you're starting fresh or need to redeploy:
    const DOGET_CACHE_SECONDS = 10;
 
    function doGet(e) {
+     if (!isAuthorized(e.parameter.key)) return jsonResponse({ ok: false, error: "Unauthorized" });
+
      const sheetParam = (e.parameter.sheet || "auditlog").toLowerCase();
 
      const cache = CacheService.getScriptCache();
@@ -1357,9 +1375,21 @@ Setup, if you're starting fresh or need to redeploy:
    existing, so paste in the whole block above rather than keeping an
    older standalone `appendToSection` in isolation).
 
-3. **Deploy → New deployment → Web app**. "Execute as: Me," "Who has
+3. Project Settings (gear icon, left sidebar) → **Script Properties** → **Add
+   script property** → name `ACCESS_KEY`, value a long random string of your
+   choosing (not anything guessable — it's the only thing standing between
+   this sheet and anyone who finds the deployment URL). See "Securing the
+   backend" below for why this matters and where the matching value goes on
+   the app side.
+4. **Deploy → New deployment → Web app**. "Execute as: Me," "Who has
    access: Anyone." Deploy, copy the URL.
-4. Update `DEFAULT_WEBHOOK_URL` in [`js/storage.js`](js/storage.js) to that
+
+   "Anyone" here means anyone can *reach* the script without being signed
+   into a Google account with edit access — that's required, since staff
+   devices never sign into Google at all. It does **not** mean anyone can
+   read or write data once `ACCESS_KEY` is set: `doGet`/`doPost` both reject
+   any request that doesn't carry the matching key, before touching a sheet.
+5. Update `DEFAULT_WEBHOOK_URL` in [`js/storage.js`](js/storage.js) to that
    URL, commit, push. Every device picks up the new default automatically —
    nothing to configure per phone. (The Shared Log Settings field on the
    Audit Dashboard still exists as a manual override, for if the URL ever
@@ -1368,6 +1398,41 @@ Setup, if you're starting fresh or need to redeploy:
 To update the script later: edit `Code.gs`, then **Deploy → Manage
 deployments → pencil icon on the existing deployment → New version →
 Deploy** — this keeps the same URL, so no app changes are needed.
+
+## Securing the backend
+
+GitHub Pages' free tier requires this repo to be **public**, which means
+`js/storage.js` — including `DEFAULT_WEBHOOK_URL`, the deployed Apps Script
+URL — is readable by anyone who opens the repo, no login or cloning
+required. Without anything checking requests server-side, that URL alone is
+enough for anyone to read or write every sheet this app touches directly,
+with no app, no login gate, and no trace in the UI — the login gate is a
+staff-initials picker, not authentication, and was never meant to guard
+against this.
+
+`isAuthorized()` in `Code.gs` closes that: every `doGet`/`doPost` call must
+carry a `key` matching the `ACCESS_KEY` Script Property (step 3 above),
+checked before anything else runs — before the `doGet` cache lookup,
+before any sheet is read or written. No property set means no request is
+ever accepted; it fails closed, not open.
+
+Setup:
+
+1. Set `ACCESS_KEY` under Script Properties (step 3 above), if you haven't.
+2. On each staff device: open the **Audit Dashboard** tab → **Shared Log
+   Settings** → paste the same value into **Access Key** → **Save Key**.
+   One-time per device, same as the Google Sheet URL field next to it.
+
+Until a device has the matching key saved, every sync on it behaves exactly
+like being offline — reads keep whatever's already cached locally instead
+of overwriting it, writes fail with the same "couldn't reach the sheet"
+messaging a dropped connection would show. Nothing is ever wiped by a
+missing or wrong key; it just stops syncing until the key is fixed.
+
+**Rotating the key:** change the `ACCESS_KEY` Script Property to a new
+value — takes effect immediately, no redeploy needed — then update it in
+Shared Log Settings on every device. Do this if the key is ever shared
+somewhere it shouldn't have been (pasted in a chat, screenshotted, etc.).
 
 ## Deploying to GitHub Pages
 

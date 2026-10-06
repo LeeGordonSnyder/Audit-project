@@ -5,6 +5,10 @@ const STORAGE = {
   auditLog: "audit.auditEntries.v1",
   session: "audit.session.v1",
   webhookUrl: "audit.webhookUrl.v1",
+  // Shared secret required by Code.gs on every request — set once per
+  // device under Shared Log Settings, never hardcoded here. See the
+  // "Securing the backend" section of README.md.
+  apiKey: "audit.apiKey.v1",
   consolMaster: "audit.consolMaster.v1",
   consolLog: "audit.consolLog.v1",
   consolHolding: "audit.consolHolding.v1",
