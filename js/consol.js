@@ -389,7 +389,30 @@ async function commitConsolUpdate() {
    number alone is enough to look its contents up in MAO, so this is
    completely independent of the Holding/Update flow above. */
 
+// Confirm-only checkpoint between a successful packing-slip scan and
+// actually logging the box closed -- resolves once "Confirm" is tapped.
+// No way to dismiss it unacknowledged: this app can't see or touch MAO, so
+// it's the only place staff get reminded that closing the box here doesn't
+// also close the order there.
+function showMaoReminder(referenceNumber) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById("mao-reminder-modal");
+    document.getElementById("mao-reminder-reference").textContent = referenceNumber;
+    modal.hidden = false;
+
+    const btn = document.getElementById("mao-reminder-confirm-btn");
+    function onConfirm() {
+      btn.removeEventListener("click", onConfirm);
+      modal.hidden = true;
+      resolve();
+    }
+    btn.addEventListener("click", onConfirm);
+  });
+}
+
 async function handleBoxCloseScan(text) {
+  await showMaoReminder(text);
+
   if (!navigator.onLine) {
     setStatus("consol-packout-status", "Offline — nothing was logged. Scan again once you're connected.", true);
     return;

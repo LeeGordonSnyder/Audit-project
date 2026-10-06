@@ -17,7 +17,7 @@
 <div class="app-header">
   <header class="topbar">
     <!-- Bump this by 1 on every shipped change, same as sw.js's CACHE_NAME. -->
-    <span class="header-version">v41</span>
+    <span class="header-version">v42</span>
     <button id="change-user-btn" class="header-user-btn" title="View or change the active user" aria-label="View or change the active user">👤 <span id="header-user-initials">—</span></button>
     <img src="icons/icon-192.png" alt="Oakridge Park Arc'teryx" class="topbar-logo">
     <h1>Oakridge Product Suite</h1>
@@ -524,6 +524,24 @@
 
     <div class="active-item-actions">
       <button id="settings-close-btn" class="btn secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAO close-box reminder — scanning the packing slip only closes the box
+     in this app. MAO is a separate system this app has no way to verify or
+     touch, so the product stays in digital inventory until someone closes
+     the order there too -- this is a deliberate checkpoint, not just an
+     FYI, so it's Confirm-only with no way to dismiss it unseen. -->
+<div id="mao-reminder-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Reminder: Close Order on MAO</h2>
+    <p class="hint">
+      Box <strong id="mao-reminder-reference"></strong> is about to be logged closed here.
+      If this order isn't also closed in MAO, the product won't be removed from digital inventory.
+    </p>
+    <div class="active-item-actions">
+      <button id="mao-reminder-confirm-btn" class="btn primary">Confirm</button>
     </div>
   </div>
 </div>
