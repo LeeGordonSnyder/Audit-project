@@ -17,7 +17,7 @@
 <div class="app-header">
   <header class="topbar">
     <!-- Bump this by 1 on every shipped change, same as sw.js's CACHE_NAME. -->
-    <span class="header-version">v39</span>
+    <span class="header-version">v40</span>
     <button id="change-user-btn" class="header-user-btn" title="View or change the active user" aria-label="View or change the active user">👤 <span id="header-user-initials">—</span></button>
     <img src="icons/icon-192.png" alt="Oakridge Park Arc'teryx" class="topbar-logo">
     <h1>Oakridge Product Suite</h1>
@@ -30,11 +30,7 @@
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="tab-btn active" data-tab="taglookup" role="tab" aria-selected="true">Tag Lookup</button>
     <button class="tab-btn" data-tab="audit" role="tab" aria-selected="false">Audit Dashboard</button>
-    <!-- Hidden from nav for now — the catalog table it shows (SKU/UPC/description/
-         counts) shouldn't be visible on a public site to outside viewers. The tab
-         and its code are untouched underneath; this is just removed from view.
-         See README's "Deploying to GitHub Pages" section before re-enabling. -->
-    <button class="tab-btn" data-tab="master" role="tab" aria-selected="false" hidden>Product Master</button>
+    <button class="tab-btn" data-tab="master" role="tab" aria-selected="false">Product Master</button>
     <button class="tab-btn" data-tab="consol" role="tab" aria-selected="false">Consolidations</button>
     <button class="tab-btn" data-tab="receiving" role="tab" aria-selected="false">Receiving Log</button>
     <button class="tab-btn" data-tab="floorreplen" role="tab" aria-selected="false">Floor Replen</button>
@@ -197,11 +193,9 @@
 
   <!-- CONSOLIDATIONS TAB -->
   <section id="tab-consol" class="tab-panel" role="tabpanel" hidden>
-    <!-- "View Guide" button removed — docs/Consolidations-Guide.pdf contained
-         real ConsolMaster/ConsolLog screenshots (actual style numbers,
-         descriptions, destinations) and can't sit in this public repo. See
-         git history on this line for how to bring it back once it's
-         rebuilt with fabricated placeholder data instead. -->
+    <div class="consol-guide-row">
+      <a href="docs/Consolidations-Guide.pdf" target="_blank" rel="noopener" class="btn secondary small">📘 View Guide</a>
+    </div>
     <div class="audit-list-header">
       <h2>Consolidation — Holding</h2>
       <div class="audit-list-actions">
