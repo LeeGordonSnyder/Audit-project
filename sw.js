@@ -1,9 +1,8 @@
-const CACHE_NAME = "audit-tool-v51";
+const CACHE_NAME = "audit-tool-v52";
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./css/style.css",
-  "./docs/Consolidations-Guide.pdf",
   "./js/vendor/html5-qrcode.min.js",
   "./js/utils.js",
   "./js/storage.js",
