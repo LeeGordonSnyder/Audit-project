@@ -45,13 +45,6 @@ function initMasterList() {
 
   document.getElementById("master-filter").addEventListener("input", renderMasterTable);
 
-  document.getElementById("clear-master-btn").addEventListener("click", () => {
-    if (confirm("Clear ALL product master data? This can't be undone.")) {
-      saveJSON(STORAGE.master, []);
-      renderMasterTable();
-    }
-  });
-
   document.getElementById("export-master-csv-btn").addEventListener("click", exportMasterCsv);
 
   renderMasterTable();
