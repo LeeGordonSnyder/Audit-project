@@ -176,6 +176,10 @@ function pushReceivingItemsBatch(url, items) {
 }
 
 function initSync() {
+  const settingsModal = document.getElementById("settings-modal");
+  document.getElementById("settings-btn").addEventListener("click", () => (settingsModal.hidden = false));
+  document.getElementById("settings-close-btn").addEventListener("click", () => (settingsModal.hidden = true));
+
   const urlInput = document.getElementById("sheet-url-input");
   urlInput.value = getWebhookUrl();
 

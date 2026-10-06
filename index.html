@@ -17,11 +17,12 @@
 <div class="app-header">
   <header class="topbar">
     <!-- Bump this by 1 on every shipped change, same as sw.js's CACHE_NAME. -->
-    <span class="header-version">v40</span>
+    <span class="header-version">v41</span>
     <button id="change-user-btn" class="header-user-btn" title="View or change the active user" aria-label="View or change the active user">👤 <span id="header-user-initials">—</span></button>
     <img src="icons/icon-192.png" alt="Oakridge Park Arc'teryx" class="topbar-logo">
     <h1>Oakridge Product Suite</h1>
     <div id="offline-badge" class="badge" hidden>Offline</div>
+    <button id="settings-btn" class="header-icon-btn header-icon-btn-settings" title="Settings" aria-label="Settings">⚙️</button>
     <button id="global-refresh-btn" class="header-icon-btn" title="Refresh from sheet" aria-label="Refresh from sheet" disabled>🔄</button>
   </header>
 
@@ -137,21 +138,6 @@
       </div>
     </div>
     <p id="sync-status" class="status-msg" role="status"></p>
-
-    <details class="sync-settings">
-      <summary>Shared Log Settings</summary>
-      <label>Google Sheet URL
-        <input type="url" id="sheet-url-input" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
-      </label>
-      <button id="save-sheet-url-btn" class="btn secondary small">Save URL</button>
-      <p id="sheet-url-status" class="status-msg" role="status"></p>
-
-      <label>Access Key
-        <input type="password" id="api-key-input" placeholder="Shared key — ask a teammate" autocomplete="off">
-      </label>
-      <button id="save-api-key-btn" class="btn secondary small">Save Key</button>
-      <p id="api-key-status" class="status-msg" role="status"></p>
-    </details>
 
     <div id="audit-list" class="audit-list"></div>
   </section>
@@ -514,6 +500,30 @@
         <button id="change-user-add-cancel-btn" class="btn secondary">Cancel</button>
       </div>
       <p id="change-user-add-status" class="status-msg" role="status"></p>
+    </div>
+  </div>
+</div>
+
+<!-- Settings — the Google Sheet URL and the shared access key Code.gs now
+     requires on every request (see README's "Securing the backend"). -->
+<div id="settings-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Settings</h2>
+
+    <label>Google Sheet URL
+      <input type="url" id="sheet-url-input" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+    </label>
+    <button id="save-sheet-url-btn" class="btn secondary small">Save URL</button>
+    <p id="sheet-url-status" class="status-msg" role="status"></p>
+
+    <label>Access Key
+      <input type="password" id="api-key-input" placeholder="Shared key — ask a teammate" autocomplete="off">
+    </label>
+    <button id="save-api-key-btn" class="btn secondary small">Save Key</button>
+    <p id="api-key-status" class="status-msg" role="status"></p>
+
+    <div class="active-item-actions">
+      <button id="settings-close-btn" class="btn secondary">Close</button>
     </div>
   </div>
 </div>
