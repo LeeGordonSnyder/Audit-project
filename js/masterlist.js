@@ -1,0 +1,97 @@
+"use strict";
+
+function initMasterList() {
+  document.getElementById("import-btn").addEventListener("click", async () => {
+    const textarea = document.getElementById("paste-area");
+    const parsed = parseManhattanPaste(textarea.value);
+    if (!parsed.length) {
+      setStatus("import-status", "No items found in that paste — check it still has the SKU/Style/Color/Size/UPC/Available lines.", true);
+      return;
+    }
+    const result = upsertProductMaster(parsed);
+    textarea.value = "";
+    renderMasterTable();
+
+    setStatus(
+      "import-status",
+      `Added ${result.added} new item(s), updated ${result.updated} existing item(s). Sharing with the catalog sheet…`,
+      false
+    );
+
+    const url = getWebhookUrl();
+    let shared = 0;
+    if (navigator.onLine) {
+      // pushProductToSheet() already retries transient failures internally,
+      // so keep trying the rest of the batch rather than stopping at the
+      // first one that still fails.
+      for (const item of parsed) {
+        try {
+          await pushProductToSheet(url, item);
+          shared++;
+        } catch (e) {
+          // leave this one local-only, keep going with the rest
+        }
+      }
+    }
+
+    setStatus(
+      "import-status",
+      shared === parsed.length
+        ? `Added ${result.added} new item(s), updated ${result.updated} existing item(s), and shared all ${shared} with the catalog sheet.`
+        : `Added ${result.added} new item(s), updated ${result.updated} existing item(s) locally. Only shared ${shared} of ${parsed.length} with the sheet — check your connection and import again to finish sharing.`,
+      shared !== parsed.length
+    );
+  });
+
+  document.getElementById("master-filter").addEventListener("input", renderMasterTable);
+
+  document.getElementById("export-master-csv-btn").addEventListener("click", exportMasterCsv);
+
+  renderMasterTable();
+}
+
+function renderMasterTable() {
+  const master = loadJSON(STORAGE.master, []);
+  const filterVal = normalize(document.getElementById("master-filter").value);
+  const tbody = document.getElementById("master-table-body");
+  const countEl = document.getElementById("master-count");
+
+  const filtered = master.filter(
+    (item) =>
+      !filterVal ||
+      normalize(item.sku).includes(filterVal) ||
+      normalize(item.upc).includes(filterVal) ||
+      normalize(item.style).includes(filterVal) ||
+      normalize(combinedDescription(item)).includes(filterVal)
+  );
+
+  countEl.textContent = `${filtered.length} of ${master.length} item(s)`;
+  tbody.innerHTML = "";
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="no-results">${
+      master.length === 0 ? "No items yet — paste Manhattan data above." : "No items match that filter."
+    }</td></tr>`;
+    return;
+  }
+
+  const sorted = filtered.slice().sort((a, b) => combinedDescription(a).localeCompare(combinedDescription(b)));
+  for (const item of sorted) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="mono">${escapeHtml(item.sku)}</td>
+      <td class="mono">${escapeHtml(item.upc)}</td>
+      <td>${escapeHtml(combinedDescription(item))}</td>
+      <td class="num">${item.expectedCount == null ? "Not set" : item.expectedCount}</td>
+      <td>${escapeHtml(new Date(item.updatedAt).toLocaleDateString())}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function exportMasterCsv() {
+  const master = loadJSON(STORAGE.master, []);
+  const header = ["sku", "upc", "style", "dept", "description", "color", "size", "expectedCount", "updatedAt"];
+  const rows = [header, ...master.map((item) => header.map((k) => item[k]))];
+  downloadCsv(`product-master-${todayISO()}.csv`, rows);
+}

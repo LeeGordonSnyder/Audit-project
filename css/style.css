@@ -1,0 +1,924 @@
+:root {
+  /* Palette pulled from the Oakridge Park / Arc'teryx logo badge */
+  --bg: #f7eef1;
+  --bg-elevated: #ffffff;
+  --bg-subtle: #fbf5f6;
+  --border: #e6d3d8;
+  --text: #241419;
+  --text-dim: #7c6469;
+  --accent: #894554;
+  --accent-dark: #6b3341;
+  --accent-soft: rgba(137, 69, 84, 0.1);
+  --ok: #2f9e64;
+  --ok-soft: rgba(47, 158, 100, 0.12);
+  --warn: #b8790f;
+  --warn-soft: rgba(184, 121, 15, 0.12);
+  --danger: #c14b3c;
+  --danger-soft: rgba(193, 75, 60, 0.1);
+  --radius: 8px;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+/* The browser's default [hidden] { display: none } rule is a user-agent
+   style — any author rule that sets display on the same element (e.g.
+   .btn's display: inline-block) wins over it at equal specificity,
+   regardless of source order, silently un-hiding it. Every .hidden toggle
+   in this app relies on the hidden attribute actually working, so this
+   makes it unconditional. */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  height: 100%;
+}
+
+body {
+  padding-bottom: env(safe-area-inset-bottom);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5e9ec 0%, #faf1f3 40%, #fdfbfb 75%);
+  background-attachment: fixed;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.topbar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: calc(env(safe-area-inset-top) + 14px) 16px 14px;
+  background: linear-gradient(135deg, var(--accent) 0%, #c17a92 100%);
+  box-shadow: 0 2px 10px rgba(70, 20, 30, 0.15);
+}
+
+.topbar-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+}
+
+.topbar h1 {
+  font-size: 0.92rem;
+  margin: 0;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #ffffff;
+}
+
+.badge {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 19px);
+  right: 100px;
+  font-size: 0.66rem;
+  background: #ffffff;
+  color: var(--warn);
+  padding: 3px 9px;
+  border-radius: 100px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+
+.header-version {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 18px);
+  left: 14px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.header-user-btn {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 38px);
+  left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 100px;
+  line-height: 1.3;
+}
+
+.header-user-btn:active { background: rgba(255, 255, 255, 0.35); }
+
+.header-icon-btn {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 12px);
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 1.05rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-icon-btn:active { background: rgba(255, 255, 255, 0.35); }
+
+.header-icon-btn:disabled { opacity: 0.5; }
+
+.header-icon-btn-settings { right: 56px; }
+
+.header-icon-btn.spinning { animation: header-icon-spin 0.8s linear infinite; }
+
+@keyframes header-icon-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.feedback-bar-btn {
+  display: block;
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--accent-dark);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.feedback-bar-btn:active { background: var(--accent); color: #ffffff; }
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 8px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.tab-btn {
+  flex: 1;
+  min-width: max-content;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  padding: 13px 10px 11px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  border-bottom: 3px solid transparent;
+  white-space: nowrap;
+}
+
+.tab-btn.active {
+  color: var(--accent-dark);
+  border-bottom-color: var(--accent);
+}
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--accent-dark);
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.update-banner .btn {
+  width: auto;
+  flex-shrink: 0;
+}
+
+main {
+  flex: 1;
+  padding: 16px 16px 32px;
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* On a wide (desktop) viewport, let content — mainly tables — use more of
+   the available width instead of being squeezed into the phone-width
+   column and forced to horizontal-scroll unnecessarily. */
+@media (min-width: 700px) {
+  main { max-width: 960px; }
+}
+
+/* Shared form controls */
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="url"],
+input[type="password"],
+select,
+textarea {
+  font-size: 1rem;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-family: inherit;
+  width: 100%;
+}
+
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%), linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+  background-position: calc(100% - 20px) center, calc(100% - 15px) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 32px;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+label > input, label > textarea, label > select {
+  margin-top: 6px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
+
+textarea { font-size: 0.9rem; resize: vertical; }
+
+/* Search row (Tag Lookup) */
+.search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.search-row input { flex: 1; }
+
+.icon-btn {
+  font-size: 1.15rem;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+.icon-btn:active { background: var(--accent-soft); border-color: var(--accent); }
+
+.results {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.result-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+
+.result-card .sku {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  letter-spacing: 0.4px;
+}
+
+.result-card h3 {
+  margin: 4px 0 12px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.result-field {
+  margin-bottom: 10px;
+}
+
+.result-field .label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+}
+
+.result-field .value {
+  font-size: 0.95rem;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.tag-box {
+  background: var(--warn-soft);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin: 12px 0;
+}
+
+.tag-box .label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--warn);
+  margin-bottom: 2px;
+}
+
+.tag-box .value { color: var(--text); font-weight: 600; }
+
+.tag-box.empty {
+  background: var(--bg-subtle);
+  border-color: var(--border);
+}
+
+.tag-box.empty .label,
+.tag-box.empty .value { color: var(--text-dim); font-weight: 400; }
+
+.tag-assignments-list {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.tag-assignment-row {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr auto;
+  gap: 10px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 14px;
+  font-size: 0.85rem;
+}
+
+.tag-assignment-row:last-child { border-bottom: none; }
+
+.no-results {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 24px 0;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 40px 16px;
+  font-size: 0.92rem;
+}
+
+.empty-state .hint { font-size: 0.8rem; margin-top: 8px; }
+
+.scan-buttons-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.active-item-card {
+  margin-top: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  box-shadow: 0 2px 10px rgba(137, 69, 84, 0.12);
+}
+
+.active-item-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.login-add-user-toggle {
+  margin-top: 12px;
+}
+
+.add-user-row {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.active-item-actions .btn { flex: 1; }
+
+.inline-row {
+  display: flex;
+  gap: 8px;
+}
+
+.inline-row input { flex: 1; }
+
+.result-fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.result-fieldset legend {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+  padding: 0 4px;
+}
+
+.radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.radio input { width: auto; }
+
+.btn {
+  display: inline-block;
+  border: none;
+  border-radius: var(--radius);
+  padding: 13px 18px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* Without this, a disabled button (Save before + Add Size, Update before
+   anything's staged, etc.) looks completely identical to an enabled one —
+   nothing here says it isn't the button that's broken. */
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn.primary { background: var(--accent); color: #ffffff; width: 100%; }
+.btn.primary:active { background: var(--accent-dark); }
+
+.btn.secondary {
+  background: var(--bg-elevated);
+  color: var(--accent-dark);
+  border: 1px solid var(--accent);
+  width: 100%;
+}
+.btn.secondary:active { background: var(--accent-soft); }
+
+.btn.danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.btn.small {
+  padding: 9px 14px;
+  font-size: 0.72rem;
+  width: auto;
+}
+
+.consol-log-resolve-btn {
+  margin-top: 8px;
+}
+
+/* Actual Count stepper on the Consolidations list — a compact [- # +] row
+   instead of the full-width buttons/inputs used everywhere else, since
+   several of these sit side by side in one table cell. */
+.consol-count-stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.consol-count-stepper .btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  line-height: 1;
+  flex: none;
+}
+
+.consol-count-input {
+  width: 46px;
+  text-align: center;
+  padding: 6px 2px;
+  font-size: 0.85rem;
+  -moz-appearance: textfield;
+}
+
+.consol-count-input::-webkit-outer-spin-button,
+.consol-count-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Actual Count has met or passed the Total beside it — the comparison the
+   whole feature exists for. */
+.consol-count-stepper.consol-count-complete .consol-count-input {
+  color: var(--ok);
+  font-weight: 700;
+  border-color: var(--ok);
+}
+
+.status-msg {
+  font-size: 0.82rem;
+  color: var(--ok);
+  min-height: 1.2em;
+  margin-top: 8px;
+  font-weight: 600;
+}
+
+.status-msg.error { color: var(--danger); }
+
+.audit-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 32px;
+  gap: 8px 12px;
+}
+
+.audit-list-header h2 { margin: 0; }
+
+.audit-list-actions { display: flex; gap: 8px; }
+
+.audit-list {
+  margin-top: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.audit-list > .hint { padding: 14px; margin: 0; }
+
+.audit-entry {
+  padding: 12px 14px;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.audit-entry:last-child { border-bottom: none; }
+
+.audit-entry-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.audit-entry .meta {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  margin-top: 2px;
+}
+
+.result-pill {
+  display: inline-block;
+  font-size: 0.68rem;
+  padding: 2px 9px;
+  border-radius: 100px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.result-pill.match { background: var(--ok-soft); color: var(--ok); }
+.result-pill.over { background: var(--warn-soft); color: var(--warn); }
+.result-pill.under { background: var(--danger-soft); color: var(--danger); }
+
+.sync-pill {
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+h2 {
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text);
+  margin: 24px 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--border);
+}
+
+h2 .hint {
+  display: inline;
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.hint {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+code {
+  background: var(--bg-subtle);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0 20px;
+}
+
+/* Product Master table */
+.filter-input { margin-top: 10px; }
+
+.table-wrap {
+  margin-top: 8px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+
+/* Caps a long list's height and scrolls it internally (sticky header stays
+   visible) instead of letting the whole page grow with it — used where a
+   list can realistically run to dozens of rows, like Consolidations'
+   "Items to Consolidate". */
+.table-wrap-scroll {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.master-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  min-width: 560px;
+}
+
+.master-table th, .master-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.master-table tbody tr:last-child td { border-bottom: none; }
+
+.master-table th {
+  color: var(--text-dim);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--bg-subtle);
+  position: sticky;
+  top: 0;
+}
+
+.master-table td.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.master-table td.num { text-align: right; }
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+}
+
+.consol-guide-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.consol-table {
+  min-width: 720px;
+}
+
+.consol-table th, .consol-table td {
+  white-space: normal;
+  vertical-align: top;
+}
+
+.consol-table select {
+  font-size: 0.82rem;
+  padding: 6px 28px 6px 10px;
+  min-width: 150px;
+}
+
+.consol-table .row-hint {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+.consol-box-table {
+  min-width: 480px;
+}
+
+.consol-box-table th, .consol-box-table td {
+  white-space: normal;
+  vertical-align: middle;
+}
+
+.receiving-table {
+  min-width: 560px;
+}
+
+.receiving-table th, .receiving-table td {
+  white-space: normal;
+  vertical-align: top;
+}
+
+.receiving-holding-table {
+  min-width: 420px;
+}
+
+.receiving-holding-table th, .receiving-holding-table td {
+  white-space: normal;
+  vertical-align: middle;
+}
+
+.floor-table {
+  min-width: 640px;
+}
+
+.floor-table th, .floor-table td {
+  white-space: normal;
+  vertical-align: top;
+}
+
+.floor-holding-table {
+  min-width: 420px;
+}
+
+.floor-holding-table th, .floor-holding-table td {
+  white-space: normal;
+  vertical-align: middle;
+}
+
+/* Replen and 86 Board only have 2-3 columns of short content — unlike
+   .floor-table (Check Floor's 7-column table), they should never force a
+   phone into horizontal scrolling just to read/tap them. */
+.replen-table, .board86-table {
+  min-width: 0;
+}
+
+.replen-table th, .replen-table td,
+.board86-table th, .board86-table td {
+  white-space: normal;
+  vertical-align: top;
+}
+
+.floor-size-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+
+.floor-size-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.consol-adjust-rows {
+  margin: 4px 0 14px;
+}
+
+.consol-adjust-rows .hint { margin: 0; }
+
+.consol-adjust-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+
+.consol-adjust-row:last-child { border-bottom: none; }
+
+
+/* Shared camera scanner modal */
+.scanner-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 20, 24, 0.88);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.scanner-modal-inner {
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+
+.scanner-modal-inner h2 {
+  margin: 0 0 14px;
+  text-align: center;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+#scanner-modal-view {
+  width: 100%;
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.scanner-zoom-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.scanner-zoom-row .icon-btn {
+  width: 38px;
+  height: 38px;
+  font-size: 1.3rem;
+}
+
+#scanner-zoom-label {
+  min-width: 42px;
+  text-align: center;
+  font-weight: 600;
+}

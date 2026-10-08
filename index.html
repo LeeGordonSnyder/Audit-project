@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Oakridge Product Suite</title>
+<meta name="theme-color" content="#894554">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Oakridge Product Suite">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app-header">
+  <header class="topbar">
+    <!-- Bump this by 1 on every shipped change, same as sw.js's CACHE_NAME. -->
+    <span class="header-version">v43</span>
+    <button id="change-user-btn" class="header-user-btn" title="View or change the active user" aria-label="View or change the active user">👤 <span id="header-user-initials">—</span></button>
+    <img src="icons/icon-192.png" alt="Oakridge Park Arc'teryx" class="topbar-logo">
+    <h1>Oakridge Product Suite</h1>
+    <div id="offline-badge" class="badge" hidden>Offline</div>
+    <button id="settings-btn" class="header-icon-btn header-icon-btn-settings" title="Settings" aria-label="Settings">⚙️</button>
+    <button id="global-refresh-btn" class="header-icon-btn" title="Refresh from sheet" aria-label="Refresh from sheet" disabled>🔄</button>
+  </header>
+
+  <button id="feedback-btn" class="feedback-bar-btn">💬 Leave Feedback!</button>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab-btn active" data-tab="taglookup" role="tab" aria-selected="true">Tag Lookup</button>
+    <button class="tab-btn" data-tab="audit" role="tab" aria-selected="false">Audit Dashboard</button>
+    <button class="tab-btn" data-tab="master" role="tab" aria-selected="false">Product Master</button>
+    <button class="tab-btn" data-tab="consol" role="tab" aria-selected="false">Consolidations</button>
+    <button class="tab-btn" data-tab="receiving" role="tab" aria-selected="false">Receiving Log</button>
+    <button class="tab-btn" data-tab="floorreplen" role="tab" aria-selected="false">Floor Replen</button>
+    <button class="tab-btn" data-tab="board86" role="tab" aria-selected="false">86 Board</button>
+  </nav>
+
+  <div id="update-banner" class="update-banner" hidden>
+    <span>A new version is ready.</span>
+    <button id="update-reload-btn" class="btn primary small">Reload</button>
+  </div>
+</div>
+
+<main>
+
+  <!-- TAG LOOKUP TAB -->
+  <section id="tab-taglookup" class="tab-panel" role="tabpanel">
+    <div class="search-row">
+      <input id="tag-search-input" type="text" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off"
+             placeholder="Scan barcode or type SKU / UPC / style..." aria-label="Search product">
+      <button id="tag-scan-btn" class="icon-btn" title="Scan with camera" aria-label="Scan with camera">📷</button>
+      <button id="tag-clear-btn" class="icon-btn" title="Clear" aria-label="Clear search">✕</button>
+    </div>
+
+    <div id="tag-results" class="results" hidden></div>
+
+    <div id="tag-empty-state" class="empty-state">
+      <p>Scan or search a product to see its assigned security-tag placement.</p>
+      <p class="hint">Tag locations are set per style — assigning one applies it to every color and size of that style.</p>
+    </div>
+
+    <h2>All Assigned Tag Locations</h2>
+    <div id="tag-assignments-list" class="tag-assignments-list"></div>
+  </section>
+
+  <!-- AUDIT DASHBOARD TAB -->
+  <section id="tab-audit" class="tab-panel" role="tabpanel" hidden>
+
+    <div class="scan-buttons-row">
+      <button id="scan-product-btn" class="btn primary">📷 Scan Product to Count</button>
+    </div>
+
+    <p id="scan-status" class="status-msg" role="status"></p>
+
+    <h2>Or Look Up a Product<span class="hint"> — when scanning isn't an option</span></h2>
+    <div class="search-row">
+      <input id="audit-lookup-input" type="text" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off"
+             placeholder="Search by SKU / UPC / description / style…" aria-label="Search product to count">
+      <button id="audit-lookup-clear-btn" class="icon-btn" title="Clear" aria-label="Clear search">✕</button>
+    </div>
+    <div id="audit-lookup-results" class="results" hidden></div>
+
+    <div id="add-product-card" class="active-item-card" hidden>
+      <div class="sku" id="add-product-upc"></div>
+      <h3>Not in the catalog yet</h3>
+      <p class="hint">Add it once and it's shared with every device.</p>
+      <label>SKU
+        <input type="text" id="add-sku" autocomplete="off">
+      </label>
+      <label>Description
+        <input type="text" id="add-description" autocomplete="off" placeholder="e.g. Atom SL Hoody Men's">
+      </label>
+      <label>Style
+        <input type="text" id="add-style" autocomplete="off">
+      </label>
+      <label>Dept
+        <input type="text" id="add-dept" autocomplete="off">
+      </label>
+      <label>Color
+        <input type="text" id="add-color" autocomplete="off">
+      </label>
+      <label>Size
+        <input type="text" id="add-size" autocomplete="off">
+      </label>
+      <div class="active-item-actions">
+        <button id="add-product-save-btn" class="btn primary">Add Product</button>
+        <button id="add-product-cancel-btn" class="btn secondary">Cancel</button>
+      </div>
+    </div>
+
+    <div id="active-item-card" class="active-item-card" hidden>
+      <div class="sku" id="active-sku"></div>
+      <h3 id="active-desc"></h3>
+      <div class="result-field">
+        <div class="label">UPC</div>
+        <div class="value" id="active-upc"></div>
+      </div>
+      <label>Expected Count
+        <input type="number" id="expected-input" inputmode="numeric" min="0" placeholder="Enter expected count">
+      </label>
+      <label>Actual Count
+        <input type="number" id="count-input" inputmode="numeric" min="0" placeholder="Enter physical count">
+      </label>
+      <div class="active-item-actions">
+        <button id="submit-count-btn" class="btn primary">Log Count</button>
+        <button id="cancel-count-btn" class="btn secondary">Cancel</button>
+      </div>
+    </div>
+
+    <div class="audit-list-header">
+      <h2>Recent Entries</h2>
+      <div class="audit-list-actions">
+        <button id="save-shared-btn" class="btn primary small">Save to Sheet</button>
+        <button id="export-audit-csv-btn" class="btn secondary small">Export CSV</button>
+      </div>
+    </div>
+    <p id="sync-status" class="status-msg" role="status"></p>
+
+    <div id="audit-list" class="audit-list"></div>
+  </section>
+
+  <!-- PRODUCT MASTER TAB -->
+  <section id="tab-master" class="tab-panel" role="tabpanel" hidden>
+    <h2>Import from Manhattan Omni</h2>
+    <p class="hint">The catalog is shared — every device syncs it from the same sheet automatically. Pasting here (or adding a product on the Audit Dashboard when a scan doesn't match) pushes straight to that shared sheet for everyone. Copy the product block(s) from Manhattan Omni and paste below, then tap Import.</p>
+    <textarea id="paste-area" rows="8" placeholder="Paste Manhattan Omni data here…"></textarea>
+    <div class="settings-row">
+      <button id="import-btn" class="btn primary">Import / Update</button>
+    </div>
+    <p id="import-status" class="status-msg" role="status"></p>
+
+    <div class="audit-list-header">
+      <h2>Master List</h2>
+      <div class="audit-list-actions">
+        <button id="export-master-csv-btn" class="btn secondary small">Export CSV</button>
+      </div>
+    </div>
+    <input id="master-filter" type="text" autocomplete="off" placeholder="Filter by SKU, UPC, style, or description…" class="filter-input">
+    <p id="master-count" class="hint"></p>
+    <div class="table-wrap">
+      <table class="master-table">
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>UPC</th>
+            <th>Description</th>
+            <th>Expected</th>
+            <th>Updated</th>
+          </tr>
+        </thead>
+        <tbody id="master-table-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- CONSOLIDATIONS TAB -->
+  <section id="tab-consol" class="tab-panel" role="tabpanel" hidden>
+    <div class="consol-guide-row">
+      <a href="docs/Consolidations-Guide.pdf" target="_blank" rel="noopener" class="btn secondary small">📘 View Guide</a>
+    </div>
+    <div class="audit-list-header">
+      <h2>Consolidation — Holding</h2>
+      <div class="audit-list-actions">
+        <span id="consol-holding-count" class="hint"></span>
+      </div>
+    </div>
+    <p id="consol-holding-empty" class="hint">Nothing staged yet — mark an item Actioned below.</p>
+    <div id="consol-holding-table-wrap" class="table-wrap" hidden>
+      <table class="master-table consol-holding-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="consol-holding-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="active-item-actions">
+      <button id="consol-update-btn" class="btn primary" disabled>Update</button>
+    </div>
+
+    <div class="audit-list-header">
+      <h2>Items to Consolidate</h2>
+      <div class="audit-list-actions">
+        <button id="consol-refresh-btn" class="btn secondary small">🔄 Refresh from Sheet</button>
+      </div>
+    </div>
+    <p class="hint">The HQ consolidation list is pasted directly into the "ConsolMaster" tab of the Google Sheet, not here — this just reflects what's there. Tap Refresh after pasting a new list into the sheet.</p>
+    <p id="consol-list-status" class="status-msg" role="status"></p>
+    <input id="consol-filter" type="text" autocomplete="off" placeholder="Filter by description, SKU, colour, or destination…" class="filter-input">
+    <p id="consol-count" class="hint"></p>
+    <div class="table-wrap table-wrap-scroll">
+      <table class="master-table consol-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Style SKU</th>
+            <th>Colour</th>
+            <th>Destination</th>
+            <th>Actual Count</th>
+            <th>Total</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="consol-table-body"></tbody>
+      </table>
+    </div>
+
+    <h2>Close a Box</h2>
+    <p class="hint">Just registers who closed the box and when — the reference number alone is enough to look its contents up in MAO, so nothing about what's inside it needs to be entered here.</p>
+    <div class="scan-buttons-row">
+      <button id="scan-close-box-btn" class="btn primary">📷 Scan Packing Slip — Close Box</button>
+    </div>
+    <p id="consol-packout-status" class="status-msg" role="status"></p>
+
+    <div class="audit-list-header">
+      <h2>Consolidation Log</h2>
+      <div class="audit-list-actions">
+        <button id="export-consol-csv-btn" class="btn secondary small">Export CSV</button>
+      </div>
+    </div>
+    <div id="consol-log-list" class="audit-list"></div>
+    <p id="consol-log-status" class="status-msg" role="status"></p>
+  </section>
+
+  <!-- RECEIVING LOG TAB -->
+  <section id="tab-receiving" class="tab-panel" role="tabpanel" hidden>
+    <h2>Import Expected Shipments</h2>
+    <p class="hint">Paste the MAO shipment data below — ETA, Package (barcode), PO # (Origin/Receipt Type/For/Carrier are ignored) — then tap Import. Pasting the same box again just refreshes its PO/ETA.</p>
+    <textarea id="receiving-paste-area" rows="6" placeholder="Paste MAO shipment data here…"></textarea>
+    <div class="settings-row">
+      <button id="receiving-import-btn" class="btn primary">Import / Update</button>
+    </div>
+    <p id="receiving-import-status" class="status-msg" role="status"></p>
+
+    <div class="scan-buttons-row">
+      <button id="receiving-scan-btn" class="btn primary">📷 Scan Boxes</button>
+    </div>
+
+    <div class="audit-list-header">
+      <h2>Scanned — Holding</h2>
+      <div class="audit-list-actions">
+        <span id="receiving-holding-count" class="hint"></span>
+      </div>
+    </div>
+    <p class="hint">Boxes you scan land here. Once you've got one or more, mark them Physically Received (on arrival) or Received into MAO (once processed in the system) — both push to the sheet with the current date and your initials.</p>
+
+    <p id="receiving-holding-empty" class="hint">Nothing scanned yet — tap Scan Boxes above.</p>
+    <div id="receiving-holding-table-wrap" class="table-wrap" hidden>
+      <table class="master-table receiving-holding-table">
+        <thead>
+          <tr>
+            <th>Barcode</th>
+            <th>PO #</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="receiving-holding-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="active-item-actions">
+      <button id="receiving-mark-physical-btn" class="btn primary" disabled>Mark Physically Received</button>
+      <button id="receiving-mark-mao-btn" class="btn primary" disabled>Mark Received into MAO</button>
+    </div>
+    <p id="receiving-status-msg" class="status-msg" role="status"></p>
+
+    <div class="audit-list-header">
+      <h2>Expected Boxes</h2>
+      <div class="audit-list-actions">
+        <button id="receiving-add-selected-btn" class="btn primary small">Add Selected to Holding</button>
+        <button id="export-receiving-csv-btn" class="btn secondary small">Export CSV</button>
+      </div>
+    </div>
+    <p class="hint">No camera handy? Check the box(es) below and tap Add Selected to Holding — same effect as scanning them.</p>
+    <input id="receiving-filter" type="text" autocomplete="off" placeholder="Filter by PO or barcode…" class="filter-input">
+    <p id="receiving-count" class="hint"></p>
+    <div class="table-wrap">
+      <table class="master-table receiving-table">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="receiving-select-all" aria-label="Select all"></th>
+            <th>Barcode</th>
+            <th>PO #</th>
+            <th>Expected</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="receiving-table-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- FLOOR REPLEN TAB -->
+  <section id="tab-floorreplen" class="tab-panel" role="tabpanel" hidden>
+    <h2>Check Floor</h2>
+    <p class="hint">The MAO "items sold" export is pasted directly into the "FloorRestock" tab of the Google Sheet, not here — this just reflects what's there. Tap Refresh after pasting a new list into the sheet. Mark each item Needed (pick a size, or Other if any size will do) or Not Needed.</p>
+    <p id="last-floor-check" class="hint"></p>
+
+    <h2>Add a Product<span class="hint"> — not on the items sold list?</span></h2>
+    <p class="hint">Search the catalog to add a real match, or tap Add Manually to add exactly what you've typed — no catalog match needed.</p>
+    <div class="search-row">
+      <input id="floor-lookup-input" type="text" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off"
+             placeholder="Search by SKU / UPC / description / style…" aria-label="Search catalog to add to Check Floor">
+      <button id="floor-lookup-clear-btn" class="icon-btn" title="Clear" aria-label="Clear search">✕</button>
+    </div>
+    <div id="floor-lookup-results" class="results" hidden></div>
+    <button id="floor-lookup-manual-btn" class="btn secondary small" hidden>Add Manually…</button>
+    <p id="floor-lookup-status" class="status-msg" role="status"></p>
+
+    <input id="checkfloor-filter" type="text" autocomplete="off" placeholder="Filter by description, colour, or SKU…" class="filter-input">
+    <p id="checkfloor-count" class="hint"></p>
+    <div class="table-wrap">
+      <table class="master-table floor-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Colour</th>
+            <th>Size</th>
+            <th>SKU</th>
+            <th>Sold</th>
+            <th>On Hand</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="checkfloor-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="audit-list-header">
+      <h2>Check Floor — Holding</h2>
+      <div class="audit-list-actions">
+        <span id="checkfloor-holding-count" class="hint"></span>
+      </div>
+    </div>
+    <p id="checkfloor-holding-empty" class="hint">Nothing staged yet — mark an item Needed or Not Needed above.</p>
+    <div id="checkfloor-holding-table-wrap" class="table-wrap" hidden>
+      <table class="master-table floor-holding-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Status</th>
+            <th>Sizes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="checkfloor-holding-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="active-item-actions">
+      <button id="checkfloor-update-btn" class="btn primary" disabled>Update</button>
+    </div>
+    <p id="checkfloor-status-msg" class="status-msg" role="status"></p>
+
+    <h2>Replen</h2>
+    <p class="hint">Items marked Needed above land here for picking. Check off Picked once it's on the floor, or Out of Stock if there's none in the back.</p>
+
+    <p id="replen-count" class="hint"></p>
+    <div class="table-wrap">
+      <table class="master-table replen-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Size</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="replen-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="audit-list-header">
+      <h2>Replen — Holding</h2>
+      <div class="audit-list-actions">
+        <span id="replen-holding-count" class="hint"></span>
+      </div>
+    </div>
+    <p id="replen-holding-empty" class="hint">Nothing staged yet — mark an item Picked or Out of Stock above.</p>
+    <div id="replen-holding-table-wrap" class="table-wrap" hidden>
+      <table class="master-table floor-holding-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Size</th>
+            <th>Action</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="replen-holding-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="active-item-actions">
+      <button id="replen-update-btn" class="btn primary" disabled>Update</button>
+    </div>
+    <p id="replen-status-msg" class="status-msg" role="status"></p>
+  </section>
+
+  <!-- 86 BOARD TAB -->
+  <section id="tab-board86" class="tab-panel" role="tabpanel" hidden>
+    <h2>86 Board</h2>
+    <p class="hint">Items marked Out of Stock while picking Replen show here. Tap Restocked once it's back on the floor.</p>
+    <p id="board86-count" class="hint"></p>
+    <div class="table-wrap">
+      <table class="master-table board86-table">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Date</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="board86-table-body"></tbody>
+      </table>
+    </div>
+    <p id="board86-status-msg" class="status-msg" role="status"></p>
+  </section>
+
+</main>
+
+<!-- Mandatory login gate — blocks everything until initials are picked -->
+<div id="login-gate" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Who's Working?</h2>
+    <p class="hint">Select your initials to continue — this is required every time the app is opened.</p>
+    <label>Initials
+      <select id="login-initials-select"></select>
+    </label>
+    <div class="active-item-actions">
+      <button id="login-continue-btn" class="btn primary">Continue</button>
+    </div>
+
+    <button id="login-add-user-toggle-btn" class="btn secondary small login-add-user-toggle">+ Add User</button>
+
+    <div id="login-add-user-row" class="add-user-row" hidden>
+      <label>New Initials
+        <input type="text" id="login-new-initials-input" autocomplete="off" maxlength="4" placeholder="e.g. AB">
+      </label>
+      <div class="active-item-actions">
+        <button id="login-add-user-save-btn" class="btn primary">Save</button>
+        <button id="login-add-user-cancel-btn" class="btn secondary">Cancel</button>
+      </div>
+      <p id="login-add-user-status" class="status-msg" role="status"></p>
+    </div>
+  </div>
+</div>
+
+<!-- Change active user — lets staff view/switch who's signed in without
+     going through the mandatory login gate above (that one re-runs the
+     app's full boot sequence on Continue; this one just updates the
+     session). -->
+<div id="change-user-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Change User</h2>
+    <p class="hint">Currently signed in as <strong id="change-user-current">—</strong>.</p>
+    <label>Initials
+      <select id="change-user-select"></select>
+    </label>
+    <div class="active-item-actions">
+      <button id="change-user-save-btn" class="btn primary">Switch User</button>
+      <button id="change-user-cancel-btn" class="btn secondary">Cancel</button>
+    </div>
+
+    <button id="change-user-add-toggle-btn" class="btn secondary small login-add-user-toggle">+ Add User</button>
+
+    <div id="change-user-add-row" class="add-user-row" hidden>
+      <label>New Initials
+        <input type="text" id="change-user-new-initials-input" autocomplete="off" maxlength="4" placeholder="e.g. AB">
+      </label>
+      <div class="active-item-actions">
+        <button id="change-user-add-save-btn" class="btn primary">Save</button>
+        <button id="change-user-add-cancel-btn" class="btn secondary">Cancel</button>
+      </div>
+      <p id="change-user-add-status" class="status-msg" role="status"></p>
+    </div>
+  </div>
+</div>
+
+<!-- Settings — the Google Sheet URL and the shared access key Code.gs now
+     requires on every request (see README's "Securing the backend"). -->
+<div id="settings-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Settings</h2>
+
+    <label>Google Sheet URL
+      <input type="url" id="sheet-url-input" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+    </label>
+    <button id="save-sheet-url-btn" class="btn secondary small">Save URL</button>
+    <p id="sheet-url-status" class="status-msg" role="status"></p>
+
+    <label>Access Key
+      <input type="password" id="api-key-input" placeholder="Shared key — ask a teammate" autocomplete="off">
+    </label>
+    <button id="save-api-key-btn" class="btn secondary small">Save Key</button>
+    <p id="api-key-status" class="status-msg" role="status"></p>
+
+    <div class="active-item-actions">
+      <button id="settings-close-btn" class="btn secondary">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAO close-box reminder — scanning the packing slip only closes the box
+     in this app. MAO is a separate system this app has no way to verify or
+     touch, so the product stays in digital inventory until someone closes
+     the order there too -- this is a deliberate checkpoint, not just an
+     FYI, so it's Confirm-only with no way to dismiss it unseen. -->
+<div id="mao-reminder-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Reminder: Close Order on MAO</h2>
+    <p class="hint">
+      Box <strong id="mao-reminder-reference"></strong> is about to be logged closed here.
+      If this order isn't also closed in MAO, the product won't be removed from digital inventory.
+    </p>
+    <div class="active-item-actions">
+      <button id="mao-reminder-confirm-btn" class="btn primary">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Shared camera scanner overlay -->
+<div id="scanner-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2 id="scanner-modal-title">Scanning…</h2>
+    <div id="scanner-modal-view"></div>
+    <!-- Only shown when the camera reports zoom support (mainly Android
+         Chrome) — a fixed-focus or wide-angle lens often can't resolve a
+         barcode held close; backing off and zooming in digitally instead
+         usually reads it fine. -->
+    <div id="scanner-zoom-row" class="scanner-zoom-row" hidden>
+      <button id="scanner-zoom-out-btn" class="icon-btn" type="button" title="Zoom out" aria-label="Zoom out">−</button>
+      <span id="scanner-zoom-label" class="hint">1.0x</span>
+      <button id="scanner-zoom-in-btn" class="icon-btn" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+    </div>
+    <p id="scanner-modal-feedback" class="status-msg" role="status"></p>
+    <button id="scanner-modal-cancel" class="btn secondary">Cancel</button>
+  </div>
+</div>
+
+<!-- Tag location assignment modal -->
+<div id="tag-assign-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Set Tag Location</h2>
+    <p id="tag-assign-style-label" class="hint"></p>
+    <label>Location
+      <select id="tag-assign-select"></select>
+    </label>
+    <div class="active-item-actions">
+      <button id="tag-assign-save-btn" class="btn primary">Save</button>
+      <button id="tag-assign-cancel-btn" class="btn secondary">Cancel</button>
+    </div>
+    <p id="tag-assign-status" class="status-msg" role="status"></p>
+  </div>
+</div>
+
+<!-- Floor Replen "Needed" sizing modal -->
+<div id="floor-needed-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Needed — Pick Size(s)</h2>
+    <p id="floor-needed-label" class="hint"></p>
+    <p class="hint">Select every size that's needed, or Other if any size will do to keep the minimum three on the floor.</p>
+    <div id="floor-needed-sizes" class="floor-size-grid"></div>
+    <div class="active-item-actions">
+      <button id="floor-needed-save-btn" class="btn primary">Save</button>
+      <button id="floor-needed-cancel-btn" class="btn secondary">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Check Floor manual entry — size picker -->
+<div id="checkfloor-manual-size-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Pick Size(s) Needed</h2>
+    <p id="checkfloor-manual-size-label" class="hint"></p>
+    <p class="hint">Select every size that's actually needed, or Other to type in a size not listed.</p>
+    <div id="checkfloor-manual-sizes" class="floor-size-grid"></div>
+    <input type="text" id="checkfloor-manual-other-size" placeholder="Size" autocomplete="off" hidden>
+    <div class="active-item-actions">
+      <button id="checkfloor-manual-size-save-btn" class="btn primary">Add</button>
+      <button id="checkfloor-manual-size-cancel-btn" class="btn secondary">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Leave Feedback -->
+<div id="feedback-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Leave Feedback</h2>
+    <p class="hint">Goes straight to the Feedback sheet, with your initials and today's date attached.</p>
+    <label>Feedback
+      <textarea id="feedback-text" rows="5" placeholder="What's working, what's not, what you'd change…"></textarea>
+    </label>
+    <div class="active-item-actions">
+      <button id="feedback-submit-btn" class="btn primary">Submit</button>
+      <button id="feedback-cancel-btn" class="btn secondary">Cancel</button>
+    </div>
+    <p id="feedback-status" class="status-msg" role="status"></p>
+  </div>
+</div>
+
+<!-- Receiving: scanned box not in the expected shipment list -->
+<div id="receiving-add-box-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2>Box Not in Expected Shipments</h2>
+    <p class="hint">This barcode wasn't in the pasted MAO list. Add the PO # and it'll go straight into holding.</p>
+    <label>Barcode
+      <input type="text" id="receiving-add-box-barcode" readonly>
+    </label>
+    <label>PO #
+      <input type="text" id="receiving-add-box-po" autocomplete="off" placeholder="Enter PO #">
+    </label>
+    <div class="active-item-actions">
+      <button id="receiving-add-box-save-btn" class="btn primary">Add &amp; Hold</button>
+      <button id="receiving-add-box-cancel-btn" class="btn secondary">Cancel</button>
+    </div>
+    <p id="receiving-add-box-status" class="status-msg" role="status"></p>
+  </div>
+</div>
+
+<script src="js/vendor/html5-qrcode.min.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/login.js"></script>
+<script src="js/scanner.js"></script>
+<script src="js/masterlist.js"></script>
+<script src="js/taglookup.js"></script>
+<script src="js/audit.js"></script>
+<script src="js/consol.js"></script>
+<script src="js/receiving.js"></script>
+<script src="js/floorreplen.js"></script>
+<script src="js/board86.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/feedback.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
