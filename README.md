@@ -57,9 +57,9 @@ Same address, so nothing changes on the phones:
   It shows up on Home to finish. The original app's data is left untouched, so
   rolling back loses nothing. This only happens at the `/Audit-project/`
   address, never when v2 runs side by side.
-- **Rolling back:** the original app's last version is tagged
-  `original-app-final` in the Audit-project repo. Restore those files on the
-  branch and the phones go back the same way.
+- **Rolling back:** the original app's last version is saved on the
+  `original-app-final` branch of the Audit-project repo. Restore those files on
+  the live branch and the phones go back the same way.
 
 ## Deploying (GitHub Pages)
 
