@@ -97,7 +97,7 @@ async function openScanner(title, onDecode, opts = {}) {
    track actually reports zoom support (mainly Android Chrome — iOS Safari
    doesn't expose track capabilities the same way, so this plainly stays
    hidden there rather than showing a control that does nothing). The
-   chosen zoom level is remembered per device (see STORAGE.scannerZoom) and
+   chosen zoom level is remembered per device (see STORE.scannerZoom) and
    re-applied automatically next time, since it's the phone's camera that
    needs it, not anything about who's signed in. */
 
@@ -122,7 +122,7 @@ async function setupScannerZoom(instance) {
   scannerZoomCapability = { min: zoom.min, max: zoom.max, step: zoom.step || (zoom.max - zoom.min) / 10 || 0.1 };
   row.hidden = false;
 
-  const remembered = loadJSON(STORAGE.scannerZoom, null);
+  const remembered = loadJSON(STORE.scannerZoom, null) ?? loadJSON(LEGACY_KEYS.scannerZoom, null);
   const initial = typeof remembered === "number" && Number.isFinite(remembered) ? clampScannerZoom(remembered) : zoom.min;
   await applyScannerZoom(instance, initial);
 }
@@ -137,7 +137,7 @@ async function applyScannerZoom(instance, value) {
   try {
     await instance.applyVideoConstraints({ zoom: clamped });
     document.getElementById("scanner-zoom-label").textContent = `${clamped.toFixed(1)}x`;
-    saveJSON(STORAGE.scannerZoom, clamped);
+    saveJSON(STORE.scannerZoom, clamped);
   } catch (e) {
     // Reported support but rejected the actual call — leave the label/
     // stored value as whatever last succeeded rather than guessing.
@@ -146,7 +146,7 @@ async function applyScannerZoom(instance, value) {
 
 function stepScannerZoom(direction) {
   if (!html5QrCode || !scannerZoomCapability) return;
-  const current = Number(loadJSON(STORAGE.scannerZoom, scannerZoomCapability.min)) || scannerZoomCapability.min;
+  const current = Number(loadJSON(STORE.scannerZoom, scannerZoomCapability.min)) || scannerZoomCapability.min;
   applyScannerZoom(html5QrCode, current + direction * scannerZoomCapability.step);
 }
 

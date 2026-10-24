@@ -1,8 +1,9 @@
 {
   "name": "Oakridge Product Suite",
-  "short_name": "Oakridge Product",
-  "description": "Security tag lookup, inventory audit counting, and adjustment tracking for store associates.",
-  "start_url": "./index.html",
+  "short_name": "Oakridge OPS",
+  "description": "Home, catalog & tag placement, counts, consolidations, receiving, and floor stock for Oakridge Park store associates.",
+  "id": "./",
+  "start_url": "./index.html#home",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
