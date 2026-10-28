@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Oakridge Product Suite</title>
+<meta name="theme-color" content="#894554">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Oakridge OPS">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <img src="icons/icon-192.png" alt="" class="topbar-logo">
+  <h1>Oakridge Product Suite
+    <!-- Bump with sw.js CACHE_VERSION on every shipped change. -->
+    <span class="header-version" id="header-version">v2.1.0</span>
+  </h1>
+  <span id="offline-badge" class="badge" hidden>Offline</span>
+  <div class="topbar-actions">
+    <button id="change-user-btn" class="header-btn" type="button" aria-label="Change user">👤 <span id="header-user-initials">—</span></button>
+    <button id="refresh-btn" class="header-btn icon" type="button" aria-label="Refresh from sheet" title="Refresh from sheet">↻</button>
+    <button id="settings-btn" class="header-btn icon" type="button" aria-label="Settings" title="Settings">⚙︎</button>
+  </div>
+</header>
+
+<div id="update-banner" class="update-banner" hidden>
+  <span>A new version is ready.</span>
+  <button id="update-reload-btn" class="btn primary small" type="button">Reload</button>
+</div>
+
+<div id="app" hidden>
+<main>
+
+  <!-- ================= HOME ================= -->
+  <section id="view-home" class="view" aria-labelledby="home-greeting">
+    <div class="view-head">
+      <h2 id="home-greeting">Hello</h2>
+      <p id="home-freshness" class="hint"></p>
+      <a class="guide-link" href="docs/guides/01-Home.pdf" target="_blank" rel="noopener">📄 Step-by-step guide</a>
+    </div>
+
+    <div id="home-shift" class="shift-card" hidden></div>
+
+    <div class="quick-actions">
+      <button type="button" class="quick" data-action="quick-count"><span class="quick-icon">📷</span>Scan to Count</button>
+      <button type="button" class="quick" data-action="quick-packslip"><span class="quick-icon">📦</span>Scan Packing Slip</button>
+      <button type="button" class="quick" data-action="quick-boxes"><span class="quick-icon">🚚</span>Scan Boxes</button>
+    </div>
+
+    <div class="section-head">
+      <h3>Needs attention</h3>
+      <span id="home-exceptions-count" class="hint"></span>
+    </div>
+    <div id="home-exceptions" class="exceptions"></div>
+
+    <div class="section-head"><h3>This week</h3></div>
+    <div id="home-kpis" class="kpis"></div>
+  </section>
+
+  <!-- ================= PRODUCT CATALOG ================= -->
+  <section id="view-catalog" class="view" hidden>
+    <div class="view-head">
+      <h2>Product Catalog</h2>
+      <p id="catalog-summary" class="hint"></p>
+      <a class="guide-link" href="docs/guides/02-Product-Catalog.pdf" target="_blank" rel="noopener">📄 Step-by-step guide</a>
+    </div>
+
+    <div class="search-row">
+      <input id="catalog-search" type="search" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off"
+             placeholder="Scan or search SKU, UPC, style, name…" aria-label="Search products">
+      <button type="button" class="icon-btn" data-action="catalog-scan" aria-label="Scan barcode">📷</button>
+      <button type="button" class="icon-btn" data-action="catalog-clear" aria-label="Clear">✕</button>
+    </div>
+
+    <div id="catalog-results" class="results" hidden></div>
+    <div id="catalog-detail" hidden></div>
+    <div id="catalog-empty" class="empty-state">
+      <p>Scan or search a product to see its details, hard-tag placement, and recent counts.</p>
+      <p class="hint">Tag placement is set per style — one assignment covers every color and size.</p>
+    </div>
+
+    <details class="panel">
+      <summary>Import from MAO</summary>
+      <p class="hint">Paste straight from MAO's <em>View Inventory</em> page. Products are matched by SKU and shared with every device.</p>
+      <textarea id="catalog-paste" rows="7" placeholder="Paste MAO View Inventory here…"></textarea>
+      <div class="row">
+        <button type="button" class="btn primary" data-action="catalog-import">Import / Update</button>
+        <button type="button" class="btn secondary" data-action="catalog-export">Export CSV</button>
+      </div>
+      <p id="catalog-import-status" class="status-msg" role="status"></p>
+    </details>
+
+    <details class="panel">
+      <summary>Hard-tag assignments <span id="catalog-tag-count" class="hint"></span></summary>
+      <div id="catalog-tag-list" class="list"></div>
+    </details>
+  </section>
+
+  <!-- ================= COUNTS ================= -->
+  <section id="view-counts" class="view" hidden>
+    <div class="view-head"><h2>Counts</h2><a class="guide-link" href="docs/guides/03-Counts.pdf" target="_blank" rel="noopener">📄 Step-by-step guide</a></div>
+
+    <button type="button" class="btn primary block" data-action="count-scan">📷 Scan Product to Count</button>
+    <p id="count-status" class="status-msg" role="status"></p>
+
+    <div class="search-row">
+      <input id="count-search" type="search" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off"
+             placeholder="…or search SKU, UPC, style, name" aria-label="Search product to count">
+      <button type="button" class="icon-btn" data-action="count-clear" aria-label="Clear">✕</button>
+    </div>
+    <div id="count-results" class="results" hidden></div>
+
+    <div id="count-add-card" class="card" hidden>
+      <div class="mono dim" id="count-add-upc"></div>
+      <h3>Not in the catalog yet</h3>
+      <p class="hint">Add it once and every device gets it.</p>
+      <div class="form-grid">
+        <label>SKU<input type="text" id="count-add-sku" autocomplete="off"></label>
+        <label>Description<input type="text" id="count-add-description" autocomplete="off" placeholder="e.g. Atom SL Hoody Men's"></label>
+        <label>Style<input type="text" id="count-add-style" autocomplete="off"></label>
+        <label>Dept<input type="text" id="count-add-dept" autocomplete="off"></label>
+        <label>Color<input type="text" id="count-add-color" autocomplete="off"></label>
+        <label>Size<input type="text" id="count-add-size" autocomplete="off"></label>
+      </div>
+      <p id="count-add-status" class="status-msg" role="status"></p>
+      <div class="row">
+        <button type="button" class="btn primary" data-action="count-add-save">Add Product</button>
+        <button type="button" class="btn secondary" data-action="count-add-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <div id="count-active-card" class="card accent" hidden>
+      <div class="mono dim" id="count-active-sku"></div>
+      <h3 id="count-active-desc"></h3>
+      <p id="count-active-last" class="hint"></p>
+      <div class="count-inputs">
+        <label>Expected<input type="number" id="count-expected" inputmode="numeric" min="0" placeholder="0"></label>
+        <label>Actual<input type="number" id="count-actual" inputmode="numeric" min="0" placeholder="0"></label>
+      </div>
+      <p id="count-entry-status" class="status-msg" role="status"></p>
+      <div class="row">
+        <button type="button" class="btn primary" data-action="count-log">Log Count</button>
+        <button type="button" class="btn secondary" data-action="count-cancel">Cancel</button>
+      </div>
+    </div>
+
+    <div class="section-head">
+      <h3>Recent counts</h3>
+      <div class="row tight">
+        <button type="button" id="count-save-btn" class="btn primary small" data-action="count-save">Save to Sheet</button>
+        <button type="button" class="btn secondary small" data-action="count-export">CSV</button>
+      </div>
+    </div>
+    <p id="count-sync-status" class="status-msg" role="status"></p>
+    <div id="count-filters" class="chips">
+      <button type="button" class="chip" data-action="count-filter" data-filter="all">All <span class="chip-n"></span></button>
+      <button type="button" class="chip" data-action="count-filter" data-filter="flagged">Outside tolerance <span class="chip-n"></span></button>
+      <button type="button" class="chip" data-action="count-filter" data-filter="unsaved">Not saved <span class="chip-n"></span></button>
+    </div>
+    <div id="count-list" class="entries"></div>
+  </section>
+
+  <!-- ================= CONSOLIDATIONS ================= -->
+  <section id="view-consol" class="view" hidden>
+    <div class="view-head">
+      <h2>Consolidations</h2>
+      <a class="guide-link" href="docs/guides/04-Consolidations.pdf" target="_blank" rel="noopener">📄 Step-by-step guide</a>
+    </div>
+    <p id="consol-status" class="status-msg" role="status"></p>
+
+    <div class="card">
+      <h3>Close a box</h3>
+      <p class="hint">Scan the packing slip when a box is sealed — logs who closed it and when.</p>
+      <button type="button" class="btn primary block" data-action="consol-scan-box">📦 Scan Packing Slip</button>
+      <div class="search-row compact">
+        <input id="consol-box-ref" type="text" inputmode="numeric" autocomplete="off" placeholder="…or type the reference #" aria-label="Packing slip reference">
+        <button type="button" class="btn secondary small" data-action="consol-close-manual">Close Box</button>
+      </div>
+      <p id="consol-packout-status" class="status-msg" role="status"></p>
+    </div>
+
+    <div class="section-head">
+      <h3>Holding</h3>
+      <span id="consol-holding-count" class="hint"></span>
+    </div>
+    <div id="consol-holding" class="list"></div>
+    <button type="button" id="consol-update-btn" class="btn primary block" data-action="consol-update" disabled>Update Sheet</button>
+
+    <div class="section-head"><h3>Items to consolidate</h3></div>
+    <input id="consol-filter" type="search" class="filter-input" autocomplete="off" placeholder="Filter by name, style, color, destination…" aria-label="Filter items">
+    <p id="consol-count" class="hint"></p>
+    <div id="consol-list" class="lines"></div>
+
+    <div class="section-head">
+      <h3>Activity</h3>
+      <button type="button" class="btn secondary small" data-action="consol-export">CSV</button>
+    </div>
+    <div id="consol-log" class="entries"></div>
+  </section>
+
+  <!-- ================= RECEIVING ================= -->
+  <section id="view-receiving" class="view" hidden>
+    <div class="view-head"><h2>Receiving</h2><a class="guide-link" href="docs/guides/05-Receiving.pdf" target="_blank" rel="noopener">📄 Step-by-step guide</a></div>
+
+    <button type="button" class="btn primary block" data-action="recv-scan">🚚 Scan Boxes</button>
+    <p id="recv-status" class="status-msg" role="status"></p>
+
+    <div id="recv-awaiting-section" class="card warn" hidden>
+      <div class="section-head flush">
+        <h3>Waiting on MAO <span class="pill pill-warn" id="recv-awaiting-count"></span></h3>
+        <button type="button" class="btn secondary small" data-action="recv-hold-awaiting">Hold all</button>
+      </div>
+      <p class="hint">On the shelf, but the sheet doesn't show them received into MAO yet. Receive them in MAO, then hold and mark them here.</p>
+      <div id="recv-awaiting" class="list"></div>
+    </div>
+
+    <div id="recv-holding-section">
+      <div class="section-head">
+        <h3>Holding</h3>
+        <span id="recv-holding-count" class="hint"></span>
+      </div>
+      <div id="recv-holding" class="list"></div>
+      <div class="row">
+        <button type="button" id="recv-mark-physical-btn" class="btn primary" data-action="recv-mark-physical" disabled>Physically Received</button>
+        <button type="button" id="recv-mark-mao-btn" class="btn primary" data-action="recv-mark-mao" disabled>Received into MAO</button>
+      </div>
+    </div>
+
+    <div class="section-head">
+      <h3>Expected boxes</h3>
+      <button type="button" class="btn secondary small" data-action="recv-hold-selected">Hold selected</button>
+    </div>
+    <input id="recv-filter" type="search" class="filter-input" autocomplete="off" placeholder="Filter by PO # or package…" aria-label="Filter boxes">
+    <p id="recv-count" class="hint"></p>
+    <div id="recv-expected" class="list"></div>
+
+    <details class="panel">
+      <summary>Import from MAO</summary>
+      <p class="hint">Paste from MAO's <em>Receive Inventory</em> page (ETA / Package / PO # lines).</p>
+      <textarea id="recv-paste" rows="7" placeholder="Paste MAO Receive Inventory here…"></textarea>
+      <div class="row">
+        <button type="button" class="btn primary" data-action="recv-import">Import</button>
+        <button type="button" class="btn secondary" data-action="recv-export">Export CSV</button>
+      </div>
+      <p id="recv-import-status" class="status-msg" role="status"></p>
+    </details>
+  </section>
+
+  <!-- ================= FLOOR STOCK ================= -->
+  <section id="view-floor" class="view" hidden>
+    <div class="view-head">
+      <h2>Floor Stock</h2>
+      <p id="floor-last-check" class="hint"></p>
+      <a class="guide-link" href="docs/guides/06-Floor-Stock.pdf" target="_blank" rel="noopener">📄 Step-by-step guide</a>
+    </div>
+
+    <div id="floor-tabs" class="segmented" role="tablist">
+      <button type="button" role="tab" data-action="floor-tab" data-sub="check">Check Floor <span class="seg-n" id="floor-n-check"></span></button>
+      <button type="button" role="tab" data-action="floor-tab" data-sub="replen">Replen <span class="seg-n" id="floor-n-replen"></span></button>
+      <button type="button" role="tab" data-action="floor-tab" data-sub="86">86 Board <span class="seg-n" id="floor-n-86"></span></button>
+    </div>
+
+    <div id="floor-panel-check">
+      <div class="search-row">
+        <input id="floor-search" type="search" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off"
+               placeholder="Something not on the list? Search to add it…" aria-label="Add a product to Check Floor">
+      </div>
+      <div id="floor-results" class="results" hidden></div>
+      <button type="button" id="floor-manual-btn" class="link-btn" data-action="floor-manual" hidden></button>
+      <p id="floor-lookup-status" class="status-msg" role="status"></p>
+
+      <div class="section-head">
+        <h3>Holding</h3>
+        <span id="floor-check-holding-count" class="hint"></span>
+      </div>
+      <div id="floor-check-holding" class="list"></div>
+      <button type="button" id="floor-check-update" class="btn primary block" data-action="floor-check-update" disabled>Update Sheet</button>
+      <p id="floor-check-status" class="status-msg" role="status"></p>
+
+      <div class="section-head"><h3>Sold — check the floor</h3></div>
+      <input id="floor-check-filter" type="search" class="filter-input" autocomplete="off" placeholder="Filter by name, SKU, color…" aria-label="Filter">
+      <p id="floor-check-count" class="hint"></p>
+      <div id="floor-check-list" class="lines"></div>
+    </div>
+
+    <div id="floor-panel-replen" hidden>
+      <div class="section-head">
+        <h3>Holding</h3>
+        <span id="floor-replen-holding-count" class="hint"></span>
+      </div>
+      <div id="floor-replen-holding" class="list"></div>
+      <button type="button" id="floor-replen-update" class="btn primary block" data-action="floor-replen-update" disabled>Update Sheet</button>
+      <p id="floor-replen-status" class="status-msg" role="status"></p>
+
+      <div class="section-head"><h3>Pick list</h3><span id="floor-replen-count" class="hint"></span></div>
+      <div id="floor-replen-list" class="lines"></div>
+    </div>
+
+    <div id="floor-panel-86" hidden>
+      <div class="section-head"><h3>Out of stock</h3><span id="floor-86-count" class="hint"></span></div>
+      <p id="floor-86-status" class="status-msg" role="status"></p>
+      <div id="floor-86-list" class="lines"></div>
+    </div>
+  </section>
+
+</main>
+
+<nav class="bottom-nav" aria-label="Sections">
+  <a class="nav-btn" href="#home" data-route="home"><span class="nav-icon">⌂</span>Home<span id="nav-home-badge" class="nav-badge" hidden></span></a>
+  <a class="nav-btn" href="#catalog" data-route="catalog"><span class="nav-icon">🏷</span>Catalog</a>
+  <a class="nav-btn" href="#counts" data-route="counts"><span class="nav-icon">#</span>Counts</a>
+  <a class="nav-btn" href="#consol" data-route="consol"><span class="nav-icon">📦</span>Consol</a>
+  <a class="nav-btn" href="#receiving" data-route="receiving"><span class="nav-icon">🚚</span>Receiving</a>
+  <a class="nav-btn" href="#floor" data-route="floor"><span class="nav-icon">▦</span>Floor</a>
+</nav>
+</div>
+
+<!-- ================= OVERLAYS ================= -->
+
+<div id="boot-loading" class="boot-loading" hidden>
+  <div class="spinner" aria-hidden="true"></div>
+  <p>Pulling the latest from the sheet…</p>
+  <p class="hint">Can take up to ~10 seconds on first sign-in.</p>
+  <button type="button" id="boot-skip" class="btn secondary" hidden>Continue with what's saved on this device</button>
+</div>
+
+<div id="toast" class="toast" role="status" hidden></div>
+
+<div id="login-gate" class="modal login" hidden>
+  <div class="modal-inner">
+    <img src="icons/icon-192.png" alt="" class="login-logo">
+    <h2>Who's working?</h2>
+
+    <div id="login-key-section" class="login-key">
+      <label for="login-key">Access key
+        <span class="key-row">
+          <input id="login-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste the store's access key">
+          <button type="button" id="login-key-show" class="btn secondary small">Show</button>
+        </span>
+      </label>
+      <p class="hint">Needed once per device — ask a lead if you don't have it.</p>
+      <p id="login-key-status" class="status-msg" role="status"></p>
+    </div>
+    <p id="login-key-saved" class="hint" hidden>🔑 <span id="login-key-source">Access key saved on this device</span> · <button type="button" id="login-key-change" class="link-btn">Change</button></p>
+
+    <p class="hint">Every action today is stamped with your initials.</p>
+    <select id="login-select" aria-label="Your initials"></select>
+    <p id="login-status" class="status-msg" role="status"></p>
+    <button type="button" id="login-continue" class="btn primary block">Continue</button>
+    <button type="button" id="login-add-toggle" class="link-btn">+ Add new initials</button>
+    <div id="login-add-row" class="search-row compact" hidden>
+      <input id="login-add-input" type="text" maxlength="4" autocapitalize="characters" autocomplete="off" placeholder="Initials" aria-label="New initials">
+      <button type="button" id="login-add-save" class="btn secondary small">Add</button>
+    </div>
+    <p id="login-add-status" class="status-msg" role="status"></p>
+  </div>
+</div>
+
+<div id="user-modal" class="modal" hidden>
+  <div class="modal-inner">
+    <h2>Change user</h2>
+    <p class="hint">Currently signed in as <strong id="user-current"></strong>.</p>
+    <select id="user-select" aria-label="Initials"></select>
+    <button type="button" id="user-add-toggle" class="link-btn">+ Add new initials</button>
+    <div id="user-add-row" class="search-row compact" hidden>
+      <input id="user-add-input" type="text" maxlength="4" autocapitalize="characters" autocomplete="off" placeholder="Initials" aria-label="New initials">
+      <button type="button" id="user-add-save" class="btn secondary small">Add</button>
+    </div>
+    <p id="user-add-status" class="status-msg" role="status"></p>
+    <div class="row">
+      <button type="button" id="user-save" class="btn primary">Switch</button>
+      <button type="button" class="btn secondary" data-close="user-modal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="settings-modal" class="modal" hidden>
+  <div class="modal-inner">
+    <h2>Settings</h2>
+    <label>Google Sheet URL (Apps Script)
+      <input id="settings-url" type="url" autocomplete="off" spellcheck="false">
+    </label>
+    <label>Access key
+      <input id="settings-key" type="password" autocomplete="off" spellcheck="false">
+    </label>
+    <p class="hint">Same values as the original app. If this device already had them set there, they're picked up automatically.</p>
+    <button type="button" id="settings-save-btn" class="btn primary block">Save &amp; sync</button>
+    <p id="settings-status" class="status-msg" role="status"></p>
+
+    <h3 class="subhead">Staff roster</h3>
+    <div id="settings-roster" class="chips"></div>
+    <div class="search-row compact">
+      <input id="settings-add-input" type="text" maxlength="4" autocapitalize="characters" autocomplete="off" placeholder="New initials" aria-label="New initials">
+      <button type="button" id="settings-add-btn" class="btn secondary small">Add</button>
+    </div>
+    <p id="settings-add-status" class="status-msg" role="status"></p>
+
+    <button type="button" id="settings-feedback-btn" class="btn secondary block">💬 Leave feedback</button>
+    <a class="btn secondary block" href="docs/guides/00-Getting-Started.pdf" target="_blank" rel="noopener">📄 Getting Started guide</a>
+    <p id="settings-about" class="hint about"></p>
+    <button type="button" class="btn secondary block" data-close="settings-modal">Close</button>
+  </div>
+</div>
+
+<div id="feedback-modal" class="modal" hidden>
+  <div class="modal-inner">
+    <h2>Leave feedback</h2>
+    <p class="hint">Something broken, confusing, or missing? It goes straight to the Feedback sheet.</p>
+    <textarea id="feedback-text" rows="5"></textarea>
+    <p id="feedback-status" class="status-msg" role="status"></p>
+    <div class="row">
+      <button type="button" id="feedback-submit-btn" class="btn primary">Send</button>
+      <button type="button" class="btn secondary" data-close="feedback-modal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="mao-reminder-modal" class="modal" hidden>
+  <div class="modal-inner">
+    <h2>Close it in MAO too</h2>
+    <p>Box <strong id="mao-reminder-reference" class="mono"></strong> will be logged as closed here.</p>
+    <p class="warn-text">This app can't see MAO. Make sure the box is closed in MAO as well.</p>
+    <button type="button" id="mao-reminder-confirm-btn" class="btn primary block">It's closed in MAO, log it</button>
+  </div>
+</div>
+
+<div id="recv-add-modal" class="modal" hidden>
+  <div class="modal-inner">
+    <h2>Box not on the expected list</h2>
+    <label>Package barcode<input id="recv-add-barcode" type="text" readonly></label>
+    <label>PO #<input id="recv-add-po" type="text" inputmode="numeric" autocomplete="off"></label>
+    <p id="recv-add-status" class="status-msg" role="status"></p>
+    <div class="row">
+      <button type="button" id="recv-add-save-btn" class="btn primary">Add &amp; hold</button>
+      <button type="button" class="btn secondary" data-close="recv-add-modal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="floor-needed-modal" class="modal" hidden>
+  <div class="modal-inner">
+    <h2>Which sizes are needed?</h2>
+    <p id="floor-needed-label" class="hint"></p>
+    <div id="floor-needed-sizes" class="size-grid"></div>
+    <p id="floor-needed-status" class="status-msg" role="status"></p>
+    <div class="row">
+      <button type="button" id="floor-needed-save-btn" class="btn primary">Stage as Needed</button>
+      <button type="button" class="btn secondary" data-close="floor-needed-modal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="floor-manual-modal" class="modal" hidden>
+  <div class="modal-inner">
+    <h2>Add by hand</h2>
+    <p id="floor-manual-label" class="hint"></p>
+    <div id="floor-manual-sizes" class="size-grid"></div>
+    <input id="floor-manual-other-size" type="text" placeholder="Other size" aria-label="Other size" hidden>
+    <p id="floor-manual-status" class="status-msg" role="status"></p>
+    <div class="row">
+      <button type="button" id="floor-manual-save-btn" class="btn primary">Add as Needed</button>
+      <button type="button" class="btn secondary" data-close="floor-manual-modal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="scanner-modal" class="scanner-modal" hidden>
+  <div class="scanner-modal-inner">
+    <h2 id="scanner-modal-title">Scanning…</h2>
+    <div id="scanner-modal-view"></div>
+    <div id="scanner-zoom-row" class="scanner-zoom-row" hidden>
+      <button id="scanner-zoom-out-btn" class="icon-btn" type="button" aria-label="Zoom out">−</button>
+      <span id="scanner-zoom-label" class="hint">1.0x</span>
+      <button id="scanner-zoom-in-btn" class="icon-btn" type="button" aria-label="Zoom in">+</button>
+    </div>
+    <p id="scanner-modal-feedback" class="status-msg" role="status"></p>
+    <button id="scanner-modal-cancel" class="btn secondary block" type="button">Cancel</button>
+  </div>
+</div>
+
+<script src="js/vendor/html5-qrcode.min.js"></script>
+<script src="js/core/utils.js"></script>
+<script src="js/core/store.js"></script>
+<script src="js/core/api.js"></script>
+<script src="js/core/data.js"></script>
+<script src="js/core/ui.js"></script>
+<script src="js/core/scanner.js"></script>
+<script src="js/core/exceptions.js"></script>
+<script src="js/core/router.js"></script>
+<script src="js/modules/login.js"></script>
+<script src="js/modules/settings.js"></script>
+<script src="js/modules/home.js"></script>
+<script src="js/modules/catalog.js"></script>
+<script src="js/modules/counts.js"></script>
+<script src="js/modules/consol.js"></script>
+<script src="js/modules/receiving.js"></script>
+<script src="js/modules/floor.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
