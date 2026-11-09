@@ -16,63 +16,47 @@ modules** in place of the original seven tabs.
 Settings, the staff roster and Feedback live in the ⚙︎ modal, reachable from
 any screen.
 
-## Running alongside the original app
+## Where it lives
 
-The original app (`Audit-project`, branch `claude/arctteryx-tag-lookup-app-anuv34`)
-**keeps running exactly as it is**. This repo does not modify it, and you
-don't have to redeploy anything:
+This repository is the only home of the app. The store phones load it from
+GitHub Pages at `https://leegordonsnyder.github.io/Audit-project/`, published
+from the branch `claude/arctteryx-tag-lookup-app-anuv34`. Pushing to that
+branch updates the phones.
 
-- **Same backend, unchanged.** v2 calls the same Apps Script deployment with
-  the same request types and payloads. `Code.gs` is not modified and needs
-  no redeploy. Both apps read and write the same Google Sheet, so data entered
-  in either one shows up in both.
-- **Separate local storage.** Both apps will most likely be served from the
-  same `github.io` origin, which means they share one `localStorage`. Every v2
-  key uses an `ops2.` prefix, and v2 never writes to the original app's
-  `audit.*` keys. The only crossover is **read-only**: if v2 has no Sheet URL
-  or access key of its own yet, it borrows the original app's, so a phone
-  that's already set up works with no extra setup.
-- **Separate offline cache.** v2's service worker only cleans up caches named
-  `ops2-*`, so it can never break the original app offline. (The original
-  app's worker deletes every cache that isn't its own when it updates. v2
-  handles that by re-fetching and re-caching on the next request.)
-- **Separate home-screen app.** It's a different URL path
-  (`/Oakridge-product-suite/` vs `/Audit-project/`), so staff can have both
-  icons installed during the transition.
+Other branches:
+
+- `original-app-final`: the original seven-tab app, kept for rolling back.
+  Restore its files on the live branch and the phones go back the same way.
+- `rebuild-history`: the full commit history of the rebuild, from when it was
+  developed in a separate repository (including the promo videos in
+  `docs/media`).
+
+How v2 took over from the original app on the phones:
+
+- **Same backend.** v2 calls the same Apps Script deployment and the same
+  Google Sheet. `Code.gs` is unchanged; its source is in
+  `docs/ORIGINAL-APP-README.md`.
+- **Its own storage keys.** Every v2 key uses an `ops2.` prefix and v2 never
+  writes to the original app's `audit.*` keys. It reads the original app's
+  access key and roster, so nobody had to re-enter them.
+- **Work staged on a phone carried over once:** counts not yet saved to the
+  sheet, and anything held in Consolidations, Receiving, Check Floor or Replen.
+  The original app's data is left untouched.
 - **Feedback is tagged.** Feedback sent from v2 is prefixed `[v2]` in the
   Feedback sheet.
-
-## Replacing the original app
-
-The store phones get v2 when these files are published at the original app's
-address (`Audit-project`, branch `claude/arctteryx-tag-lookup-app-anuv34`).
-Same address, so nothing changes on the phones:
-
-- The home-screen icon stays. The original app shows its **"A new version is
-  ready"** banner. Tap **Reload** and v2 opens.
-- The access key and roster are picked up from the original app, so nobody
-  re-enters anything. Each person picks their initials once.
-- **Work staged on the phone carries over once:** counts not yet saved to the
-  sheet, and anything held in Consolidations, Receiving, Check Floor or Replen.
-  It shows up on Home to finish. The original app's data is left untouched, so
-  rolling back loses nothing. This only happens at the `/Audit-project/`
-  address, never when v2 runs side by side.
-- **Rolling back:** the original app's last version is saved on the
-  `original-app-final` branch of the Audit-project repo. Restore those files on
-  the live branch and the phones go back the same way.
 
 ## Deploying (GitHub Pages)
 
 1. **Settings → Pages → Build and deployment → Deploy from a branch**, then
    pick the branch and `/ (root)`. On the free plan the repository must be
    **public**, same as the original.
-2. Open `https://<username>.github.io/Oakridge-product-suite/` in **Safari**,
+2. Open `https://leegordonsnyder.github.io/Audit-project/` in **Safari**,
    then Share → **Add to Home Screen**.
 3. The first sign-in on each phone asks for the **access key** (the
    `ACCESS_KEY` Script Property). It's checked against the sheet before it's
    saved. iOS keeps home-screen apps' storage separate from Safari, so expect
-   to enter it once on each installed icon, even if the original app already
-   has it. It can be changed later under ⚙︎ Settings.
+   to enter it once on each installed icon. It can be changed later under
+   ⚙︎ Settings.
 
 After each shipped change, bump `CACHE_VERSION` in `sw.js` and the version
 label in `index.html`. Phones then show the "A new version is ready" banner.

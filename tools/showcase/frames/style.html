@@ -1,0 +1,192 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Showcase style frames</title>
+<style>
+  /* Style frames for the staff-meeting showcase: white, dark grey type,
+     the app on an iPhone, Sheets on a monitor. Each <section> is one
+     1920×1080 frame; render.js screenshots them. */
+  :root { --ink: #1d1d1f; --ink-2: #6e6e73; --ink-3: #a1a1a6; --line: #c7c7cc; --accent: #9b4a63; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #fff; font-family: "Inter", system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+  .frame { width: 1920px; height: 1080px; position: relative; overflow: hidden; background: #fff; }
+  .display { font-family: "Inter Display", "Inter", sans-serif; letter-spacing: -0.02em; }
+  .kicker { font-size: 26px; font-weight: 600; color: var(--accent); letter-spacing: 0.01em; }
+  .h1 { font-size: 104px; font-weight: 700; line-height: 1.02; }
+  .h2 { font-size: 76px; font-weight: 700; line-height: 1.06; }
+  .sub { font-size: 34px; font-weight: 500; color: var(--ink-2); line-height: 1.35; }
+  .caption { font-size: 22px; font-weight: 500; color: var(--ink-3); letter-spacing: 0.02em; text-transform: uppercase; }
+
+  /* iPhone 15 Pro, drawn: 393 × 852 pt screen inside a titanium bezel */
+  .iphone { --s: 1; position: absolute; width: calc(433px * var(--s)); height: calc(892px * var(--s)); border-radius: calc(68px * var(--s));
+    background: linear-gradient(145deg, #5b5b60, #2c2c2e 40%, #48484a); padding: calc(20px * var(--s));
+    box-shadow: 0 calc(40px * var(--s)) calc(80px * var(--s)) rgba(0,0,0,.18), 0 calc(8px * var(--s)) calc(20px * var(--s)) rgba(0,0,0,.12), inset 0 0 0 calc(2px * var(--s)) #77777c; }
+  .iphone .screen { width: 100%; height: 100%; border-radius: calc(50px * var(--s)); overflow: hidden; background: #000; position: relative; }
+  .iphone .status { height: calc(54px * var(--s)); background: linear-gradient(90deg, #894554, #ac697f); color: #fff; display: flex; justify-content: space-between; align-items: center;
+    padding: calc(6px * var(--s)) calc(34px * var(--s)) 0; font-weight: 600; font-size: calc(17px * var(--s)); }
+  .iphone .status .icons { display: flex; gap: calc(6px * var(--s)); align-items: center; }
+  .iphone .status .bat { width: calc(25px * var(--s)); height: calc(12px * var(--s)); border: calc(1.5px * var(--s)) solid #fff; border-radius: calc(4px * var(--s)); padding: calc(1.5px * var(--s)); }
+  .iphone .status .bat i { display: block; height: 100%; width: 80%; background: #fff; border-radius: calc(1.5px * var(--s)); }
+  .iphone .island { position: absolute; top: calc(11px * var(--s)); left: 50%; transform: translateX(-50%); width: calc(124px * var(--s)); height: calc(36px * var(--s)); background: #000; border-radius: calc(20px * var(--s)); z-index: 3; }
+  .iphone .shot { display: block; width: 100%; }
+  .iphone .home-bar { position: absolute; bottom: calc(8px * var(--s)); left: 50%; transform: translateX(-50%); width: calc(140px * var(--s)); height: calc(5px * var(--s)); border-radius: 3px; background: rgba(0,0,0,.55); }
+
+  /* Line-art drawings for the old ways: grey only */
+  svg.art * { vector-effect: non-scaling-stroke; }
+
+  /* Monitor for anything in Sheets */
+  .monitor { position: absolute; }
+  .monitor .panel { background: #1c1c1e; border-radius: 22px; padding: 18px 18px 26px; box-shadow: 0 40px 80px rgba(0,0,0,.16); }
+  .monitor .glass { background: #fff; border-radius: 6px; overflow: hidden; }
+  .monitor .neck { width: 180px; height: 120px; margin: 0 auto; background: linear-gradient(90deg, #d1d1d6, #f2f2f7 50%, #c7c7cc); clip-path: polygon(22% 0, 78% 0, 88% 100%, 12% 100%); }
+  .monitor .foot { width: 420px; height: 16px; margin: 0 auto; border-radius: 8px 8px 4px 4px; background: linear-gradient(#e5e5ea, #c7c7cc); }
+</style>
+</head>
+<body>
+
+<!-- F4 · Five modules rise off the phone (top-down overview) -->
+<section class="frame" id="f04">
+  <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 72%, #f5f5f7 0%, #fff 60%)"></div>
+  <div class="iphone" style="--s:.7; left:808px; top:385px; transform: rotate(-6deg);">
+    <div class="screen"><div class="island"></div><div class="status"><span>9:41</span><span class="icons"><span class="bat"><i></i></span></span></div><img class="shot" src="../screens/01-home.png"><div class="home-bar"></div></div>
+  </div>
+  <div id="cards"></div>
+  <div style="position:absolute;left:0;right:0;top:64px;text-align:center" class="caption">Every daily task. One app.</div>
+</section>
+
+<!-- F9 · The old way: consolidations (grey line art) -->
+<section class="frame" id="f09">
+  <svg class="art" width="1920" height="1080" viewBox="0 0 1920 1080" style="position:absolute;inset:0">
+    <defs>
+      <g id="sheet">
+        <rect x="0" y="0" width="420" height="560" rx="4" fill="#fff" stroke="#8e8e93" stroke-width="2"/>
+        <line x1="30" y1="50" x2="260" y2="50" stroke="#8e8e93" stroke-width="5" stroke-linecap="round"/>
+        <g stroke="#c7c7cc" stroke-width="2">
+          <line x1="30" y1="100" x2="390" y2="100"/><line x1="30" y1="150" x2="390" y2="150"/><line x1="30" y1="200" x2="390" y2="200"/>
+          <line x1="30" y1="250" x2="390" y2="250"/><line x1="30" y1="300" x2="390" y2="300"/><line x1="30" y1="350" x2="390" y2="350"/>
+          <line x1="30" y1="400" x2="390" y2="400"/><line x1="30" y1="450" x2="390" y2="450"/><line x1="30" y1="500" x2="390" y2="500"/>
+        </g>
+        <g stroke="#d1d1d6" stroke-width="7" stroke-linecap="round">
+          <line x1="40" y1="125" x2="230" y2="125"/><line x1="40" y1="175" x2="200" y2="175"/><line x1="40" y1="225" x2="250" y2="225"/>
+          <line x1="40" y1="275" x2="180" y2="275"/><line x1="40" y1="325" x2="240" y2="325"/><line x1="40" y1="375" x2="210" y2="375"/>
+          <line x1="40" y1="425" x2="230" y2="425"/><line x1="40" y1="475" x2="190" y2="475"/>
+        </g>
+      </g>
+    </defs>
+    <!-- three copies, each marked its own way -->
+    <g transform="translate(380 200) rotate(-9) scale(.95)">
+      <use href="#sheet"/>
+      <g stroke="#636366" stroke-width="3" fill="none" stroke-linecap="round">
+        <path d="M300 118 l14 14 l26 -30"/><path d="M300 218 l14 14 l26 -30"/><path d="M300 368 l14 14 l26 -30"/>
+        <path d="M290 168 l40 18 M290 186 l40 -18"/>
+      </g>
+    </g>
+    <g transform="translate(770 160) rotate(3) scale(.95)">
+      <use href="#sheet"/>
+      <g stroke="#3a3a3c" stroke-width="3" fill="none" stroke-linecap="round" stroke-dasharray="7 6">
+        <ellipse cx="320" cy="175" rx="42" ry="20"/><ellipse cx="320" cy="325" rx="42" ry="20"/>
+        <path d="M30 270 C 120 262, 220 282, 395 268"/>
+      </g>
+      <text x="300" y="470" font-family="Inter" font-size="34" font-weight="700" fill="#48484a">2?</text>
+    </g>
+    <g transform="translate(1160 210) rotate(11) scale(.95)">
+      <use href="#sheet"/>
+      <g stroke="#8e8e93" stroke-width="4" fill="none" stroke-linecap="round">
+        <path d="M300 120 h50"/><path d="M300 220 h50"/><path d="M300 270 h50"/><path d="M300 420 h50"/>
+        <path d="M350 470 a14 14 0 1 0 0.1 0"/>
+      </g>
+      <text x="292" y="385" font-family="Inter" font-size="30" font-weight="600" fill="#636366" font-style="italic">BOH</text>
+    </g>
+  </svg>
+  <div style="position:absolute;left:160px;top:110px">
+    <div class="kicker" style="color:#8e8e93">Consolidations · the old way</div>
+  </div>
+  <div style="position:absolute;left:0;right:0;bottom:96px;text-align:center">
+    <div class="h2 display" style="color:#3a3a3c">Three paper copies.</div>
+    <div class="sub" style="margin-top:10px">None of them update each other.</div>
+  </div>
+</section>
+
+<!-- F16 · Before / Now: receiving, in testing -->
+<section class="frame" id="f16">
+  <div style="position:absolute;left:0;top:0;width:960px;height:1080px;background:#f5f5f7"></div>
+  <div style="position:absolute;left:0;width:960px;top:96px;text-align:center"><div class="caption">Before</div><div class="sub" style="margin-top:6px">Copy, find, tick, initial. Box by box.</div></div>
+  <div style="position:absolute;left:960px;width:960px;top:96px;text-align:center"><div class="caption" style="color:var(--accent)">Now</div><div class="sub" style="margin-top:6px">Paste once. Scan the boxes.</div></div>
+  <svg class="art" width="960" height="1080" style="position:absolute;left:0;top:0">
+    <!-- grey stopwatch -->
+    <g transform="translate(480 560)" fill="none" stroke="#8e8e93" stroke-width="5">
+      <circle r="190"/><rect x="-28" y="-250" width="56" height="34" rx="8"/><line x1="0" y1="-216" x2="0" y2="-190"/>
+      <line x1="135" y1="-160" x2="160" y2="-185" stroke-linecap="round"/>
+      <circle r="168" stroke="#d1d1d6" stroke-width="2"/>
+    </g>
+    <text x="480" y="590" text-anchor="middle" font-family="Inter Display" font-weight="700" font-size="120" fill="#636366" letter-spacing="-3">3:25</text>
+    <text x="480" y="650" text-anchor="middle" font-family="Inter" font-weight="500" font-size="26" fill="#8e8e93">min : sec</text>
+  </svg>
+  <div class="iphone" style="--s:.72; left:1080px; top:200px;">
+    <div class="screen"><div class="island"></div><div class="status"><span>9:41</span><span class="icons"><span class="bat"><i></i></span></span></div><img class="shot" src="../screens/14-receiving-scan.png"><div class="home-bar"></div></div>
+  </div>
+  <div style="position:absolute;left:1440px;top:470px;width:400px;text-align:center">
+    <div class="display" style="font-size:150px;font-weight:700;color:var(--ink);letter-spacing:-4px">1:06</div>
+    <div style="font-size:26px;font-weight:500;color:var(--ink-2)">min : sec</div>
+  </div>
+  <div style="position:absolute;left:0;right:0;bottom:70px;text-align:center">
+    <div class="h2 display" style="font-size:64px">Same 5 boxes. <span style="color:var(--accent)">68% less time.</span></div>
+    <div class="caption" style="margin-top:14px">In testing · expected list + physically received</div>
+  </div>
+</section>
+
+<!-- F22 · Deep dive: Product Catalog, zoomed on the hard-tag placement -->
+<section class="frame" id="f22">
+  <div id="zoomwrap" style="position:absolute;left:40px;top:-937px;width:1200px;height:2600px">
+    <div class="iphone" style="--s:2.35; left:0; top:0; filter: blur(7px) saturate(.6); opacity:.55">
+      <div class="screen"><div class="island"></div><div class="status"><span>9:41</span><span class="icons"><span class="bat"><i></i></span></span></div><img class="shot" src="../screens/04-catalog-detail.png"><div class="home-bar"></div></div>
+    </div>
+    <!-- the same phone, sharp, clipped to the part being talked about -->
+    <div class="iphone" style="--s:2.35; left:0; top:0; clip-path: inset(59.8% 9.9% 18.8% 9.9% round 30px); box-shadow:none">
+      <div class="screen"><div class="island"></div><div class="status"><span>9:41</span><span class="icons"><span class="bat"><i></i></span></span></div><img class="shot" src="../screens/04-catalog-detail.png"><div class="home-bar"></div></div>
+    </div>
+  </div>
+  <div style="position:absolute;left:1180px;top:330px;width:620px">
+    <div class="kicker">Product Catalog</div>
+    <div class="h2 display" style="margin-top:18px">One answer.<br>For everyone.</div>
+    <div class="sub" style="margin-top:26px">Scan any product and see where its hard tag goes. When a lead decides, every phone shows it.</div>
+  </div>
+</section>
+
+<!-- F38 · Under the hood: the Sheet, on a monitor -->
+<section class="frame" id="f38">
+  <div class="monitor" style="left:420px;top:110px;width:1080px">
+    <div class="panel"><div class="glass" style="aspect-ratio:16/9;background:#fff"><img id="sheetshot" style="display:block;width:100%" src="sheets/deployment.png"></div></div>
+    <div class="neck"></div><div class="foot"></div>
+  </div>
+  <div style="position:absolute;left:0;right:0;top:56px;text-align:center" class="caption">For managers</div>
+  <div style="position:absolute;left:0;right:0;bottom:60px;text-align:center">
+    <div class="sub" style="color:var(--ink)">The day's deployment builds itself from When I Work.</div>
+  </div>
+</section>
+
+<!-- F5 · Title -->
+<section class="frame" id="f05">
+  <div class="iphone" style="--s:.62; left:825px; top:120px;">
+    <div class="screen"><div class="island"></div><div class="status"><span>9:41</span><span class="icons"><span class="bat"><i></i></span></span></div><img class="shot" src="../screens/01-home.png"><div class="home-bar"></div></div>
+  </div>
+  <div style="position:absolute;left:0;right:0;top:720px;text-align:center">
+    <div class="h1 display">Oakridge Product Suite</div>
+    <div class="sub" style="margin-top:18px;font-size:38px">Rebuilt for the floor.</div>
+  </div>
+</section>
+
+<script>
+  // F4: five module cards fanned above the phone
+  const mods = [["01", "Product Catalog"], ["02", "Counts"], ["03", "Consolidations"], ["04", "Receiving"], ["05", "Floor Stock"]];
+  document.getElementById("cards").innerHTML = mods.map(([icon, name], i) => {
+    const a = (i - 2) * 15, x = 960 + (i - 2) * 300, y = 250 + Math.abs(i - 2) * 46;
+    return `<div style="position:absolute;left:${x - 130}px;top:${y - 70}px;width:260px;height:140px;border-radius:26px;background:#fff;
+      box-shadow:0 24px 50px rgba(0,0,0,.10),0 4px 12px rgba(0,0,0,.06);transform:rotate(${a / 3}deg);display:flex;flex-direction:column;justify-content:center;padding:0 26px">
+      <div style="font-size:18px;color:#9b4a63;font-weight:700;letter-spacing:.08em">${icon}</div>
+      <div class="display" style="font-size:30px;font-weight:700;margin-top:8px">${name}</div></div>`;
+  }).join("");
+</script>
+</body>
+</html>

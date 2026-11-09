@@ -1,0 +1,19 @@
+{
+  "_comment": "Voiceover lines for oakridge-product-suite-motion.mp4. 'at' is when the line starts and 'until' is when the panel ends, both in seconds and both from the TIMELINE block in scene.js. A line must finish before 'until'. Aim for about 2.3 words per second.",
+  "lines": [
+    { "at": 0.3,  "until": 4.4,   "text": "Scan. Count. Restock." },
+    { "at": 5.4,  "until": 11.3,  "text": "Every floor process, in one app, wired into one shared Google Sheet." },
+    { "at": 11.9, "until": 19.9,  "text": "Home opens on what needs attention: boxes waiting on MAO, counts outside tolerance, and replen that's stalled." },
+    { "at": 20.4, "until": 27.4,  "text": "Product Catalog. Scan any barcode for product details, hard-tag placement, and recent counts." },
+    { "at": 27.9, "until": 34.9,  "text": "Counts. Anything off by more than two units, or five percent, stays flagged until it's recounted." },
+    { "at": 35.4, "until": 42.9,  "text": "Consolidations. Count pieces as you pull them, batch lines into Holding, and log every closed box." },
+    { "at": 43.4, "until": 50.4,  "text": "Receiving. Anything on the shelf but not yet in MAO stays on screen until it is." },
+    { "at": 50.9, "until": 58.4,  "text": "Floor Stock. One line per style. Check the floor, pick the missing sizes, and restock." },
+    { "at": 60.9, "until": 67.8,  "text": "Under the hood, every tap lands in one shared Google Sheet. No server, and no hosting bill." },
+    { "at": 68.1, "until": 75.0,  "text": "Apps Script checks the access key on every request, before anything is read or written." },
+    { "at": 75.3, "until": 82.2,  "text": "The Sheet keeps one tab per job, and leads can read and edit it directly." },
+    { "at": 82.6, "until": 89.7,  "text": "Every device sees the same live data. Pull to refresh, and everyone's on the same numbers." },
+    { "at": 90.0, "until": 96.6,  "text": "And it's never blocked by store Wi-Fi. Work keeps going offline, and syncs when you tap Update." },
+    { "at": 98.4, "until": 107.0, "text": "Oakridge Product Suite. Rebuilt for the floor." }
+  ]
+}

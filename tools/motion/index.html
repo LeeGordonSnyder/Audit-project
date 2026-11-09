@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Oakridge Product Suite — motion</title>
+<style>
+  @font-face { font-family: "Inter"; font-weight: 400; src: url(node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2) format("woff2"); }
+  @font-face { font-family: "Inter"; font-weight: 500; src: url(node_modules/@fontsource/inter/files/inter-latin-500-normal.woff2) format("woff2"); }
+  @font-face { font-family: "Inter"; font-weight: 800; src: url(node_modules/@fontsource/inter/files/inter-latin-800-normal.woff2) format("woff2"); }
+  @font-face { font-family: "Inter"; font-weight: 900; src: url(node_modules/@fontsource/inter/files/inter-latin-900-normal.woff2) format("woff2"); }
+  @font-face { font-family: "Grotesk"; font-weight: 500; src: url(node_modules/@fontsource/space-grotesk/files/space-grotesk-latin-500-normal.woff2) format("woff2"); }
+  @font-face { font-family: "Grotesk"; font-weight: 700; src: url(node_modules/@fontsource/space-grotesk/files/space-grotesk-latin-700-normal.woff2) format("woff2"); }
+
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #0e0709; }
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+  canvas#gl { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+  #type { position: absolute; inset: 0; pointer-events: none; font-family: Inter, sans-serif; color: #fff; }
+  .beat { position: absolute; white-space: nowrap; will-change: transform, opacity; }
+  .ch { display: inline-block; will-change: transform, opacity, filter; }
+  .kicker { font-family: Grotesk, sans-serif; font-weight: 500; letter-spacing: 0.32em; text-transform: uppercase; font-size: 22px; color: #f0b9c6; }
+  .mega { font-weight: 900; font-size: 210px; letter-spacing: -0.045em; line-height: 0.9; }
+  .big { font-weight: 800; font-size: 92px; letter-spacing: -0.035em; line-height: 1; }
+  .mid { font-weight: 800; font-size: 60px; letter-spacing: -0.03em; line-height: 1.05; }
+  .small { font-family: Grotesk, sans-serif; font-weight: 500; font-size: 30px; line-height: 1.45; color: #ecd3d9; letter-spacing: 0.01em; }
+  .accent { color: #ff8fa8; }
+  .green { color: #7fe0a8; }
+  .stroke { color: transparent; -webkit-text-stroke: 3px #ff8fa8; }
+  #vignette { position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 45%, rgba(8,2,4,0.55) 85%, rgba(5,1,2,0.85) 100%); }
+  #flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; mix-blend-mode: screen; }
+  #grain { position: absolute; inset: 0; pointer-events: none; opacity: 0.06; mix-blend-mode: overlay; }
+  #bars::before, #bars::after { content: ""; position: absolute; left: 0; right: 0; height: var(--bar, 0px); background: #000; z-index: 5; }
+  #bars::before { top: 0; } #bars::after { bottom: 0; }
+  #bars { position: absolute; inset: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="gl" width="1920" height="1080"></canvas>
+  <div id="type"></div>
+  <canvas id="grain" width="480" height="270"></canvas>
+  <div id="vignette"></div>
+  <div id="flash"></div>
+  <div id="bars"></div>
+</div>
+<script type="importmap">
+{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }
+</script>
+<script type="module" src="scene.js"></script>
+</body>
+</html>

@@ -37,8 +37,8 @@ Highest leverage, lowest risk: mostly reorganizing what already exists.
     Picked / Out of stock still per size
 - [x] **MAO confirmation generalized to Receiving**: a *Waiting on MAO* queue
       with "Hold all" so those boxes can be marked Received into MAO in one tap
-- [x] Runs side by side with the original app: same backend, isolated
-      storage and cache (see README)
+- [x] Ran side by side with the original app (same backend, isolated
+      storage and cache), then replaced it at its own address (see README)
 
 Small additions made along the way: a typed-reference fallback for Close a
 Box (for when the slip won't scan), and filter chips on Counts (All /
