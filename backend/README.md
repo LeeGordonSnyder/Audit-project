@@ -1,4 +1,28 @@
-# Backend add-on: daily deployment from When I Work
+# Backend (Google Apps Script)
+
+The Apps Script project behind the shared Google Sheet has three files. Each
+one here is the complete file, ready to paste over the one in
+**Extensions → Apps Script**:
+
+| File | What it does |
+| --- | --- |
+| `Code.gs` | The app's backend: every read and write the app makes. Already has the hooks for the two files below. |
+| `Deployment.gs` | The daily deployment tab, built from When I Work. |
+| `Todos.gs` | The team to-do list. |
+
+**Updating:** paste each file in full, save, then **Deploy → Manage
+deployments** → edit (pencil) → *Version:* **New version** → **Deploy**. Keep
+the same deployment, so the URL doesn't change.
+
+**Before pasting over `Code.gs`,** check the live one for anything added by
+hand, above all a `function onEdit` (it stamps Supervisor Initials and the
+date on AuditLog). `Code.gs` here doesn't have it. Copy it first and paste it
+back at the bottom afterwards, or move it into a file of its own.
+
+The sections below explain each add-on and its one-time setup. If you paste
+the full `Code.gs`, skip the steps that add single lines to it.
+
+# Add-on: daily deployment from When I Work
 
 `Deployment.gs` adds a color-coded **Deployment** tab to the shared Google
 Sheet, built every morning from the store's When I Work "entire schedule"
