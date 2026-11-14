@@ -1,7 +1,7 @@
 # Motion sequence (~1:47)
 
 Source for `docs/media/oakridge-product-suite-motion.mp4` (the rendered videos are
-kept on the `rebuild-history` branch, not the live one): a Three.js scene
+in history only, at commit `2146a95`; see the main README): a Three.js scene
 plus an HTML kinetic-type layer. Every frame is a pure function of time
 (`window.renderAt(t)` in `scene.js`), so the render is deterministic.
 

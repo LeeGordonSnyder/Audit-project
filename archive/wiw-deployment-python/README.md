@@ -1,6 +1,7 @@
-# Audit-project
+# When I Work → deployment workbook (retired)
 
-## WiW → Deployment Workbook automation
+> Replaced by `backend/Deployment.gs`. Kept for reference.
+
 
 Automates filling out the morning deployment Excel workbook from a When I
 Work schedule export: transfers each person's shift/role and auto-computes

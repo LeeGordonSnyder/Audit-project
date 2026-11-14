@@ -1,8 +1,10 @@
-# Oakridge Product Suite — Rebuild (v2)
+# Oakridge Product Suite
 
-The next version of the Oakridge Product Suite, built from the Rebuild Proposal:
-one **Home** screen that surfaces what needs attention, and **five focused
-modules** in place of the original seven tabs.
+The store operations web app for the Oakridge Park team: one **Home** screen
+that surfaces what needs attention, a shared to-do list and each person's
+shift for the day, and **five focused modules** in place of the original app's
+seven tabs. It runs on the store iPhones from GitHub Pages and keeps its data
+in a shared Google Sheet.
 
 | Module | Replaces (original app) |
 | --- | --- |
@@ -18,18 +20,28 @@ any screen.
 
 ## Where it lives
 
-This repository is the only home of the app. The store phones load it from
-GitHub Pages at `https://leegordonsnyder.github.io/Audit-project/`, published
-from the branch `claude/arctteryx-tag-lookup-app-anuv34`. Pushing to that
-branch updates the phones.
+The store phones load the app from GitHub Pages at
+`https://leegordonsnyder.github.io/Audit-project/`, published from **`main`**.
+Pushing to `main` updates the phones.
 
-Other branches:
+```
+index.html, css/, js/, icons/, sw.js, manifest.webmanifest   the app (served by Pages)
+backend/      Apps Script add-ons for the shared Google Sheet: daily deployment, to-do list
+docs/         staff guides (PDF), the rebuild plan, the original app's README with Code.gs
+tools/        scripts that make the guides, the showcase video and screenshots
+workbooks/    standalone Excel workbooks from before the app
+archive/      retired tools, kept for reference
+```
 
-- `original-app-final`: the original seven-tab app, kept for rolling back.
-  Restore its files on the live branch and the phones go back the same way.
-- `rebuild-history`: the full commit history of the rebuild, from when it was
-  developed in a separate repository (including the promo videos in
-  `docs/media`).
+Branches:
+
+- `main`: everything above. The only branch you need.
+- `archive/original-app`: the original seven-tab app, kept for rolling back.
+  Restore its files on `main` and the phones go back the same way.
+
+The rebuild was first developed in a separate repository; its history is part
+of `main`. The two promo videos from that time are in history only:
+`git show 2146a95:docs/media/oakridge-product-suite-motion.mp4 > motion.mp4`.
 
 How v2 took over from the original app on the phones:
 
@@ -48,7 +60,7 @@ How v2 took over from the original app on the phones:
 ## Deploying (GitHub Pages)
 
 1. **Settings → Pages → Build and deployment → Deploy from a branch**, then
-   pick the branch and `/ (root)`. On the free plan the repository must be
+   pick `main` and `/ (root)`. On the free plan the repository must be
    **public**, same as the original.
 2. Open `https://leegordonsnyder.github.io/Audit-project/` in **Safari**,
    then Share → **Add to Home Screen**.
