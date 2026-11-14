@@ -33,17 +33,21 @@ function refreshSharedData() {
   return refreshing;
 }
 
-// Leads change the deployment during the day (moving breaks and roles), so
-// it's re-pulled on its own, one small request, whenever the app comes back
-// on screen and every few minutes while it's open. Everything else waits for
-// ↻ as before.
+// Leads change the deployment during the day (moving breaks and roles), and
+// the team adds and ticks off to-dos, so those two are re-pulled on their
+// own, two small requests, whenever the app comes back on screen and every
+// few minutes while it's open. Everything else waits for ↻ as before.
 const DEPLOYMENT_STALE_MS = 2 * 60 * 1000;
 
 async function refreshDeploymentIfStale() {
   if (document.hidden || !navigator.onLine || refreshing || !currentInitials()) return;
   const saved = loadJSON(STORE.deployment, null);
   if (saved && Date.now() - new Date(saved.fetchedAt).getTime() < DEPLOYMENT_STALE_MS) return;
-  if ((await loadSharedDeployment()) === true && currentRoute.id === "home" && !document.hidden) renderShiftCard();
+  await loadSharedDeployment().then(loadSharedTodos);
+  if (currentRoute.id === "home" && !document.hidden) {
+    renderShiftCard();
+    renderTodos();
+  }
 }
 
 function registerServiceWorker() {

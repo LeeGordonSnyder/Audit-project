@@ -41,6 +41,41 @@ working exactly as before.
 9. **Turn on the daily build.** Choose **Deployment → Turn on daily auto-build**.
    From then on the tab builds itself around 5am every day.
 
+## Add-on: team to-do list
+
+`Todos.gs` adds a shared **To-do** list to the app's Home screen, kept on a
+**To-do** tab in the sheet. Anyone can add a task and assign it to someone (or
+leave it for anyone). Ticking a task off stamps the person's initials and the
+time. Open tasks stay until they're done; done tasks show in the app for a day
+and stay on the tab as a record. Until this is installed, the app hides the
+list.
+
+1. **Add the file.** In **Extensions → Apps Script**, click **+** next to
+   *Files* → **Script**, name it `Todos`, and paste in the whole of
+   `backend/Todos.gs`.
+2. **Add two lines to `Code.gs`. Add both before redeploying.**
+   - In `function computeDoGetResult(sheetParam) {`, next to the deployment line:
+
+     ```javascript
+     if (sheetParam === "todos") return getTodosForApp();
+     ```
+
+   - In `function doPost(e) {`, straight after the `isAuthorized` line:
+
+     ```javascript
+     if (String(body.type).indexOf("todo") === 0) return handleTodoPost(body);
+     ```
+
+     Without this second line the sheet would treat a new task as a count
+     and add a blank row to AuditLog.
+3. **Redeploy.** **Deploy → Manage deployments** → edit (pencil) → *Version:*
+   **New version** → **Deploy**. Keep the same deployment, so the URL doesn't
+   change.
+
+The **To-do** tab is created with the first task. It can be edited by hand:
+type a task in a new row (the ID column fills itself in), or type initials
+under **DONE BY** to tick one off.
+
 ## Day to day
 
 - **Touching cells with the same code show as one block.** The code is

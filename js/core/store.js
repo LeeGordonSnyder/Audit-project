@@ -29,6 +29,7 @@ const STORE = {
   floorView: "ops2.floorView",
   deployment: "ops2.deployment",
   deploymentPick: "ops2.deploymentPick", // { initials: name } when two people share initials
+  todos: "ops2.todos",
 };
 
 const LEGACY_KEYS = {

@@ -98,8 +98,7 @@ async function postToSheet(payload, attempt = 1) {
   return data;
 }
 
-async function fetchFromSheet(sheet, { key = getApiKey(), retries = SYNC_RETRIES } = {}, attempt = 1) {
-  const url = getWebhookUrl();
+async function fetchFromSheet(sheet, { key = getApiKey(), retries = SYNC_RETRIES, url = getWebhookUrl() } = {}, attempt = 1) {
   const sep = url.includes("?") ? "&" : "?";
   let data;
   try {
@@ -109,7 +108,7 @@ async function fetchFromSheet(sheet, { key = getApiKey(), retries = SYNC_RETRIES
   } catch (e) {
     if (attempt >= retries) throw e;
     await sleep(SYNC_RETRY_DELAY_MS * attempt);
-    return fetchFromSheet(sheet, { key, retries }, attempt + 1);
+    return fetchFromSheet(sheet, { key, retries, url }, attempt + 1);
   }
   checkAuth(data);
   return data;
@@ -143,4 +142,5 @@ const api = {
   floor86Restock: (p) => postToSheet({ type: "floor86restock", ...p }),
   floorRestockAdd: (p) => postToSheet({ type: "floorrestockadd", ...p }),
   feedback: (p) => postToSheet({ type: "feedback", ...p }),
+  todo: (type, p) => postToSheet({ type, initials: currentInitials(), ...p }),
 };

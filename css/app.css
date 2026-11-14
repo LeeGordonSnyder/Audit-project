@@ -660,3 +660,38 @@ label input, label select { margin-top: 4px; color: var(--text); font-weight: 40
   .line-card { flex-direction: row; align-items: center; justify-content: space-between; }
   .line-controls { flex: none; justify-content: flex-end; }
 }
+
+/* ---------- Team to-do list (Home) ---------- */
+.todo-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.todo-add { display: flex; flex-direction: column; gap: 8px; }
+.todo-add-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.todo-assign-label { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 0.85rem; color: var(--text-dim); font-weight: 600; }
+.todo-assign-label select { width: auto; min-width: 110px; margin: 0; }
+.todo-list { list-style: none; margin: 0; padding: 0; }
+.todo-card > .todo-list { margin-top: 10px; border-top: 1px solid var(--border); }
+.todo { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.todo:last-child { border-bottom: 0; }
+.todo.mine .todo-task::after { content: "For you"; margin-left: 8px; padding: 1px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-size: 0.72rem; font-weight: 700; vertical-align: 2px; }
+.todo-check {
+  flex: none; width: 26px; height: 26px; margin-top: 1px; border-radius: 50%;
+  border: 2px solid var(--accent); background: var(--surface); color: #fff;
+  display: grid; place-items: center; font-size: 0.85rem; font-weight: 800; cursor: pointer; padding: 0;
+}
+.todo-check.checked { background: var(--accent); }
+.todo-check.checked::after { content: "✓"; }
+span.todo-check.checked::after { content: none; }
+.todo-task { font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.todo-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 4px; font-size: 0.8rem; color: var(--text-dim); }
+.todo-for { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 0.8rem; font-weight: 400; color: var(--text-dim); }
+.todo-meta select.todo-reassign { width: auto; min-height: 28px; padding: 2px 6px; margin: 0; font-size: 0.8rem; }
+.todo-remove { flex: none; border: 0; background: none; color: var(--text-dim); font-size: 0.95rem; padding: 4px 2px; cursor: pointer; }
+.todo.done .todo-task { text-decoration: line-through; color: var(--text-dim); font-weight: 500; }
+.todo.done .todo-check { border-color: var(--ok); background: var(--ok); }
+.todo-empty { padding: 12px 0; }
+.todo-done { margin-top: 6px; }
+.todo-done summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; color: var(--accent); padding: 6px 0; }

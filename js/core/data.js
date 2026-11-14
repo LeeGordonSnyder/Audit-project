@@ -168,18 +168,33 @@ async function loadSharedFloorRestock() {
   }
 }
 
-// Today's deployment grid (built in the sheet from When I Work). Optional:
-// a backend without the Deployment.gs add-on answers this request with some
-// other sheet's rows, so only a { deployment } object is accepted, and it
-// never counts toward "fully synced".
+// Today's deployment grid (built in the sheet from When I Work). A script
+// version without the Deployment.gs add-on answers this request with some
+// other sheet's rows, so only a { deployment } object is accepted. It never
+// counts toward "fully synced".
 // The last reason the deployment couldn't be read, shown on Home when there's
 // nothing saved to fall back on.
 let deploymentError = "";
 
+const isDeploymentReply = (data) => !!data && !Array.isArray(data) && "deployment" in data;
+
 async function loadSharedDeployment() {
   try {
-    const data = await fetchFromSheet("deployment", { retries: 1 });
-    if (!data || Array.isArray(data) || !("deployment" in data)) return false;
+    let data = await fetchFromSheet("deployment", { retries: 1 });
+    if (!isDeploymentReply(data) && getWebhookUrl() !== DEFAULT_WEBHOOK_URL) {
+      // This phone uses another link, usually one the original app saved for
+      // an older version of the script, from before the deployment add-on.
+      // If the store's main link has it, move the phone over to that link.
+      const main = await fetchFromSheet("deployment", { retries: 1, url: DEFAULT_WEBHOOK_URL }).catch(() => null);
+      if (isDeploymentReply(main)) {
+        setWebhookUrl(DEFAULT_WEBHOOK_URL);
+        data = main;
+      }
+    }
+    if (!isDeploymentReply(data)) {
+      deploymentError = "the sheet link in ⚙︎ Settings doesn't have the deployment add-on";
+      return false;
+    }
     deploymentError = "";
     const saved = loadJSON(STORE.deployment, null);
     // "No Deployment tab" never replaces one already on this phone: the tab can
@@ -194,12 +209,32 @@ async function loadSharedDeployment() {
   }
 }
 
+// The team to-do list (Todos.gs add-on). Without the add-on the backend
+// answers with some other sheet's rows, and the to-do list stays hidden.
+// Like the deployment, it never counts toward "fully synced".
+async function loadSharedTodos() {
+  try {
+    const data = await fetchFromSheet("todos", { retries: 1 });
+    if (!data || Array.isArray(data) || !Array.isArray(data.todos)) return false;
+    saveTodos(data.todos);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function saveTodos(todos) {
+  saveJSON(STORE.todos, { todos, fetchedAt: new Date().toISOString() });
+}
+
 // Pulls every shared sheet at once. Records when the last fully
 // successful pull happened so Home can say how fresh its numbers are.
 // Resolves to { ok, unauthorized }.
 async function loadAllShared() {
   const [, ...results] = await Promise.all([
-    loadSharedDeployment(),
+    // the deployment pull can move the phone onto the store's main link, so
+    // the to-do list waits for it and uses the same link
+    loadSharedDeployment().then(loadSharedTodos),
     loadSharedProductMaster(),
     loadSharedAuditLog(),
     loadSharedConsolMaster(),

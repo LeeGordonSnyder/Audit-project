@@ -18,7 +18,7 @@
   <img src="icons/icon-192.png" alt="" class="topbar-logo">
   <h1>Oakridge Product Suite
     <!-- Bump with sw.js CACHE_VERSION on every shipped change. -->
-    <span class="header-version" id="header-version">v2.1.0</span>
+    <span class="header-version" id="header-version">v2.2.0</span>
   </h1>
   <span id="offline-badge" class="badge" hidden>Offline</span>
   <div class="topbar-actions">
@@ -50,6 +50,30 @@
       <button type="button" class="quick" data-action="quick-count"><span class="quick-icon">📷</span>Scan to Count</button>
       <button type="button" class="quick" data-action="quick-packslip"><span class="quick-icon">📦</span>Scan Packing Slip</button>
       <button type="button" class="quick" data-action="quick-boxes"><span class="quick-icon">🚚</span>Scan Boxes</button>
+    </div>
+
+    <div id="home-todos-wrap" hidden>
+      <div class="section-head">
+        <h3>To-do</h3>
+        <span id="home-todos-count" class="hint"></span>
+      </div>
+      <div class="todo-card">
+        <div class="todo-add">
+          <input type="text" id="todo-task" maxlength="200" placeholder="Add a task…" autocomplete="off" enterkeyhint="done">
+          <div class="todo-add-row">
+            <label class="todo-assign-label">For
+              <select id="todo-assign"></select>
+            </label>
+            <button type="button" class="btn primary small" data-action="todo-add">Add</button>
+          </div>
+        </div>
+        <p id="todo-status" class="status-msg" role="status"></p>
+        <ul id="home-todos" class="todo-list"></ul>
+        <details id="home-todos-done" class="todo-done" hidden>
+          <summary></summary>
+          <ul class="todo-list"></ul>
+        </details>
+      </div>
     </div>
 
     <div class="section-head">

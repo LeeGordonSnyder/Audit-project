@@ -141,6 +141,116 @@ function setShiftPick(name) {
   renderShiftCard();
 }
 
+/* ---------- Team to-do list ----------
+   One shared list from the "To-do" tab (Todos.gs add-on). Anyone can add a
+   task and assign it to someone, or leave it for anyone. Ticking one off
+   stamps the signed-in initials and the time. Open tasks stay until done;
+   done ones show for a day. Hidden when the sheet has no to-do add-on. */
+
+function todoWhen(iso, withTime) {
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  const day = localDayISO(d) === todayISO() ? "today" : d.toLocaleDateString([], { month: "short", day: "numeric" });
+  return withTime ? `${day}, ${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : day;
+}
+
+function todoAssignOptions(selected) {
+  const roster = [...new Set(loadStaffRoster().map((s) => String(s).toUpperCase()))];
+  if (selected && !roster.includes(selected)) roster.push(selected);
+  return [`<option value="">Anyone</option>`]
+    .concat(roster.map((i) => `<option value="${escapeHtml(i)}"${i === selected ? " selected" : ""}>${escapeHtml(i)}</option>`))
+    .join("");
+}
+
+function renderTodos() {
+  const wrap = document.getElementById("home-todos-wrap");
+  const saved = loadJSON(STORE.todos, null);
+  wrap.hidden = !saved;
+  if (!saved) return;
+  const me = currentInitials().toUpperCase();
+  const todos = saved.todos || [];
+  // yours first, then anyone's, then everyone else's; oldest first in each
+  const rank = (t) => (t.assignedTo === me ? 0 : t.assignedTo ? 2 : 1);
+  const open = todos.filter((t) => !t.doneAt).sort((a, b) => rank(a) - rank(b) || String(a.addedAt).localeCompare(String(b.addedAt)));
+  const done = todos.filter((t) => t.doneAt).sort((a, b) => String(b.doneAt).localeCompare(String(a.doneAt)));
+  const mine = open.filter((t) => t.assignedTo === me).length;
+  document.getElementById("home-todos-count").textContent = open.length
+    ? `${open.length} open${mine ? ` · ${mine} for you` : ""}`
+    : "";
+
+  const select = document.getElementById("todo-assign");
+  const keep = select.value;
+  select.innerHTML = todoAssignOptions("");
+  select.value = keep;
+
+  document.getElementById("home-todos").innerHTML = open.length
+    ? open
+        .map(
+          (t) => `
+      <li class="todo${t.assignedTo === me ? " mine" : ""}">
+        <button type="button" class="todo-check" data-action="todo-done" data-id="${escapeHtml(t.id)}" aria-label="Mark done"></button>
+        <div class="grow">
+          <div class="todo-task">${escapeHtml(t.task)}</div>
+          <div class="todo-meta">
+            <label class="todo-for">For <select class="todo-reassign" data-id="${escapeHtml(t.id)}" aria-label="Assigned to">${todoAssignOptions(t.assignedTo)}</select></label>
+            <span>Added by ${escapeHtml(t.addedBy || "?")} · ${escapeHtml(todoWhen(t.addedAt))}</span>
+          </div>
+        </div>
+        <button type="button" class="todo-remove" data-action="todo-delete" data-id="${escapeHtml(t.id)}" aria-label="Remove task">✕</button>
+      </li>`
+        )
+        .join("")
+    : `<li class="todo-empty hint">Nothing to do. Add a task above.</li>`;
+
+  const doneEl = document.getElementById("home-todos-done");
+  doneEl.hidden = !done.length;
+  doneEl.querySelector("summary").textContent = `Done in the last day (${done.length})`;
+  doneEl.querySelector("ul").innerHTML = done
+    .map(
+      (t) => `
+      <li class="todo done">
+        <span class="todo-check checked" aria-hidden="true">✓</span>
+        <div class="grow">
+          <div class="todo-task">${escapeHtml(t.task)}</div>
+          <div class="todo-meta"><span>Done by ${escapeHtml(t.doneBy || "?")} · ${escapeHtml(todoWhen(t.doneAt, true))}</span></div>
+        </div>
+        <button type="button" class="link-btn" data-action="todo-undo" data-id="${escapeHtml(t.id)}">Undo</button>
+      </li>`
+    )
+    .join("");
+}
+
+// Sends one change and shows the list the sheet answers with.
+async function todoSend(btn, type, payload, verb) {
+  const status = document.getElementById("todo-status");
+  if (!requireOnline(status, verb)) return false;
+  setStatus(status, "");
+  const run = async () => {
+    try {
+      const res = await api.todo(type, payload);
+      if (!Array.isArray(res.todos)) throw new Error("the sheet's Code.gs is missing the to-do line in doPost (see backend/README.md)");
+      saveTodos(res.todos);
+      renderTodos();
+      return true;
+    } catch (e) {
+      setStatus(status, `Couldn't update the to-do list: ${e.message || e}. Nothing was ${verb}.`, true);
+      return false;
+    }
+  };
+  return btn ? withBusy(btn, run) : run();
+}
+
+async function addTodo(btn) {
+  const input = document.getElementById("todo-task");
+  const task = input.value.trim();
+  if (!task) return input.focus();
+  const assignedTo = document.getElementById("todo-assign").value;
+  if (await todoSend(btn, "todoadd", { task, assignedTo }, "added")) {
+    input.value = "";
+    document.getElementById("todo-assign").value = "";
+  }
+}
+
 function formatDuration(min) {
   const h = Math.floor(min / 60), m = min % 60;
   return h ? `${h}h${m ? " " + m + "m" : ""}` : `${m}m`;
@@ -155,6 +265,25 @@ registerView("home", {
       "quick-boxes": () => goTo("receiving", startReceivingScan),
       "pick-shift": (el) => setShiftPick(el.dataset.name),
       "unpick-shift": () => setShiftPick(null),
+      "todo-add": (el) => addTodo(el),
+      "todo-done": (el) => {
+        el.classList.add("checked");
+        todoSend(el, "tododone", { id: el.dataset.id }, "ticked off").then((ok) => ok || el.classList.remove("checked"));
+      },
+      "todo-undo": (el) => todoSend(el, "todoundo", { id: el.dataset.id }, "changed"),
+      "todo-delete": (el) => {
+        const task = el.closest(".todo").querySelector(".todo-task").textContent;
+        if (confirm(`Remove "${task}" from the list? Use this for mistakes; tick a task off when it's done.`)) {
+          todoSend(el, "tododelete", { id: el.dataset.id }, "removed");
+        }
+      },
+    });
+    root.addEventListener("change", (e) => {
+      const sel = e.target.closest(".todo-reassign");
+      if (sel) todoSend(null, "todoassign", { id: sel.dataset.id, assignedTo: sel.value }, "reassigned").then((ok) => ok || renderTodos());
+    });
+    document.getElementById("todo-task").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") addTodo(root.querySelector('[data-action="todo-add"]'));
     });
   },
 
@@ -165,6 +294,7 @@ registerView("home", {
     document.getElementById("home-greeting").textContent = `${greet}${initials ? ", " + initials : ""}`;
 
     renderShiftCard();
+    renderTodos();
 
     const lastSync = loadJSON(STORE.lastSync, null);
     document.getElementById("home-freshness").textContent = lastSync

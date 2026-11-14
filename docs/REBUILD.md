@@ -65,6 +65,13 @@ Outside tolerance / Not saved).
       marker), read from the Deployment tab. It stays hidden until the add-on
       is installed.
 
+## Added: team to-do list
+
+- [x] `backend/Todos.gs`: a shared **To-do** list on Home, kept on a To-do tab.
+      Tasks can be assigned to someone or left for anyone; ticking one off
+      stamps initials and time. Open tasks stay until done; done ones show for
+      a day. Setup steps are in `backend/README.md`.
+
 ## Phase 2 — next
 
 - [ ] Configurable count tolerance (currently fixed in `exceptions.js`
