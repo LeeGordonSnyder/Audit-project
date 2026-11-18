@@ -148,6 +148,7 @@ async function loadSharedReceivingMaster() {
     const rows = await fetchFromSheet("receiving");
     if (!Array.isArray(rows)) return false;
     saveJSON(STORE.receivingMaster, rows.map(sheetRowToReceivingItem));
+    if (rows.length) saveJSON(STORE.doubleCheckReady, "doubleCheckedAt" in rows[0]);
     return true;
   } catch (e) {
     return isUnauthorized(e) ? "unauthorized" : false;

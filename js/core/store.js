@@ -29,6 +29,7 @@ const STORE = {
   floorView: "ops2.floorView",
   deployment: "ops2.deployment",
   deploymentPick: "ops2.deploymentPick", // { initials: name } when two people share initials
+  doubleCheckReady: "ops2.doubleCheckReady", // the sheet's Code.gs has the receiving double check
   todos: "ops2.todos",
 };
 
@@ -141,6 +142,14 @@ function currentInitials() {
 
 function isLeadership() {
   return LEADERSHIP_INITIALS.includes(currentInitials().toUpperCase());
+}
+
+// Leadership's Double Check tab and Home shortcut wait until the sheet's
+// Code.gs has the double check (its receiving rows then carry the
+// doubleCheckedAt field). An older Code.gs would file the request as a
+// blank count.
+function canDoubleCheck() {
+  return isLeadership() && loadJSON(STORE.doubleCheckReady, false) === true;
 }
 
 /* ---------- Product catalog ---------- */

@@ -147,7 +147,7 @@ function setShiftPick(name) {
 
 function renderDoubleCheckShortcut() {
   const el = document.getElementById("home-double-check");
-  const due = isLeadership() ? receivingDoubleCheckDue().length : 0;
+  const due = canDoubleCheck() ? receivingDoubleCheckDue().length : 0;
   el.hidden = !due;
   if (due) document.getElementById("home-double-check-sub").textContent = `${plural(due, "box", "boxes")} received into MAO to check`;
 }

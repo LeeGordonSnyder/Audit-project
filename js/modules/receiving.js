@@ -287,7 +287,7 @@ const RECV_SUBS = ["log", "double-check"];
 let recvSub = "log";
 
 function setRecvSub(sub) {
-  const lead = isLeadership();
+  const lead = canDoubleCheck();
   recvSub = lead && RECV_SUBS.includes(sub) ? sub : "log";
   document.getElementById("recv-tabs").hidden = !lead;
   document.querySelectorAll("#recv-tabs [data-sub]").forEach((b) => {

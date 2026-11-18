@@ -214,6 +214,6 @@ function computeExceptions() {
 // Badge = things that need a person to act, not informational notes.
 // Leadership's Double Check Required shortcut counts as one more.
 function actionableExceptionCount() {
-  const doubleCheck = isLeadership() && receivingDoubleCheckDue().length ? 1 : 0;
+  const doubleCheck = canDoubleCheck() && receivingDoubleCheckDue().length ? 1 : 0;
   return computeExceptions().filter((e) => e.severity !== "info").length + doubleCheck;
 }
