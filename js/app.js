@@ -94,6 +94,7 @@ function initialLoad() {
 document.addEventListener("DOMContentLoaded", () => {
   carryOverOriginalAppWork();
   initScannerModal();
+  initGuides();
   initChangeUser();
   initSettings();
   document.getElementById("refresh-btn").addEventListener("click", refreshSharedData);

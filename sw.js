@@ -1,6 +1,6 @@
 // Bump CACHE_VERSION on every shipped change (and the header version in index.html).
 const CACHE_PREFIX = "ops2-";
-const CACHE_VERSION = 14;
+const CACHE_VERSION = 15;
 const CACHE_NAME = `${CACHE_PREFIX}v${CACHE_VERSION}`;
 
 const CORE_ASSETS = [
@@ -17,6 +17,7 @@ const CORE_ASSETS = [
   "./js/core/api.js",
   "./js/core/data.js",
   "./js/core/ui.js",
+  "./js/core/guides.js",
   "./js/core/scanner.js",
   "./js/core/exceptions.js",
   "./js/core/router.js",

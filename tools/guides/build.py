@@ -1,10 +1,13 @@
-"""Builds one step-by-step PDF guide per page of the Oakridge Product Suite rebuild.
+"""Builds one step-by-step PDF guide per page of the Oakridge Product Suite, plus
+the phone version the app shows in its own guide reader (guides.json and the
+screenshots in img/), all from the same text below.
 
 Usage (from the repo root, after running shots.js to capture screenshots):
     python3 tools/guides/build.py docs/guides icons/icon-512.png
 
 Update VERSION and the step text below when a page changes, then re-run both.
 """
+import json
 import os
 import sys
 from PIL import Image as PILImage
@@ -245,9 +248,45 @@ def build(filename, title, subtitle, purpose, need, steps, extras=None):
     flow.append(Spacer(1, 16))
     for i, s in enumerate(steps, 1):
         flow.append(step(i, **s))
-    if extras:
-        flow += extras
+    for kind, *args in extras or []:
+        if kind == "h":
+            flow.append(Paragraph(args[0], S_SECTION))
+        elif kind == "p":
+            flow.append(p(args[0]))
+        elif kind == "table":
+            flow.append(ref_table(*args))
     doc.build(flow)
+    return path
+
+
+def export_web(guides, out):
+    """The phone version for the app's guide reader: guides.json (keyed by PDF
+    file name) and every screenshot it uses, as JPEGs sized for a phone."""
+    img_dir = os.path.join(out, "img")
+    os.makedirs(img_dir, exist_ok=True)
+    data = {}
+    for g in guides:
+        steps = []
+        for s in g["steps"]:
+            step = {"title": s["title"], "body": s["body"] if isinstance(s["body"], list) else [s["body"]]}
+            if s.get("tip"):
+                step["tip"] = s["tip"]
+            if s.get("image"):
+                im = PILImage.open(shot(s["image"])).convert("RGB")
+                if im.width > 780:
+                    im = im.resize((780, round(im.height * 780 / im.width)), PILImage.LANCZOS)
+                im.save(os.path.join(img_dir, s["image"] + ".jpg"), quality=82, optimize=True)
+                step["image"] = "img/" + s["image"] + ".jpg"
+                step["wide"] = is_wide(s["image"])
+            steps.append(step)
+        extras = []
+        for kind, *args in g.get("extras") or []:
+            extras.append({"kind": kind, "text": args[0]} if kind != "table" else {"kind": "table", "header": args[0], "rows": args[1]})
+        data[g["filename"]] = {"title": g["title"], "subtitle": g["subtitle"], "purpose": g["purpose"],
+                               "need": g.get("need") or "", "steps": steps, "extras": extras}
+    path = os.path.join(out, "guides.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({"version": VERSION, "guides": data}, f, ensure_ascii=False, indent=1)
     return path
 
 
@@ -306,8 +345,8 @@ GUIDES.append(dict(
              image="start-09-update"),
     ],
     extras=[
-        Paragraph("If something goes wrong", S_SECTION),
-        ref_table(["You see", "What it means", "What to do"], [
+        ("h", "If something goes wrong"),
+        ("table", ["You see", "What it means", "What to do"], [
             ["“Couldn't reach the sheet — showing what's saved on this device.”", "No connection, or Google was slow to answer.", "Keep working; things you stage are kept on the device. Tap ↻ once you're back on Wi-Fi."],
             ["“The sheet rejected this device's access key.”", "The key on this device is wrong or out of date.", "⚙ Settings → paste the current key → Save &amp; sync. Ask a lead for the key."],
             ["Stuck on the loading screen", "The sheet is slow to answer.", "Wait for <b>Continue with what's saved on this device</b> and tap it."],
@@ -351,8 +390,8 @@ GUIDES.append(dict(
              image="start-05-nav"),
     ],
     extras=[
-        Paragraph("What can appear on Home, and how to clear it", S_SECTION),
-        ref_table(["Card", "Why it appears", "How it clears"], [
+        ("h", "What can appear on Home, and how to clear it"),
+        ("table", ["Card", "Why it appears", "How it clears"], [
             ["Box on the shelf but not received into MAO", "A box was marked Physically Received over a day ago, but not Received into MAO.", "Receive it in MAO, then mark it <b>Received into MAO</b> on the Receiving page."],
             ["Count outside tolerance", "The latest count of a product (last 14 days) was off by more than 2 units or 5%, whichever is larger.", "Recount it on Counts. A recount within tolerance clears it."],
             ["Counts not saved to the sheet", "Counts logged on this device haven't been sent yet.", "Counts → <b>Save to Sheet</b>."],
@@ -575,12 +614,13 @@ GUIDES.append(dict(
              image="flr-09-86"),
     ],
     extras=[
-        Paragraph("Reading the progress bar", S_SECTION),
-        p("Lines on Replen and the 86 Board carry a small three-step bar: <b>Needed → Picked / Out of stock → Restocked</b>. "
-          "A red middle segment means the item went out of stock. A green label means it's finished."),
+        ("h", "Reading the progress bar"),
+        ("p", "Lines on Replen and the 86 Board carry a small three-step bar: <b>Needed → Picked / Out of stock → Restocked</b>. "
+              "A red middle segment means the item went out of stock. A green label means it's finished."),
     ],
 ))
 
 if __name__ == "__main__":
     for g in GUIDES:
         print("Wrote", build(**g))
+    print("Wrote", export_web(GUIDES, OUT))

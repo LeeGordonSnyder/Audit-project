@@ -18,7 +18,7 @@
   <img src="icons/icon-192.png" alt="" class="topbar-logo">
   <h1>Oakridge Product Suite
     <!-- Bump with sw.js CACHE_VERSION on every shipped change. -->
-    <span class="header-version" id="header-version">v2.3.2</span>
+    <span class="header-version" id="header-version">v2.4.0</span>
   </h1>
   <span id="offline-badge" class="badge" hidden>Offline</span>
   <div class="topbar-actions">
@@ -423,6 +423,15 @@
   </div>
 </div>
 
+<div id="guide-modal" class="guide-viewer" role="dialog" aria-labelledby="guide-bar-title" hidden>
+  <header class="guide-bar">
+    <button type="button" id="guide-back" class="guide-back">‹ Back</button>
+    <span id="guide-bar-title" class="guide-bar-title">Guide</span>
+    <button type="button" id="guide-share" class="guide-share" hidden>Share PDF</button>
+  </header>
+  <div id="guide-body" class="guide-body"></div>
+</div>
+
 <div id="settings-modal" class="modal" hidden>
   <div class="modal-inner">
     <h2>Settings</h2>
@@ -543,6 +552,7 @@
 <script src="js/core/api.js"></script>
 <script src="js/core/data.js"></script>
 <script src="js/core/ui.js"></script>
+<script src="js/core/guides.js"></script>
 <script src="js/core/scanner.js"></script>
 <script src="js/core/exceptions.js"></script>
 <script src="js/core/router.js"></script>
