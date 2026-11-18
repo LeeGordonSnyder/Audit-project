@@ -197,11 +197,29 @@ const { DATA, MAO_PASTE, RECV_PASTE } = require('./mockdata');
   await page.click('[data-action="recv-hold-awaiting"]');
   await clearStatus();
   await shot('rec-06-held-mao', '#recv-holding-section');
+  // the orange "press Submit" checkpoint (Go back, so the boxes stay held)
+  await page.click('#recv-mark-mao-btn');
+  await shot('rec-09-mao-submit', '#recv-mao-modal .modal-inner');
+  await page.click('#recv-mao-cancel-btn');
   await page.evaluate(() => openAddBoxModal('8069559026499999'));
   await page.fill('#recv-add-po', '6390185320');
   await shot('rec-07-notexpected', '#recv-add-modal .modal-inner');
   await page.click('#recv-add-modal [data-close]');
   await shot('rec-08-expected', '#recv-expected');
+
+  // Leadership: the Home shortcut and the Double Check tab
+  await page.evaluate(() => { saveJSON(STORE.session, { initials: 'SG' }); document.getElementById('header-user-initials').textContent = 'SG'; });
+  await go('home');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await shot('rec-10-home-shortcut', '#home-double-check');
+  await page.click('#home-double-check');
+  await page.waitForSelector('#recv-panel-double-check:not([hidden])');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await shot('rec-11-double-check');
+  await page.click('[data-action="recv-double-check"] >> nth=0');
+  await page.waitForFunction(() => /^Checked/.test(document.getElementById('recv-dc-status').textContent));
+  await shot('rec-12-checked', '#recv-panel-double-check');
+  await page.evaluate(() => { saveJSON(STORE.session, { initials: 'LS' }); document.getElementById('header-user-initials').textContent = 'LS'; });
 
   // ---------- Floor Stock ----------
   await go('floor/check');

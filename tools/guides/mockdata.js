@@ -36,7 +36,10 @@ const DATA = {
     { barcode: '8069559026403611', po: '6390185303', expectedDate: day(0), physicallyReceivedDate: '', physicallyReceivedBy: '', receivedIntoMaoDate: '', receivedIntoMaoBy: '' },
     { barcode: '8069559026403612', po: '6390185303', expectedDate: day(0), physicallyReceivedDate: '', physicallyReceivedBy: '', receivedIntoMaoDate: '', receivedIntoMaoBy: '' },
     { barcode: '8069559026403599', po: '6390185290', expectedDate: day(6), physicallyReceivedDate: day(5), physicallyReceivedBy: 'LS', receivedIntoMaoDate: day(5), receivedIntoMaoBy: 'LS' },
-  ],
+    { barcode: '8069559026403587', po: '6390185288', expectedDate: day(3), physicallyReceivedDate: day(2), physicallyReceivedBy: 'JV', receivedIntoMaoDate: day(2), receivedIntoMaoBy: 'JV' },
+    { barcode: '8069559026403588', po: '6390185288', expectedDate: day(3), physicallyReceivedDate: day(2), physicallyReceivedBy: 'JV', receivedIntoMaoDate: day(1), receivedIntoMaoBy: 'LS' },
+    { barcode: '8069559026403575', po: '6390185271', expectedDate: day(9), physicallyReceivedDate: day(8), physicallyReceivedBy: 'SC', receivedIntoMaoDate: day(8), receivedIntoMaoBy: 'SC', doubleCheckedAt: ago(7), doubleCheckedBy: 'SG' },
+  ].map((b) => ({ doubleCheckedAt: '', doubleCheckedBy: '', ...b })), // a Code.gs with the double check sends both on every row
   floorrestock: (() => {
     const r = (name, color, size, sku, sold, onHand, extra = {}) => ({ GENDER: 'M', 'CLOTHING CATEGORY': 'Jackets', 'MODEL NAME': name, COLOR: color, SIZE: size, SKU: sku, 'QUANTITY SOLD': sold, 'ON HAND QUANTITY': onHand, STATUS: '', 'CHECKED BY': '', 'CHECKED DATE': '', '86': '', RESTOCKED: '', ...extra });
     return [

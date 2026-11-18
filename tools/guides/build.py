@@ -44,7 +44,7 @@ GREEN = colors.HexColor("#2f7d55")
 PAGE_W, PAGE_H = letter
 MARGIN = 0.7 * inch
 CONTENT_W = PAGE_W - 2 * MARGIN
-VERSION = "v2.0.4"
+VERSION = "v2.3.2"
 
 
 def S(name, **kw):
@@ -487,11 +487,12 @@ GUIDES.append(dict(
     title="Receiving",
     subtitle="Import shipments, scan boxes in, and make sure MAO gets updated",
     purpose="Logging incoming boxes in two separate steps: <b>Physically Received</b> (it's on our shelf) and <b>Received into MAO</b> (MAO knows about it). "
-            "Each step is stamped with who did it and when. Boxes that are on the shelf but not yet in MAO stay visible until they are.",
+            "Each step is stamped with who did it and when. Boxes that are on the shelf but not yet in MAO stay visible until they are. "
+            "Then leadership <b>double check</b> in MAO that each box really was received there.",
     need="The expected-shipment list from MAO's <b>Receive Inventory</b> page (step 1).",
     steps=[
         dict(title="Import the expected shipments",
-             body=["Open <b>Import from MAO</b> at the bottom of the page. In MAO's <b>Receive Inventory</b> page, copy the shipment list (the ETA / Package / PO # blocks) and paste it in.",
+             body=["Open <b>Import from MAO</b> at the top of the page. In MAO's <b>Receive Inventory</b> page, copy the shipment list (the ETA / Package / PO # blocks) and paste it in.",
                    "Tap <b>Import</b>. The boxes appear under <b>Expected boxes</b> and are shared with every device. Re-importing the same list is safe."],
              image="rec-02-import"),
         dict(title="Scan boxes as they come in",
@@ -510,13 +511,24 @@ GUIDES.append(dict(
                    "After a day, a box also shows up as a red card on Home. This is the step that's easy to forget, and it's what this list is for."],
              image="rec-05-awaiting"),
         dict(title="Receive them into MAO",
-             body=["Receive the boxes in MAO first. Then tap <b>Hold all</b> on Waiting on MAO (or scan just the boxes you did) and tap <b>Received into MAO</b>.",
-                   "Those boxes are finished: they drop off every list, and the Home card clears."],
+             body=["Receive the boxes in MAO first, and press <b>Submit</b> in MAO on the store phone. Then tap <b>Hold all</b> on Waiting on MAO (or scan just the boxes you did) and tap <b>Received into MAO</b>."],
              image="rec-06-held-mao"),
+        dict(title="Confirm you pressed Submit",
+             body=["An orange check asks <b>Did you press Submit in MAO?</b> Boxes don't count as received in MAO until Submit is pressed on the store phone, so look in MAO and make sure each box shows as received.",
+                   "Tap <b>I pressed Submit and checked MAO</b> to mark them. The boxes drop off every list and the Home card clears. <b>Go back</b> leaves them in Holding."],
+             image="rec-09-mao-submit",
+             tip="Boxes marked here but never submitted in MAO cause inventory errors. That's why every one is double checked by leadership afterwards."),
         dict(title="No camera? Tick boxes instead",
              body=["Under <b>Expected boxes</b>, tick the boxes and tap <b>Hold selected</b>. Then mark them as in steps 4 and 6. Use the filter to find a PO # or package number quickly.",
                    "<b>Export CSV</b> (inside Import from MAO) downloads the full receiving log."],
              image="rec-08-expected"),
+        dict(title="Leadership: Double Check Required",
+             body=["Leadership (SG, SC, OT, JB, AL, MS) see an orange <b>Double Check Required</b> button on Home whenever boxes marked Received into MAO in the last 14 days haven't been checked yet. Tap it to open the <b>Double Check</b> tab in Receiving."],
+             image="rec-10-home-shortcut"),
+        dict(title="Leadership: check each box in MAO",
+             body=["Look up each package in MAO and confirm it was received and submitted. Then tap <b>Checked</b>. It saves straight away, with no Holding step, and the box drops off the list.",
+                   "Each check is stamped in the sheet's ReceivingLog tab under <b>DOUBLE CHECKED</b> (when) and <b>DOUBLE CHECKED BY</b> (your initials). If a box isn't received in MAO, receive and submit it there first, then check it."],
+             image="rec-11-double-check"),
     ],
 ))
 
