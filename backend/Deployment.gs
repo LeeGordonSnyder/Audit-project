@@ -1462,7 +1462,9 @@ function deployRemoveTrigger(quiet) {
 function getDeploymentForApp() {
   const ss = SpreadsheetApp.getActive();
   const sh = ss.getSheetByName(DEPLOY.SHEET);
-  const codes = deployReadCodes_().map(({ code, label, bg, fg }) => ({ code, label, bg, fg }));
+  // colors go into the app's style attributes, so only plain hex gets through
+  const hex = (c, fallback) => (/^#[0-9a-f]{3,8}$/i.test(String(c).trim()) ? String(c).trim() : fallback);
+  const codes = deployReadCodes_().map(({ code, label, bg, fg }) => ({ code, label, bg: hex(bg, "#ffffff"), fg: hex(fg, "#000000") }));
   if (!sh) return { ok: true, deployment: null, codes };
   const dayKey = sh.getRange("B1").getNote();
   const n = deploySlotCount_();

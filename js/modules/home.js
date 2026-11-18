@@ -96,7 +96,7 @@ function renderShiftCard() {
   const worked = person.blocks.filter((b) => b.code !== "B").reduce((a, b) => a + (b.end - b.start), 0);
   const style = (code) => {
     const c = codes[code];
-    return c ? `background:${c.bg};color:${c.fg}` : "background:#ddd;color:#333";
+    return c ? `background:${escapeHtml(c.bg)};color:${escapeHtml(c.fg)}` : "background:#ddd;color:#333";
   };
   const label = (code) => (codes[code] ? codes[code].label : code);
   const bar = person.blocks
@@ -139,6 +139,17 @@ function setShiftPick(name) {
   else delete picks[me];
   saveJSON(STORE.deploymentPick, picks);
   renderShiftCard();
+}
+
+/* ---------- Double Check Required (leadership only) ----------
+   Orange shortcut to Receiving's Double Check tab while boxes marked
+   Received into MAO are waiting for a leader to confirm them in MAO. */
+
+function renderDoubleCheckShortcut() {
+  const el = document.getElementById("home-double-check");
+  const due = isLeadership() ? receivingDoubleCheckDue().length : 0;
+  el.hidden = !due;
+  if (due) document.getElementById("home-double-check-sub").textContent = `${plural(due, "box", "boxes")} received into MAO to check`;
 }
 
 /* ---------- Team to-do list ----------
@@ -294,6 +305,7 @@ registerView("home", {
     document.getElementById("home-greeting").textContent = `${greet}${initials ? ", " + initials : ""}`;
 
     renderShiftCard();
+    renderDoubleCheckShortcut();
     renderTodos();
 
     const lastSync = loadJSON(STORE.lastSync, null);

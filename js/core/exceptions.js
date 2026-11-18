@@ -15,6 +15,9 @@
 const COUNT_TOLERANCE = { units: 2, pct: 0.05 };
 const COUNT_FLAG_WINDOW_DAYS = 14;
 const RECEIVING_MAO_GRACE_DAYS = 1;
+// Boxes marked Received into MAO this recently wait for a leader's double
+// check; older ones predate the check and don't fill the list.
+const DOUBLE_CHECK_WINDOW_DAYS = 14;
 const CONSOL_HOLDING_STALE_DAYS = 1;
 const FLOOR_NEEDED_STALE_DAYS = 3;
 const SHEET_STALE_HOURS = 24;
@@ -61,6 +64,16 @@ function staleFloorNeeded() {
     .map((item) => ({ ...item, age: daysAgo(item.checkedDate) }))
     .filter((item) => item.age != null && item.age >= FLOOR_NEEDED_STALE_DAYS)
     .sort((a, b) => b.age - a.age);
+}
+
+// Received into MAO in the app, not yet double checked in MAO by a leader.
+// Oldest first.
+function receivingDoubleCheckDue() {
+  return loadJSON(STORE.receivingMaster, [])
+    .filter((b) => b.receivedIntoMaoDate && !b.doubleCheckedAt)
+    .map((b) => ({ ...b, age: daysAgo(b.receivedIntoMaoDate) }))
+    .filter((b) => b.age != null && b.age <= DOUBLE_CHECK_WINDOW_DAYS)
+    .sort((a, b) => b.age - a.age || a.po.localeCompare(b.po));
 }
 
 function computeExceptions() {
@@ -199,6 +212,8 @@ function computeExceptions() {
 }
 
 // Badge = things that need a person to act, not informational notes.
+// Leadership's Double Check Required shortcut counts as one more.
 function actionableExceptionCount() {
-  return computeExceptions().filter((e) => e.severity !== "info").length;
+  const doubleCheck = isLeadership() && receivingDoubleCheckDue().length ? 1 : 0;
+  return computeExceptions().filter((e) => e.severity !== "info").length + doubleCheck;
 }

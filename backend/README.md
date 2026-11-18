@@ -19,6 +19,18 @@ hand, above all a `function onEdit` (it stamps Supervisor Initials and the
 date on AuditLog). `Code.gs` here doesn't have it. Copy it first and paste it
 back at the bottom afterwards, or move it into a file of its own.
 
+**Receiving Double Check** (in `Code.gs`): leadership confirm, box by box,
+that each box marked Received into MAO really was submitted in MAO. Each check
+writes the time to **DOUBLE CHECKED** (column J) and the leader's initials to
+**DOUBLE CHECKED BY** (column K) of ReceivingLog. The headers are added with
+the first check. Only the initials in `LEADERSHIP_INITIALS` (SG, SC, OT, JB, AL,
+MS) can double check; the same list is in the app's `js/core/store.js`, so
+change both together.
+
+**Formulas:** text sent by the app that starts like a formula (`=`, `@`, or
+`+`/`-` followed by a letter) is stored as plain text, so nothing typed in the
+app can run as a formula in the sheet.
+
 The sections below explain each add-on and its one-time setup. If you paste
 the full `Code.gs`, skip the steps that add single lines to it.
 

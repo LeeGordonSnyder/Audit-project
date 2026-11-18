@@ -5,8 +5,14 @@
    nothing server-side. Every request carries the shared access key; see
    "Securing the backend" in the original app's README. */
 
+// Every request carries the access key, so only a Google Apps Script web
+// app link is ever used. Anything else saved on the phone falls back to the
+// store's link.
+const SCRIPT_URL_PATTERN = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/;
+
 function getWebhookUrl() {
-  return loadString(STORE.webhookUrl, LEGACY_KEYS.webhookUrl) || DEFAULT_WEBHOOK_URL;
+  const saved = loadString(STORE.webhookUrl, LEGACY_KEYS.webhookUrl);
+  return SCRIPT_URL_PATTERN.test(saved) ? saved : DEFAULT_WEBHOOK_URL;
 }
 
 function setWebhookUrl(url) {
@@ -137,6 +143,7 @@ const api = {
   receivingImport: (item) => postToSheet({ type: "receivingimport", ...item }),
   receivingImportBatch: (items) => postToSheet({ type: "receivingimportbatch", items }),
   receivingStatus: (p) => postToSheet({ type: "receivingstatus", ...p }),
+  receivingDoubleCheck: (p) => postToSheet({ type: "receivingdoublecheck", ...p }),
   checkFloorUpdate: (p) => postToSheet({ type: "checkfloorupdate", ...p }),
   floorPickUpdate: (p) => postToSheet({ type: "floorpickupdate", ...p }),
   floor86Restock: (p) => postToSheet({ type: "floor86restock", ...p }),

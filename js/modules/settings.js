@@ -3,11 +3,15 @@
 /* ---------- Settings, roster & feedback ----------
    Everything administrative in one modal, reachable from any screen. */
 
-const APP_VERSION = "2.2.0";
+const APP_VERSION = "2.3.0";
 
 function openSettings() {
   document.getElementById("settings-url").value = getWebhookUrl();
-  document.getElementById("settings-key").value = getApiKey();
+  // The saved key is never put back on screen, where anyone holding the
+  // phone could copy it. Typing a new one replaces it; blank keeps it.
+  const keyInput = document.getElementById("settings-key");
+  keyInput.value = "";
+  keyInput.placeholder = getApiKey() ? "Saved on this phone (leave blank to keep)" : "Not set";
   setStatus("settings-status", "", false);
   renderSettingsRoster();
   const lastSync = loadJSON(STORE.lastSync, null);
@@ -26,12 +30,14 @@ function renderSettingsRoster() {
 function saveSettings() {
   const url = document.getElementById("settings-url").value.trim();
   const key = document.getElementById("settings-key").value.trim();
-  if (url && !/^https:\/\//.test(url)) {
-    setStatus("settings-status", "The Sheet URL should start with https://", true);
+  // Only a Google Apps Script web app link: every request carries the
+  // access key, so the app must never send it anywhere else.
+  if (url && !SCRIPT_URL_PATTERN.test(url)) {
+    setStatus("settings-status", "The Sheet URL should be a Google Apps Script link ending in /exec.", true);
     return;
   }
-  setWebhookUrl(url);
-  setApiKey(key);
+  setWebhookUrl(url || DEFAULT_WEBHOOK_URL);
+  if (key) setApiKey(key);
   setStatus("settings-status", "Saved. Pulling from the sheet…", false);
   refreshSharedData().then(({ ok, unauthorized }) =>
     setStatus(

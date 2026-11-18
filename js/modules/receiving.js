@@ -5,7 +5,11 @@
    continuous box scanning into a Holding list. New in the rebuild: the
    "Waiting on MAO" queue. A box that's on the shelf but not received into
    MAO is exactly the same silent-gap risk as closing a consolidation box,
-   so it stays visible here (and on Home) until the sheet shows step two. */
+   so it stays visible here (and on Home) until the sheet shows step two.
+
+   Then a third step for leadership: the Double Check tab, where a leader
+   confirms in MAO, one box at a time, that each box marked Received into
+   MAO really was submitted there. */
 
 function loadReceivingHolding() {
   return loadJSON(STORE.receivingHolding, []);
@@ -80,9 +84,32 @@ async function saveAddBox() {
   }
 }
 
+// The orange checkpoint before Received into MAO: boxes only count in MAO
+// once Submit is pressed there, so it can't be skipped. Resolves to true
+// when they confirm, false when they go back.
+function confirmMaoSubmit(count) {
+  return new Promise((resolve) => {
+    document.getElementById("recv-mao-count").textContent = plural(count, "box", "boxes");
+    openModal("recv-mao-modal");
+    const ok = document.getElementById("recv-mao-confirm-btn");
+    const back = document.getElementById("recv-mao-cancel-btn");
+    const done = (answer) => {
+      ok.removeEventListener("click", yes);
+      back.removeEventListener("click", no);
+      closeModal("recv-mao-modal");
+      resolve(answer);
+    };
+    const yes = () => done(true);
+    const no = () => done(false);
+    ok.addEventListener("click", yes);
+    back.addEventListener("click", no);
+  });
+}
+
 async function markHeld(status, btn) {
   const holding = loadReceivingHolding();
   if (!holding.length || !requireOnline("recv-status", "marked")) return;
+  if (status === "mao" && !(await confirmMaoSubmit(holding.length))) return;
   const date = todayISO();
   const initials = currentInitials();
   const barcodes = holding.map((b) => b.barcode);
@@ -191,7 +218,7 @@ function renderExpected() {
   if (!shown.length) {
     el.innerHTML = `<p class="no-results">${
       master.length === 0
-        ? "No expected shipments — paste the MAO list under Import below."
+        ? "No expected shipments — paste the MAO list under Import from MAO above."
         : remaining.length === 0
         ? "Every box is received into MAO."
         : "No boxes match that filter."
@@ -254,15 +281,81 @@ function exportReceivingCsv() {
   downloadCsv(`receiving-log-${todayISO()}.csv`, [header, ...loadJSON(STORE.receivingMaster, []).map((b) => header.map((k) => b[k]))]);
 }
 
+/* ---------- Double Check (leadership) ---------- */
+
+const RECV_SUBS = ["log", "double-check"];
+let recvSub = "log";
+
+function setRecvSub(sub) {
+  const lead = isLeadership();
+  recvSub = lead && RECV_SUBS.includes(sub) ? sub : "log";
+  document.getElementById("recv-tabs").hidden = !lead;
+  document.querySelectorAll("#recv-tabs [data-sub]").forEach((b) => {
+    const on = b.dataset.sub === recvSub;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  RECV_SUBS.forEach((s) => (document.getElementById(`recv-panel-${s}`).hidden = s !== recvSub));
+}
+
+function renderDoubleCheck() {
+  const due = receivingDoubleCheckDue();
+  document.getElementById("recv-n-double-check").textContent = due.length ? String(due.length) : "";
+  if (recvSub !== "double-check") return;
+  const filter = normalize(document.getElementById("recv-dc-filter").value);
+  const shown = due.filter((b) => !filter || normalize(b.po).includes(filter) || normalize(b.barcode).includes(filter));
+  const el = document.getElementById("recv-dc-list");
+  if (!shown.length) {
+    el.innerHTML = `<p class="no-results">${due.length ? "No boxes match that filter." : "All caught up. Every box received into MAO has been double checked."}</p>`;
+    return;
+  }
+  el.innerHTML = shown
+    .map(
+      (b) => `
+      <div class="list-row static">
+        <span class="grow"><span class="mono">${escapeHtml(b.barcode)}</span><br><span class="hint">PO ${escapeHtml(b.po)} · received into MAO ${escapeHtml(
+        formatDay(b.receivedIntoMaoDate)
+      )} by ${escapeHtml(b.receivedIntoMaoBy || "—")}</span></span>
+        <button type="button" class="btn primary small" data-action="recv-double-check" data-barcode="${escapeHtml(b.barcode)}">Checked</button>
+      </div>`
+    )
+    .join("");
+}
+
+// Straight to the sheet, one box at a time — no holding for this step.
+async function doubleCheckBox(btn) {
+  const barcode = btn.dataset.barcode;
+  if (!requireOnline("recv-dc-status", "checked")) return;
+  await withBusy(btn, async () => {
+    try {
+      const res = await api.receivingDoubleCheck({ barcode, initials: currentInitials() });
+      const master = loadJSON(STORE.receivingMaster, []);
+      const box = master.find((b) => b.barcode === barcode);
+      if (box) {
+        box.doubleCheckedAt = res.doubleCheckedAt || new Date().toISOString();
+        box.doubleCheckedBy = res.doubleCheckedBy || currentInitials();
+        saveJSON(STORE.receivingMaster, master);
+      }
+      setStatus("recv-dc-status", `Checked ${barcode}.`, false);
+      renderDoubleCheck();
+      updateExceptionBadge();
+    } catch (e) {
+      setStatus("recv-dc-status", `Couldn't save the check for ${barcode}: ${e.message || "couldn't reach the sheet"}. Try again.`, true);
+    }
+  });
+}
+
 function renderReceiving() {
   renderAwaiting();
   renderHolding();
   renderExpected();
+  renderDoubleCheck();
 }
 
 registerView("receiving", {
   init(root) {
     document.getElementById("recv-filter").addEventListener("input", renderExpected);
+    document.getElementById("recv-dc-filter").addEventListener("input", renderDoubleCheck);
     document.getElementById("recv-add-save-btn").addEventListener("click", saveAddBox);
     onAction(root, {
       "recv-scan": startReceivingScan,
@@ -276,10 +369,13 @@ registerView("receiving", {
       "recv-hold-selected": holdSelected,
       "recv-import": importReceivingPaste,
       "recv-export": exportReceivingCsv,
+      "recv-tab": (el) => goTo(`receiving/${el.dataset.sub}`),
+      "recv-double-check": doubleCheckBox,
     });
   },
 
-  show() {
+  show(sub) {
+    setRecvSub(sub || recvSub);
     renderReceiving();
   },
 });

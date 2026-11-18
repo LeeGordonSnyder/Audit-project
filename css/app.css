@@ -695,3 +695,37 @@ span.todo-check.checked::after { content: none; }
 .todo-empty { padding: 12px 0; }
 .todo-done { margin-top: 6px; }
 .todo-done summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; color: var(--accent); padding: 6px 0; }
+
+/* ---------- Receiving: Double Check (leadership) ---------- */
+:root { --orange: #c25e00; --orange-bright: #f28c28; --orange-soft: #fff1e2; }
+.segmented.two { grid-template-columns: repeat(2, 1fr); }
+.recv-import { margin: 0 0 14px; }
+.recv-import > summary { color: var(--accent-dark); }
+
+.dc-shortcut {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 2px solid var(--orange-bright);
+  border-radius: var(--radius);
+  background: var(--orange-soft);
+  color: var(--orange);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dc-shortcut[hidden] { display: none; }
+.dc-title { grid-column: 1; font-weight: 800; font-size: 1rem; }
+.dc-sub { grid-column: 1; font-size: 0.85rem; font-weight: 600; opacity: 0.9; }
+.dc-go { grid-column: 2; grid-row: 1 / span 2; font-size: 1.6rem; font-weight: 700; }
+
+/* The orange "press Submit" checkpoint before Received into MAO */
+.modal-inner.modal-orange { border-top: 6px solid var(--orange-bright); background: var(--orange-soft); }
+.modal-orange h2 { color: var(--orange); }
+.modal-orange p { margin: 8px 0; }
+.modal-orange .btn { margin-top: 10px; }
+.btn-orange { background: var(--orange-bright); color: #fff; }
+.btn-orange:active { background: var(--orange); }

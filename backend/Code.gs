@@ -28,9 +28,10 @@ function isAuthorized(key) {
 }
 
 function doPost(e) {
-  const body = JSON.parse(e.postData.contents);
+  const body = neutralizeFormulas(JSON.parse(e.postData.contents));
   if (!isAuthorized(body.key)) return jsonResponse({ ok: false, error: "Unauthorized" });
   if (String(body.type).indexOf("todo") === 0) return handleTodoPost(body); // Todos.gs
+  if (body.type === "receivingdoublecheck") return handleReceivingDoubleCheck(body);
   if (body.type === "master") return handleMasterPost(body);
   if (body.type === "consolboxclose") return handleConsolBoxClose(body);
   if (body.type === "consolupdate") return handleConsolUpdate(body);
@@ -102,11 +103,11 @@ function computeDoGetResult(sheetParam) {
   const positionalSheets = {
     auditlog: ["AuditLog", AUDIT_HEADER],
     consollog: ["ConsolLog", CONSOL_LOG_HEADER],
-    receiving: ["ReceivingLog", RECEIVING_HEADER],
+    receiving: ["ReceivingLog", RECEIVING_HEADER, RECEIVING_READ_KEYS],
   };
   if (positionalSheets[sheetParam]) {
-    const [name, keys] = positionalSheets[sheetParam];
-    return sheetToObjectsByPosition(getOrCreateSheet(name, keys), keys);
+    const [name, header, keys = header] = positionalSheets[sheetParam];
+    return sheetToObjectsByPosition(getOrCreateSheet(name, header), keys);
   }
 
   // ProductMaster and ConsolMaster are hand-edited directly in Sheets --
@@ -128,6 +129,14 @@ const MASTER_HEADER = ["sku", "upc", "dept", "style", "color", "size", "descript
 const CONSOL_MASTER_HEADER = ["MATERIAL", "COLOR", "STYLE SKU", "ECC GENERIC MATERIAL", "DESTINATION", "TOTAL", "PROCESSED"];
 const CONSOL_LOG_HEADER = ["id", "entryType", "date", "initials", "eccMaterial", "description", "color", "status", "size", "actualCount", "referenceNumber", "timestamp"];
 const RECEIVING_HEADER = ["barcode", "po", "expectedDate", "physicallyReceivedDate", "physicallyReceivedBy", "receivedIntoMaoDate", "receivedIntoMaoBy", "updatedAt"];
+// ReceivingLog columns past the ones above, read but never written by the
+// import or status handlers: I is NOTES (added by hand), J and K are the
+// Double Check (when, then who), written only by handleReceivingDoubleCheck.
+const RECEIVING_READ_KEYS = RECEIVING_HEADER.concat(["notes", "doubleCheckedAt", "doubleCheckedBy"]);
+const RECEIVING_DOUBLE_CHECK_COL = 10; // J
+// Leadership: the only initials that can double check boxes. Keep in step
+// with LEADERSHIP_INITIALS in the app's js/core/store.js.
+const LEADERSHIP_INITIALS = ["SG", "SC", "OT", "JB", "AL", "MS"];
 const FEEDBACK_HEADER = ["id", "date", "initials", "feedback", "timestamp"];
 // Defensive fallback only -- FloorRestock already exists with this exact
 // header row (plus the five trailing columns staff add themselves), and
@@ -469,6 +478,36 @@ function handleReceivingStatusPost(body) {
     updated++;
   });
   return jsonResponse({ ok: true, updated: updated });
+}
+
+// A leader confirms, after looking in MAO, that a box marked Received into
+// MAO really is received there. One box per request, written straight away
+// to DOUBLE CHECKED (J) and DOUBLE CHECKED BY (K).
+function handleReceivingDoubleCheck(body) {
+  const initials = String(body.initials || "").trim().toUpperCase();
+  if (LEADERSHIP_INITIALS.indexOf(initials) === -1) {
+    return jsonResponse({ ok: false, error: "Only leadership can double check boxes." });
+  }
+  const sheet = getOrCreateSheet("ReceivingLog", RECEIVING_HEADER);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const lastRow = sheet.getLastRow();
+    const barcodes = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 1).getValues() : [];
+    const i = barcodes.findIndex((r) => String(r[0]) === String(body.barcode));
+    if (i === -1) return jsonResponse({ ok: false, error: "That box isn't in the Receiving Log." });
+    const header = sheet.getRange(1, RECEIVING_DOUBLE_CHECK_COL, 1, 2);
+    if (!header.getValues()[0].join("")) {
+      header.setValues([["DOUBLE CHECKED", "DOUBLE CHECKED BY"]]);
+      sheet.getRange(1, 1).copyFormatToRange(sheet, RECEIVING_DOUBLE_CHECK_COL, RECEIVING_DOUBLE_CHECK_COL + 1, 1, 1);
+    }
+    const at = new Date();
+    sheet.getRange(i + 2, RECEIVING_DOUBLE_CHECK_COL, 1, 2).setValues([[at, initials]]);
+    sheet.getRange(i + 2, RECEIVING_DOUBLE_CHECK_COL).setNumberFormat("m/d/yyyy h:mm am/pm");
+    return jsonResponse({ ok: true, barcode: String(body.barcode), doubleCheckedAt: at.toISOString(), doubleCheckedBy: initials });
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // Column lookup shared by every FloorRestock handler -- previously each
@@ -989,6 +1028,21 @@ function sheetToObjectsByPosition(sheet, keys) {
       keys.forEach((key, i) => (obj[key] = row[i]));
       return obj;
     });
+}
+
+// Text that starts like a formula ("=", "@", or "+"/"-" followed by a
+// letter) would become a live formula when a handler writes it to the
+// sheet, and a formula can send the sheet's data to another site (IMPORTXML,
+// IMAGE). A leading apostrophe stores it as plain text instead.
+function neutralizeFormulas(value) {
+  if (typeof value === "string") return /^(=|@|[+-][^\d\s.])/.test(value) ? "'" + value : value;
+  if (Array.isArray(value)) return value.map(neutralizeFormulas);
+  if (value && typeof value === "object") {
+    const out = {};
+    Object.keys(value).forEach((k) => (out[k] = k === "key" ? value[k] : neutralizeFormulas(value[k])));
+    return out;
+  }
+  return value;
 }
 
 function jsonResponse(obj) {

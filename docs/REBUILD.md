@@ -72,6 +72,17 @@ Outside tolerance / Not saved).
       stamps initials and time. Open tasks stay until done; done ones show for
       a day. Setup steps are in `backend/README.md`.
 
+## Added: receiving double check
+
+- [x] **Double Check** tab in Receiving, for leadership only (SG, SC, OT, JB,
+      AL, MS): boxes marked Received into MAO in the last 14 days, each
+      confirmed in MAO and ticked **Checked**. Saved straight to ReceivingLog
+      (DOUBLE CHECKED / DOUBLE CHECKED BY) and dropped from the list.
+- [x] Orange **Double Check Required** shortcut on leadership's Home.
+- [x] Orange **"Did you press Submit in MAO?"** checkpoint before marking boxes
+      Received into MAO.
+- [x] **Import from MAO** moved to the top of Receiving.
+
 ## Phase 2 — next
 
 - [ ] Configurable count tolerance (currently fixed in `exceptions.js`

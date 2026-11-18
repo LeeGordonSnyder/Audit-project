@@ -47,6 +47,11 @@ const DEFAULT_WEBHOOK_URL =
 
 const STAFF_INITIALS_FALLBACK = ["LS", "SC", "SG", "JV"];
 
+// Leadership sees the Double Check tab in Receiving and its shortcut on
+// Home. Keep in step with LEADERSHIP_INITIALS in backend/Code.gs, which
+// refuses a double check from anyone else.
+const LEADERSHIP_INITIALS = ["SG", "SC", "OT", "JB", "AL", "MS"];
+
 const TAG_LOCATIONS = ["Hood", "Below Wash Tag", "Through Wash Tag", "Tag Side Pocket", "Left Leg In-seam", "Chest Pocket", "No Hard Tag"];
 
 // Sizes offered when flagging an item "Needed" on Check Floor — tops and
@@ -132,6 +137,10 @@ function carryOverOriginalAppWork() {
 
 function currentInitials() {
   return (loadJSON(STORE.session, {}).initials || "").trim();
+}
+
+function isLeadership() {
+  return LEADERSHIP_INITIALS.includes(currentInitials().toUpperCase());
 }
 
 /* ---------- Product catalog ---------- */
@@ -389,6 +398,8 @@ function sheetRowToReceivingItem(row) {
     physicallyReceivedBy: String(row.physicallyReceivedBy ?? ""),
     receivedIntoMaoDate: String(row.receivedIntoMaoDate ?? ""),
     receivedIntoMaoBy: String(row.receivedIntoMaoBy ?? ""),
+    doubleCheckedAt: String(row.doubleCheckedAt ?? ""),
+    doubleCheckedBy: String(row.doubleCheckedBy ?? ""),
   };
 }
 
