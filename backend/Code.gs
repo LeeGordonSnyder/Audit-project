@@ -3,8 +3,9 @@
 
    The whole of Code.gs, ready to paste over the one in Extensions → Apps
    Script. It already has the hooks for the two add-ons, which live in their
-   own files in the same project: Deployment.gs (daily deployment) and
-   Todos.gs (team to-do list). See backend/README.md.
+   own files in the same project: Deployment.gs (daily deployment),
+   Todos.gs (team to-do list) and Notes.gs (daily notes). See
+   backend/README.md.
 
    Not in this file: anything added by hand to the live script, such as an
    onEdit function that stamps Supervisor Initials on AuditLog. Keep those
@@ -31,6 +32,7 @@ function doPost(e) {
   const body = neutralizeFormulas(JSON.parse(e.postData.contents));
   if (!isAuthorized(body.key)) return jsonResponse({ ok: false, error: "Unauthorized" });
   if (String(body.type).indexOf("todo") === 0) return handleTodoPost(body); // Todos.gs
+  if (String(body.type).indexOf("note") === 0) return handleNotePost(body); // Notes.gs
   if (body.type === "receivingdoublecheck") return handleReceivingDoubleCheck(body);
   if (body.type === "master") return handleMasterPost(body);
   if (body.type === "consolboxclose") return handleConsolBoxClose(body);
@@ -87,6 +89,7 @@ function doGet(e) {
 function computeDoGetResult(sheetParam) {
   if (sheetParam === "deployment") return getDeploymentForApp(); // Deployment.gs
   if (sheetParam === "todos") return getTodosForApp(); // Todos.gs
+  if (sheetParam === "notes") return getNotesForApp(); // Notes.gs
   // The staff roster (login gate dropdown) is a plain list of strings from
   // one column, not row objects, so it doesn't fit the two shared shapes
   // below -- handled separately. See getStaffInitialsList().

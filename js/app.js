@@ -34,8 +34,8 @@ function refreshSharedData() {
 }
 
 // Leads change the deployment during the day (moving breaks and roles), and
-// the team adds and ticks off to-dos, so those two are re-pulled on their
-// own, two small requests, whenever the app comes back on screen and every
+// the team adds to-dos and daily notes, so those are re-pulled on their
+// own, three small requests, whenever the app comes back on screen and every
 // few minutes while it's open. Everything else waits for ↻ as before.
 const DEPLOYMENT_STALE_MS = 2 * 60 * 1000;
 
@@ -43,10 +43,11 @@ async function refreshDeploymentIfStale() {
   if (document.hidden || !navigator.onLine || refreshing || !currentInitials()) return;
   const saved = loadJSON(STORE.deployment, null);
   if (saved && Date.now() - new Date(saved.fetchedAt).getTime() < DEPLOYMENT_STALE_MS) return;
-  await loadSharedDeployment().then(loadSharedTodos);
+  await loadSharedDeployment().then(() => Promise.all([loadSharedTodos(), loadSharedNotes()]));
   if (currentRoute.id === "home" && !document.hidden) {
     renderShiftCard();
     renderTodos();
+    renderDailyNotes();
   }
 }
 

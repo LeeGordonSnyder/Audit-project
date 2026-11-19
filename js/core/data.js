@@ -231,6 +231,23 @@ function saveTodos(todos) {
   saveJSON(STORE.todos, { todos, fetchedAt: new Date().toISOString() });
 }
 
+// Daily notes (Notes.gs add-on): the last 90 days, with comments. Hidden
+// without the add-on, and never counted toward "fully synced".
+async function loadSharedNotes() {
+  try {
+    const data = await fetchFromSheet("notes", { retries: 1 });
+    if (!data || Array.isArray(data) || !Array.isArray(data.notes)) return false;
+    saveNotes(data.notes);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function saveNotes(notes) {
+  saveJSON(STORE.notes, { notes, fetchedAt: new Date().toISOString() });
+}
+
 // Pulls every shared sheet at once. Records when the last fully
 // successful pull happened so Home can say how fresh its numbers are.
 // Resolves to { ok, unauthorized }.
@@ -238,7 +255,7 @@ async function loadAllShared() {
   const [, ...results] = await Promise.all([
     // the deployment pull can move the phone onto the store's main link, so
     // the to-do list waits for it and uses the same link
-    loadSharedDeployment().then(loadSharedTodos),
+    loadSharedDeployment().then(() => Promise.all([loadSharedTodos(), loadSharedNotes()])),
     loadSharedProductMaster(),
     loadSharedAuditLog(),
     loadSharedConsolMaster(),

@@ -150,4 +150,5 @@ const api = {
   floorRestockAdd: (p) => postToSheet({ type: "floorrestockadd", ...p }),
   feedback: (p) => postToSheet({ type: "feedback", ...p }),
   todo: (type, p) => postToSheet({ type, initials: currentInitials(), ...p }),
+  note: (type, p) => postToSheet({ type, initials: currentInitials(), ...p }),
 };

@@ -18,7 +18,7 @@
   <img src="icons/icon-192.png" alt="" class="topbar-logo">
   <h1>Oakridge Product Suite
     <!-- Bump with sw.js CACHE_VERSION on every shipped change. -->
-    <span class="header-version" id="header-version">v2.4.1</span>
+    <span class="header-version" id="header-version">v2.5.0</span>
   </h1>
   <span id="offline-badge" class="badge" hidden>Offline</span>
   <div class="topbar-actions">
@@ -80,6 +80,19 @@
           <ul class="todo-list"></ul>
         </details>
       </div>
+    </div>
+
+    <div id="home-notes-wrap" hidden>
+      <div class="section-head notes-head">
+        <h3>Daily notes</h3>
+        <div class="notes-nav">
+          <button type="button" id="notes-prev" class="notes-arrow" data-action="notes-prev" aria-label="Previous day">‹</button>
+          <button type="button" id="notes-day" class="notes-day" data-action="notes-today" title="Back to today">Today</button>
+          <button type="button" id="notes-next" class="notes-arrow" data-action="notes-next" aria-label="Next day">›</button>
+        </div>
+      </div>
+      <p id="notes-status" class="status-msg" role="status"></p>
+      <div id="home-notes" class="notes"></div>
     </div>
 
     <div class="section-head">
@@ -561,6 +574,7 @@
 <script src="js/modules/login.js"></script>
 <script src="js/modules/settings.js"></script>
 <script src="js/modules/home.js"></script>
+<script src="js/modules/notes.js"></script>
 <script src="js/modules/catalog.js"></script>
 <script src="js/modules/counts.js"></script>
 <script src="js/modules/consol.js"></script>

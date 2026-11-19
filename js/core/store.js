@@ -31,6 +31,8 @@ const STORE = {
   deploymentPick: "ops2.deploymentPick", // { initials: name } when two people share initials
   doubleCheckReady: "ops2.doubleCheckReady", // the sheet's Code.gs has the receiving double check
   todos: "ops2.todos",
+  notes: "ops2.notes",
+  noteDrafts: "ops2.noteDrafts", // { "YYYY-MM-DD": { done, todo, involved } } until posted
 };
 
 const LEGACY_KEYS = {

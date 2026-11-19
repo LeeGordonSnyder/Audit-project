@@ -72,6 +72,13 @@ Outside tolerance / Not saved).
       stamps initials and time. Open tasks stay until done; done ones show for
       a day. Setup steps are in `backend/README.md`.
 
+## Added: daily notes
+
+- [x] `backend/Notes.gs`: **Daily notes** on Home. Two sections (Tasks
+      completed, Needs to be done), date and writer filled in, others involved
+      picked from the roster, Post / Edit / Comment, ‹ › through 90 days,
+      yesterday's "Needs to be done" shown on today, drafts kept on the phone.
+
 ## Added: receiving double check
 
 - [x] **Double Check** tab in Receiving, for leadership only (SG, SC, OT, JB,

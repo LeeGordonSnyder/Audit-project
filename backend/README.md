@@ -9,6 +9,7 @@ one here is the complete file, ready to paste over the one in
 | `Code.gs` | The app's backend: every read and write the app makes. Already has the hooks for the two files below. |
 | `Deployment.gs` | The daily deployment tab, built from When I Work. |
 | `Todos.gs` | The team to-do list. |
+| `Notes.gs` | Daily notes on Home. New: add it with **+ → Script**, named `Notes`. |
 
 **Updating:** paste each file in full, save, then **Deploy → Manage
 deployments** → edit (pencil) → *Version:* **New version** → **Deploy**. Keep
@@ -76,6 +77,22 @@ working exactly as before.
 8. **Build the first day.** Choose **Deployment → Build today's deployment**.
 9. **Turn on the daily build.** Choose **Deployment → Turn on daily auto-build**.
    From then on the tab builds itself around 5am every day.
+
+## Add-on: daily notes
+
+`Notes.gs` adds **Daily notes** to the app's Home screen: shift notes with
+two sections, **Tasks completed** and **Needs to be done**, the day and the
+writer filled in, and who else was involved. ‹ › step back through the last 90
+days. Anyone can **Edit** a note (stamped with who and when) or **Comment** on
+it. On today's notes, yesterday's "Needs to be done" is shown at the top.
+
+Notes are kept on a **Daily Notes** tab (one row per note) and comments on a
+**Note Comments** tab. Both are created with the first post. Older notes stay on
+the tab after they leave the app's 90 days.
+
+**Install:** add `Notes.gs` as a new script file, paste the full `Code.gs`
+(it already has the two lines that call it), then deploy a **New version**.
+Until then the app hides Daily notes.
 
 ## Add-on: team to-do list
 

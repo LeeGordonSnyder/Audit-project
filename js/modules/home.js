@@ -293,6 +293,7 @@ registerView("home", {
       const sel = e.target.closest(".todo-reassign");
       if (sel) todoSend(null, "todoassign", { id: sel.dataset.id, assignedTo: sel.value }, "reassigned").then((ok) => ok || renderTodos());
     });
+    initDailyNotes();
     document.getElementById("todo-task").addEventListener("keydown", (e) => {
       if (e.key === "Enter") addTodo(root.querySelector('[data-action="todo-add"]'));
     });
@@ -307,6 +308,7 @@ registerView("home", {
     renderShiftCard();
     renderDoubleCheckShortcut();
     renderTodos();
+    renderDailyNotes();
 
     const lastSync = loadJSON(STORE.lastSync, null);
     document.getElementById("home-freshness").textContent = lastSync
