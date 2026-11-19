@@ -288,6 +288,9 @@ let recvSub = "log";
 
 function setRecvSub(sub) {
   const lead = canDoubleCheck();
+  // A leader on a sheet whose Code.gs predates the double check: say why
+  // the tab isn't there, rather than leave them looking for it.
+  document.getElementById("recv-dc-pending").hidden = lead || !isLeadership();
   recvSub = lead && RECV_SUBS.includes(sub) ? sub : "log";
   document.getElementById("recv-tabs").hidden = !lead;
   document.querySelectorAll("#recv-tabs [data-sub]").forEach((b) => {

@@ -148,7 +148,10 @@ async function loadSharedReceivingMaster() {
     const rows = await fetchFromSheet("receiving");
     if (!Array.isArray(rows)) return false;
     saveJSON(STORE.receivingMaster, rows.map(sheetRowToReceivingItem));
-    if (rows.length) saveJSON(STORE.doubleCheckReady, "doubleCheckedAt" in rows[0]);
+    // The Code.gs with the double check reads past column H. Google leaves
+    // out empty trailing columns, so DOUBLE CHECKED (J) may be missing until
+    // the first check; NOTES (I) shows the newer Code.gs just as well.
+    if (rows.length) saveJSON(STORE.doubleCheckReady, rows.some((r) => "doubleCheckedAt" in r || "notes" in r));
     return true;
   } catch (e) {
     return isUnauthorized(e) ? "unauthorized" : false;

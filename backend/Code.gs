@@ -1025,7 +1025,8 @@ function sheetToObjectsByPosition(sheet, keys) {
     .filter((row) => row[0] !== "")
     .map((row) => {
       const obj = {};
-      keys.forEach((key, i) => (obj[key] = row[i]));
+      // a column past the sheet's last filled one comes back blank, not missing
+      keys.forEach((key, i) => (obj[key] = row[i] === undefined ? "" : row[i]));
       return obj;
     });
 }
